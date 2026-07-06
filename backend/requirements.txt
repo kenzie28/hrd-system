@@ -1,0 +1,4 @@
+Django>=5.2,<6.0
+djangorestframework>=3.17
+django-cors-headers>=4.9
+pymysql>=1.1

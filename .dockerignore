@@ -1,0 +1,15 @@
+**/.git
+**/.venv
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.env
+**/.env.*
+!**/.env.example
+**/db.sqlite3
+**/.DS_Store
+admin-frontend/dist
+portal-frontend/dist
+backend/staticfiles
+*.md
+!DEPLOYMENT.md

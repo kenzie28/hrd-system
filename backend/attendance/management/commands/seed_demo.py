@@ -6,15 +6,17 @@ from django.core.management.base import BaseCommand
 
 from attendance.models import (
     Absensi,
-    Cuti,
     Jadwal,
     Liburan,
-    PermohonanCuti,
     Shift,
+)
+from core.models import Karyawan, Lokasi
+from cuti.models import (
+    Cuti,
+    PermohonanCuti,
     StatusPermohonanCuti,
     TipeCuti,
 )
-from core.models import Karyawan, Lokasi
 
 
 class Command(BaseCommand):
@@ -35,17 +37,31 @@ class Command(BaseCommand):
         cabang, _ = Lokasi.objects.get_or_create(id='02', defaults={'nama': 'Cabang Bandung'})
         lokasi_list = [kantor, cabang]
 
+        # (nama, shift, level). The first employee is a level-5 supervisor so
+        # the level 1-4 requesters below may pick them (see cuti.policy).
         nama_karyawan = [
-            ('Andi Wijaya', pagi),
-            ('Budi Santoso', pagi),
-            ('Citra Lestari', siang),
-            ('Dewi Anggraini', siang),
-            ('Eko Prasetyo', sore),
+            ('Andi Wijaya', pagi, 5),
+            ('Budi Santoso', pagi, 1),
+            ('Citra Lestari', siang, 2),
+            ('Dewi Anggraini', siang, 3),
+            ('Eko Prasetyo', sore, 4),
         ]
         karyawan_list = []
-        for nama, shift in nama_karyawan:
-            k, _ = Karyawan.objects.get_or_create(nama=nama, defaults={'default_shift': shift})
+        for i, (nama, shift, level) in enumerate(nama_karyawan, start=1):
+            k, created = Karyawan.objects.get_or_create(
+                karyawan_id=str(i).zfill(7),
+                defaults={'nama': nama, 'default_shift': shift, 'level': level},
+            )
+            if not created and k.level != level:
+                k.level = level
+                k.save(update_fields=['level'])
             karyawan_list.append((k, shift))
+
+        # HRD approver used by the admin-frontend allowlist (core.access).
+        Karyawan.objects.update_or_create(
+            karyawan_id='9610003',
+            defaults={'nama': 'RINI KURNIASIH', 'level': 8},
+        )
 
         supervisor = karyawan_list[0][0]
 

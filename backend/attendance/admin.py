@@ -2,10 +2,8 @@ from django.contrib import admin
 
 from .models import (
     Absensi,
-    Cuti,
     Jadwal,
     Liburan,
-    PermohonanCuti,
     RekapKehadiran,
     Shift,
 )
@@ -26,18 +24,6 @@ class JadwalAdmin(admin.ModelAdmin):
 class AbsensiAdmin(admin.ModelAdmin):
     list_display = ['id', 'karyawan', 'lokasi', 'tanggal', 'jam_masuk', 'durasi', 'jam_keluar']
     list_filter = ['tanggal', 'lokasi']
-
-
-@admin.register(PermohonanCuti)
-class PermohonanCutiAdmin(admin.ModelAdmin):
-    list_display = ['id', 'karyawan', 'tipe', 'tanggal_mulai', 'tanggal_selesai', 'status', 'supervisor']
-    list_filter = ['tipe', 'status']
-
-
-@admin.register(Cuti)
-class CutiAdmin(admin.ModelAdmin):
-    list_display = ['id', 'permohonan', 'tanggal', 'karyawan', 'tipe']
-    list_filter = ['tanggal', 'permohonan__tipe']
 
 
 @admin.register(RekapKehadiran)

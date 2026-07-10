@@ -4,10 +4,9 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Absensi, Cuti, Jadwal, Liburan, RekapKehadiran, Shift
+from .models import Absensi, Jadwal, Liburan, RekapKehadiran, Shift
 from .serializers import (
     AbsensiSerializer,
-    CutiSerializer,
     JadwalBulkSerializer,
     JadwalSerializer,
     LiburanSerializer,
@@ -81,20 +80,6 @@ class AbsensiViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Absensi.objects.select_related('karyawan', 'lokasi')
         return _apply_common_filters(qs, self.request.query_params)
-
-
-class CutiViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = CutiSerializer
-
-    def get_queryset(self):
-        qs = Cuti.objects.select_related(
-            'permohonan__karyawan', 'permohonan__supervisor'
-        )
-        return _apply_common_filters(
-            qs,
-            self.request.query_params,
-            karyawan_field='permohonan__karyawan_id',
-        )
 
 
 class RekapKehadiranViewSet(viewsets.ReadOnlyModelViewSet):

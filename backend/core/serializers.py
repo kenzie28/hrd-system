@@ -12,4 +12,13 @@ class LokasiSerializer(serializers.ModelSerializer):
 class KaryawanSerializer(serializers.ModelSerializer):
     class Meta:
         model = Karyawan
-        fields = ['id', 'nama', 'default_shift']
+        fields = [
+            'id',
+            'karyawan_id',
+            'nama',
+            'lokasi_kerja',
+            'jabatan',
+            'wilayah',
+            'level',
+            'default_shift',
+        ]

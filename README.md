@@ -13,9 +13,14 @@ HR attendance management with a Django REST API backend and a React (Vite + Type
 ## Project layout
 
 ```
-backend/    Django + DRF API (SQLite)
-frontend/   Vite + React + TypeScript + Ant Design
+backend/          Django + DRF API (SQLite)
+admin-frontend/   Vite + React + TypeScript + Ant Design (HR admin UI)
+portal-frontend/  Vite + React + TypeScript + Ant Design (employee self-service portal)
 ```
+
+## Production deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for Docker + Google Cloud Run setup.
 
 ## Backend setup
 
@@ -63,16 +68,50 @@ POST /api/rekap/process/  {"tanggal_mulai": "2026-07-01", "tanggal_selesai": "20
 | `/api/rekap/` | GET only | plus `POST /api/rekap/process/` |
 | `/api/karyawan/`, `/api/lokasi/`, `/api/liburan/` | GET only | reference data |
 
-Karyawan, Lokasi, Liburan, PermohonanCuti, and Cuti records are managed through the Django admin (`/admin/`, create a superuser with `manage.py createsuperuser`).
+Karyawan, Lokasi, Liburan, PermohonanCuti, and Cuti records are managed through the Django admin at `/django-admin/` (create a superuser with `manage.py createsuperuser`).
+
+### Employee portal login
+
+Each `Karyawan` has a unique 7-digit `karyawan_id` used as the portal login, a linked Django `User` (which holds the hashed password), and a `must_change_password` flag. The default password is `123`, and employees are forced to change it on first login.
+
+Create/reset portal logins with the management command:
+
+```bash
+.venv/bin/python manage.py create_portal_logins        # only Karyawan without a login
+.venv/bin/python manage.py create_portal_logins --all  # reset every Karyawan's login/password
+```
+
+New `Karyawan` created afterwards get a portal login automatically (via a `post_save` signal).
+
+Portal API endpoints (token auth):
+
+| Endpoint | Methods | Notes |
+|---|---|---|
+| `/api/portal/login/` | POST | `{karyawan_id, password}` -> `{token, must_change_password, karyawan}` |
+| `/api/portal/me/` | GET | current employee (requires `Authorization: Token <token>`) |
+| `/api/portal/change-password/` | POST | `{new_password}`; clears `must_change_password`, rotates token |
+| `/api/portal/gaji/` | GET | `?bulan=YYYY-MM`; salary breakdown (empty placeholder for now) |
 
 ## Frontend setup
 
+Both frontends default the API base URL to `http://localhost:8000/api`; override with a `VITE_API_URL` env var if needed.
+
+### Admin frontend
+
 ```bash
-cd frontend
+cd admin-frontend
 npm install
 npm run dev                                   # http://localhost:5173
 ```
 
-The API base URL defaults to `http://localhost:8000/api`; override with a `VITE_API_URL` env var if needed.
-
 The UI is a single page with tabs (Shift, Jadwal, Absensi, Cuti, Rekap Kehadiran). Jadwal, Cuti, and Rekap share a reusable view toggle: **Table** and **Calendar**.
+
+### Employee portal frontend
+
+```bash
+cd portal-frontend
+npm install
+npm run dev                                   # http://localhost:5174
+```
+
+Employees log in with their `karyawan_id` + password (default `123`), are prompted to set a new password on first login, then reach a home page with module cards. Currently **Gaji** (pick a month to view the salary breakdown — empty for now) and **Cuti** (placeholder).

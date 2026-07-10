@@ -9,7 +9,7 @@ from core.models import Karyawan, Lokasi
 
 class AbsensiKeluarHariOffsetTests(TestCase):
     def setUp(self):
-        self.karyawan = Karyawan.objects.create(nama='Test')
+        self.karyawan = Karyawan.objects.create(karyawan_id='0000999', nama='Test', level=1)
         self.lokasi = Lokasi.objects.create(id='HQ', nama='HQ')
 
     def _make_absensi(self, tanggal, jam_masuk, durasi):

@@ -3,14 +3,14 @@ from datetime import datetime, timedelta
 
 from django.db import transaction
 
+from cuti.models import Cuti, TipeCuti
+
 from .models import (
     Absensi,
-    Cuti,
     Jadwal,
     Liburan,
     RekapKehadiran,
     StatusRekapKehadiran,
-    TipeCuti,
 )
 
 CUTI_TIPE_TO_STATUS = {

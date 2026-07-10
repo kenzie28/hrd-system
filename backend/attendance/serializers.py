@@ -1,6 +1,8 @@
 from rest_framework import serializers
 
-from .models import Absensi, Cuti, Jadwal, Liburan, RekapKehadiran, Shift
+from cuti.serializers import CutiSerializer
+
+from .models import Absensi, Jadwal, Liburan, RekapKehadiran, Shift
 
 
 class ShiftSerializer(serializers.ModelSerializer):
@@ -46,27 +48,6 @@ class AbsensiSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'karyawan', 'karyawan_nama', 'lokasi', 'lokasi_nama',
             'tanggal', 'jam_masuk', 'durasi', 'jam_keluar', 'keluar_hari_offset',
-        ]
-
-
-class CutiSerializer(serializers.ModelSerializer):
-    karyawan = serializers.IntegerField(source='permohonan.karyawan_id', read_only=True)
-    karyawan_nama = serializers.CharField(
-        source='permohonan.karyawan.nama', read_only=True
-    )
-    tipe = serializers.CharField(source='permohonan.tipe', read_only=True)
-    tipe_display = serializers.CharField(
-        source='permohonan.get_tipe_display', read_only=True
-    )
-    supervisor_nama = serializers.CharField(
-        source='permohonan.supervisor.nama', read_only=True, default=None
-    )
-
-    class Meta:
-        model = Cuti
-        fields = [
-            'id', 'permohonan', 'tanggal', 'karyawan', 'karyawan_nama',
-            'tipe', 'tipe_display', 'supervisor_nama',
         ]
 
 

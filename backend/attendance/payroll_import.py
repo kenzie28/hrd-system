@@ -141,6 +141,10 @@ def _build_nama_lookup(rows: list[dict[str, Any]]) -> dict[str, str]:
     return lookup
 
 
+def _format_karyawan_id(payroll_id: str) -> str:
+    return str(payroll_id).strip().zfill(7)[-7:]
+
+
 def _get_or_create_karyawan(
     payroll_id: str,
     nama_lookup: dict[str, str],
@@ -156,17 +160,25 @@ def _get_or_create_karyawan(
     if not nama:
         return None
 
+    karyawan_id = _format_karyawan_id(payroll_id)
+
     if dry_run:
-        karyawan = Karyawan.objects.filter(nama=nama).first()
+        karyawan = Karyawan.objects.filter(karyawan_id=karyawan_id).first()
         if karyawan is None:
             result.karyawan_created += 1
-            karyawan_map[payroll_id] = Karyawan(nama=nama)
+            karyawan_map[payroll_id] = Karyawan(karyawan_id=karyawan_id, nama=nama)
         else:
             result.karyawan_existing += 1
             karyawan_map[payroll_id] = karyawan
         return karyawan_map[payroll_id]
 
-    karyawan, created = Karyawan.objects.get_or_create(nama=nama)
+    karyawan, created = Karyawan.objects.get_or_create(
+        karyawan_id=karyawan_id,
+        defaults={'nama': nama},
+    )
+    if not created and karyawan.nama != nama:
+        karyawan.nama = nama
+        karyawan.save(update_fields=['nama'])
     karyawan_map[payroll_id] = karyawan
     if created:
         result.karyawan_created += 1

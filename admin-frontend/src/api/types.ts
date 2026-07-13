@@ -196,4 +196,6 @@ export interface GajiImportResult {
   updated: number
   karyawan_created: number
   errors: GajiImportError[]
+  received_headers: string[]
+  required_columns: string[]
 }

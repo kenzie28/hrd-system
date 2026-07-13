@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import axios from 'axios'
 import { api } from './client'
 import type {
   Absensi,
@@ -209,6 +210,28 @@ export function useGajiTemp(filters?: RecordFilters) {
   })
 }
 
+function isGajiImportResult(data: unknown): data is GajiImportResult {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'errors' in data &&
+    Array.isArray((data as GajiImportResult).errors)
+  )
+}
+
+function gajiImportFailure(message: string): GajiImportResult {
+  return {
+    ok: false,
+    total_rows: 0,
+    created: 0,
+    updated: 0,
+    karyawan_created: 0,
+    errors: [{ row: 0, message }],
+    received_headers: [],
+    required_columns: [],
+  }
+}
+
 export function useGajiImport() {
   const qc = useQueryClient()
   return useMutation({
@@ -216,10 +239,23 @@ export function useGajiImport() {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('upsert_karyawan', String(upsertKaryawan))
-      const response = await api.post<GajiImportResult>('/admin/gaji/import/', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      return response.data
+      try {
+        const response = await api.post<GajiImportResult>('/admin/gaji/import/', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        return response.data
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.data) {
+          if (isGajiImportResult(err.response.data)) {
+            return err.response.data
+          }
+          const detail = (err.response.data as { detail?: string }).detail
+          if (detail) {
+            return gajiImportFailure(detail)
+          }
+        }
+        throw err
+      }
     },
     onSuccess: (result) => {
       if (result.ok) {

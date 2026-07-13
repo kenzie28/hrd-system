@@ -1,5 +1,3 @@
-from dataclasses import asdict
-
 from rest_framework import status, viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.parsers import MultiPartParser
@@ -11,7 +9,12 @@ from core.permissions import IsAdminAllowed
 
 from .models import GajiTemp
 from .serializers import GajiTempSerializer
-from .services import import_gaji_csv
+from .services import (
+    GajiImportError,
+    GajiImportResult,
+    import_gaji_csv,
+    serialize_gaji_import_result,
+)
 
 
 def _apply_common_filters(queryset, params):
@@ -55,7 +58,13 @@ class AdminGajiImportView(APIView):
                 hint='Kirim multipart/form-data dengan field "file" berisi CSV.',
             )
             return Response(
-                {'detail': 'File CSV wajib diunggah.'},
+                serialize_gaji_import_result(
+                    GajiImportResult(
+                        errors=[
+                            GajiImportError(0, 'File CSV wajib diunggah.'),
+                        ],
+                    )
+                ),
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -89,6 +98,4 @@ class AdminGajiImportView(APIView):
                 upsert_karyawan=upsert_karyawan,
             )
 
-        data = asdict(result)
-        data['ok'] = result.ok
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(serialize_gaji_import_result(result), status=status.HTTP_200_OK)

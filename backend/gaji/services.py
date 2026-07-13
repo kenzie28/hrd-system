@@ -74,10 +74,25 @@ class GajiImportResult:
     updated: int = 0
     karyawan_created: int = 0
     errors: list[GajiImportError] = field(default_factory=list)
+    received_headers: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
         return not self.errors
+
+
+def serialize_gaji_import_result(result: GajiImportResult) -> dict:
+    """JSON-serializable import outcome for the admin-frontend."""
+    return {
+        'ok': result.ok,
+        'total_rows': result.total_rows,
+        'created': result.created,
+        'updated': result.updated,
+        'karyawan_created': result.karyawan_created,
+        'errors': [{'row': e.row, 'message': e.message} for e in result.errors],
+        'received_headers': result.received_headers,
+        'required_columns': REQUIRED_COLUMNS,
+    }
 
 
 def _strip_quote(value: str) -> str:
@@ -318,6 +333,7 @@ def import_gaji_csv(fileobj, *, upsert_karyawan: bool = True) -> GajiImportResul
 
     missing = [c for c in REQUIRED_COLUMNS if not _header_has_column(header, c)]
     if missing:
+        result.received_headers = [h for h in header if h]
         result.errors.append(
             GajiImportError(0, f'Kolom wajib tidak ditemukan: {", ".join(missing)}')
         )

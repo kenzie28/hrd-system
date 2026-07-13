@@ -210,26 +210,68 @@ export function useGajiTemp(filters?: RecordFilters) {
   })
 }
 
+function normalizeGajiImportResult(data: Partial<GajiImportResult> & { ok?: boolean }): GajiImportResult {
+  const errors = Array.isArray(data.errors)
+    ? data.errors.map((e) => ({
+        row: typeof e?.row === 'number' ? e.row : 0,
+        message: String(e?.message ?? 'Error tidak diketahui.'),
+      }))
+    : []
+
+  return {
+    ok: Boolean(data.ok),
+    total_rows: data.total_rows ?? 0,
+    created: data.created ?? 0,
+    updated: data.updated ?? 0,
+    karyawan_created: data.karyawan_created ?? 0,
+    errors,
+    received_headers: Array.isArray(data.received_headers) ? data.received_headers : [],
+    required_columns: Array.isArray(data.required_columns) ? data.required_columns : [],
+  }
+}
+
 function isGajiImportResult(data: unknown): data is GajiImportResult {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    'errors' in data &&
-    Array.isArray((data as GajiImportResult).errors)
-  )
+  return typeof data === 'object' && data !== null && 'errors' in data
 }
 
 function gajiImportFailure(message: string): GajiImportResult {
-  return {
+  return normalizeGajiImportResult({
     ok: false,
-    total_rows: 0,
-    created: 0,
-    updated: 0,
-    karyawan_created: 0,
     errors: [{ row: 0, message }],
-    received_headers: [],
-    required_columns: [],
+  })
+}
+
+function parseImportError(err: unknown): GajiImportResult {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data
+    if (isGajiImportResult(data)) {
+      return normalizeGajiImportResult(data)
+    }
+    if (typeof data === 'string' && data.trim()) {
+      return gajiImportFailure(data)
+    }
+    if (typeof data === 'object' && data !== null) {
+      const record = data as Record<string, unknown>
+      if (typeof record.detail === 'string' && record.detail) {
+        return gajiImportFailure(record.detail)
+      }
+      if (Array.isArray(record.detail)) {
+        return gajiImportFailure(record.detail.map(String).join(' '))
+      }
+      if (typeof record.message === 'string' && record.message) {
+        return gajiImportFailure(record.message)
+      }
+    }
+    if (err.response?.status) {
+      return gajiImportFailure(
+        `Server mengembalikan status ${err.response.status}. Periksa koneksi atau hubungi admin.`,
+      )
+    }
+    if (err.message) {
+      return gajiImportFailure(err.message)
+    }
   }
+  return gajiImportFailure('Gagal mengunggah file CSV. Periksa koneksi atau coba lagi.')
 }
 
 export function useGajiImport() {
@@ -240,21 +282,10 @@ export function useGajiImport() {
       formData.append('file', file)
       formData.append('upsert_karyawan', String(upsertKaryawan))
       try {
-        const response = await api.post<GajiImportResult>('/admin/gaji/import/', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        })
-        return response.data
+        const response = await api.post<GajiImportResult>('/admin/gaji/import/', formData)
+        return normalizeGajiImportResult(response.data)
       } catch (err) {
-        if (axios.isAxiosError(err) && err.response?.data) {
-          if (isGajiImportResult(err.response.data)) {
-            return err.response.data
-          }
-          const detail = (err.response.data as { detail?: string }).detail
-          if (detail) {
-            return gajiImportFailure(detail)
-          }
-        }
-        throw err
+        return parseImportError(err)
       }
     },
     onSuccess: (result) => {

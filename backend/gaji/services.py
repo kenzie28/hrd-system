@@ -19,6 +19,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 
+from core.debug_log import debug_error, debug_exception
 from core.models import Karyawan
 
 from .models import GajiTemp
@@ -263,14 +264,71 @@ def _resolve_karyawan(
     return Karyawan.objects.filter(karyawan_id=parsed.karyawan_id).first(), False
 
 
+def _debug_import_failure(result: GajiImportResult, *, upsert_karyawan: bool, **context) -> None:
+    if result.ok:
+        return
+    sample = [f'baris {e.row}: {e.message}' for e in result.errors[:5]]
+    debug_error(
+        'gaji_csv_import',
+        f'Import gagal dengan {len(result.errors)} error pada {result.total_rows} baris.',
+        upsert_karyawan=upsert_karyawan,
+        sample_errors='; '.join(sample) if sample else '(tidak ada)',
+        hint=(
+            'Pastikan file mengikuti format gaji-input.csv (UTF-8), kolom wajib ada, '
+            'NO.ID dan Periode (YYYYMM) valid. Jika karyawan tidak ditemukan, aktifkan '
+            'upsert karyawan di halaman import atau buat karyawan lewat admin.'
+        ),
+        **context,
+    )
+
+
 def import_gaji_csv(fileobj, *, upsert_karyawan: bool = True) -> GajiImportResult:
     result = GajiImportResult()
-    header, raw_rows = _read_rows(fileobj)
+    try:
+        header, raw_rows = _read_rows(fileobj)
+    except UnicodeDecodeError as exc:
+        result.errors.append(
+            GajiImportError(0, 'File CSV bukan UTF-8 yang valid.')
+        )
+        debug_exception(
+            'gaji_csv_read',
+            'Gagal mendekode file CSV — encoding tidak dikenali.',
+            exc,
+            hint='Simpan ulang file sebagai UTF-8 (Excel: Save As → CSV UTF-8).',
+        )
+        return result
+    except Exception as exc:
+        result.errors.append(GajiImportError(0, f'Gagal membaca file CSV: {exc}'))
+        debug_exception(
+            'gaji_csv_read',
+            'Gagal membaca file CSV.',
+            exc,
+            hint='Periksa apakah file benar-benar CSV teks, bukan Excel (.xlsx) yang di-rename.',
+        )
+        return result
+
+    if not header:
+        result.errors.append(GajiImportError(0, 'File CSV kosong atau tidak memiliki header.'))
+        debug_error(
+            'gaji_csv_read',
+            'File CSV kosong atau tanpa baris header.',
+            hint='File harus memiliki baris header seperti gaji-input.csv di root repo.',
+        )
+        return result
 
     missing = [c for c in REQUIRED_COLUMNS if not _header_has_column(header, c)]
     if missing:
         result.errors.append(
             GajiImportError(0, f'Kolom wajib tidak ditemukan: {", ".join(missing)}')
+        )
+        debug_error(
+            'gaji_csv_header',
+            f'Kolom wajib hilang: {", ".join(missing)}',
+            received_headers=', '.join(h for h in header if h),
+            hint=(
+                'Header harus cocok persis dengan export payroll HRD '
+                f'(mis. {COL_NO_ID!r}, {COL_PERIODE!r}). Spasi ekstra di header bisa menyebabkan mismatch.'
+            ),
         )
         return result
 
@@ -285,6 +343,7 @@ def import_gaji_csv(fileobj, *, upsert_karyawan: bool = True) -> GajiImportResul
             parsed_rows.append(parsed)
 
     if result.errors:
+        _debug_import_failure(result, upsert_karyawan=upsert_karyawan, phase='row_validation')
         return result
 
     with transaction.atomic():
@@ -309,6 +368,9 @@ def import_gaji_csv(fileobj, *, upsert_karyawan: bool = True) -> GajiImportResul
 
         if result.errors:
             transaction.set_rollback(True)
+            _debug_import_failure(
+                result, upsert_karyawan=upsert_karyawan, phase='karyawan_resolution'
+            )
             return result
 
         for parsed in parsed_rows:

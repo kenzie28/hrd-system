@@ -6,6 +6,7 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.debug_log import debug_error, debug_exception
 from core.permissions import IsAdminAllowed
 
 from .models import GajiTemp
@@ -47,6 +48,12 @@ class AdminGajiImportView(APIView):
     def post(self, request):
         upload = request.FILES.get('file')
         if upload is None:
+            debug_error(
+                'gaji_import_post',
+                'Request tanpa file CSV.',
+                content_type=request.content_type,
+                hint='Kirim multipart/form-data dengan field "file" berisi CSV.',
+            )
             return Response(
                 {'detail': 'File CSV wajib diunggah.'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -58,7 +65,30 @@ class AdminGajiImportView(APIView):
             'yes',
         )
 
-        result = import_gaji_csv(upload, upsert_karyawan=upsert_karyawan)
+        try:
+            result = import_gaji_csv(upload, upsert_karyawan=upsert_karyawan)
+        except Exception as exc:
+            debug_exception(
+                'gaji_import_post',
+                'Import CSV gagal dengan exception tak terduga.',
+                exc,
+                filename=getattr(upload, 'name', None),
+                size=getattr(upload, 'size', None),
+                upsert_karyawan=upsert_karyawan,
+                hint='Periksa log Cloud Run; aktifkan ./deploy.sh --debug untuk detail lebih lanjut.',
+            )
+            raise
+
+        if not result.ok:
+            debug_error(
+                'gaji_import_post',
+                'Import selesai dengan error validasi — tidak ada data disimpan.',
+                filename=getattr(upload, 'name', None),
+                total_rows=result.total_rows,
+                error_count=len(result.errors),
+                upsert_karyawan=upsert_karyawan,
+            )
+
         data = asdict(result)
         data['ok'] = result.ok
         return Response(data, status=status.HTTP_200_OK)

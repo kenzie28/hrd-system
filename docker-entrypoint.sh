@@ -23,10 +23,14 @@ if [ -n "${DJANGO_SUPERUSER_USERNAME}" ] && [ -n "${DJANGO_SUPERUSER_PASSWORD}" 
 fi
 
 echo "==> Starting gunicorn..."
+GUNICORN_LOG_LEVEL="${GUNICORN_LOG_LEVEL:-info}"
 gunicorn config.wsgi:application \
     --bind 127.0.0.1:8000 \
     --workers 2 \
-    --timeout 120 &
+    --timeout 120 \
+    --log-level "${GUNICORN_LOG_LEVEL}" \
+    --access-logfile - \
+    --error-logfile - &
 
 echo "==> Starting nginx on port 8080..."
 exec nginx -g 'daemon off;'

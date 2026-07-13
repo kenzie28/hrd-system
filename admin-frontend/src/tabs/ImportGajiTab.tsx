@@ -71,8 +71,9 @@ export function ImportGajiTab() {
         onChange={(e) => setUpsertKaryawan(e.target.checked)}
         style={{ marginBottom: 16 }}
       >
-        Upsert data karyawan dari CSV (nama, jabatan, lokasi kerja — buat karyawan baru dengan
-        level 1 jika belum ada). <strong>Fitur sementara untuk testing, akan dihapus.</strong>
+        Upsert data karyawan dari CSV (nama, jabatan, lokasi kerja, level dari kolom Gol —
+        buat karyawan baru dengan level 1 jika Gol kosong).{' '}
+        <strong>Fitur sementara untuk testing, akan dihapus.</strong>
       </Checkbox>
 
       <Upload.Dragger {...uploadProps} disabled={gajiImport.isPending}>

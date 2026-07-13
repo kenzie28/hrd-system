@@ -29,14 +29,15 @@ class GajiTemp(models.Model):
     # Non-target ("UMP+") pay for days not covered by the target incentive.
     rate_non_target = models.PositiveIntegerField(default=0)
 
-    gaji_pokok = models.PositiveIntegerField(default=0)
+    gaji_pokok = models.IntegerField(default=0)
 
     # Meal allowance.
     rate_uang_makan = models.PositiveIntegerField(default=35000)
 
     # Overtime ("Lembur", in 6-hour blocks) — kept as Decimal since the
     # source data has fractional block counts (e.g. 0.68, 15.72).
-    freq_lembur_6_jam = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    freq_lembur_6_jam = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0)
     rate_lembur_6_jam = models.PositiveIntegerField(default=0)
 
     # Holiday pay ("RY").

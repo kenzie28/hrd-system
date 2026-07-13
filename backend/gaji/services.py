@@ -17,7 +17,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
+from django.db.models import PositiveIntegerField
 
 from core.debug_log import debug_error, debug_exception
 from core.models import Karyawan
@@ -182,6 +183,36 @@ def _get_cell(data: dict[str, str], column: str) -> str:
     return data.get(_normalize_header(column), '')
 
 
+def _get_gaji_pokok(data: dict[str, str]) -> int:
+    """Read base pay from TRANSPORT Allowance, falling back to legacy Gaji column."""
+    for column in (COL_GAJI_POKOK, 'Gaji'):
+        value = _get_cell(data, column)
+        if _strip_quote(value):
+            return _parse_int(value)
+    return 0
+
+
+def _validate_fields(
+    row_number: int, fields: dict, errors: list[GajiImportError]
+) -> bool:
+    """Reject rows that violate non-negative integer constraints before hitting the DB."""
+    ok = True
+    for model_field in GajiTemp._meta.fields:
+        name = model_field.name
+        if name not in fields:
+            continue
+        value = fields[name]
+        if isinstance(model_field, PositiveIntegerField) and value < 0:
+            errors.append(
+                GajiImportError(
+                    row_number,
+                    f'{name} tidak boleh negatif (nilai: {value}).',
+                )
+            )
+            ok = False
+    return ok
+
+
 def _header_has_column(header: list[str], column: str) -> bool:
     normalized = _normalize_header(column)
     return normalized in {_normalize_header(h) for h in header}
@@ -232,7 +263,7 @@ def _parse_row(
         freq_pencapaian_target=_parse_int(_get_cell(data, COL_FREQ_TARGET)),
         rate_target=_parse_int(_get_cell(data, COL_RATE_TARGET)),
         rate_non_target=_parse_int(_get_cell(data, COL_RATE_UMP)),
-        gaji_pokok=_parse_int(_get_cell(data, COL_GAJI_POKOK)),
+        gaji_pokok=_get_gaji_pokok(data),
         freq_lembur_6_jam=_parse_decimal(_get_cell(data, COL_LEMBUR)),
         rate_lembur_6_jam=_parse_int(_get_cell(data, COL_RATE_LEMBUR)),
         freq_hari_raya=_parse_int(_get_cell(data, COL_RY)),
@@ -356,6 +387,7 @@ def import_gaji_csv(fileobj, *, upsert_karyawan: bool = True) -> GajiImportResul
         result.total_rows += 1
         parsed = _parse_row(i, data, result.errors)
         if parsed is not None:
+            _validate_fields(i, parsed.fields, result.errors)
             parsed_rows.append(parsed)
 
     if result.errors:
@@ -391,11 +423,27 @@ def import_gaji_csv(fileobj, *, upsert_karyawan: bool = True) -> GajiImportResul
 
         for parsed in parsed_rows:
             karyawan = karyawan_cache[parsed.karyawan_id]
-            _, created = GajiTemp.objects.update_or_create(
-                karyawan=karyawan,
-                periode=parsed.periode,
-                defaults=parsed.fields,
-            )
+            try:
+                _, created = GajiTemp.objects.update_or_create(
+                    karyawan=karyawan,
+                    periode=parsed.periode,
+                    defaults=parsed.fields,
+                )
+            except IntegrityError as exc:
+                transaction.set_rollback(True)
+                result.errors.append(
+                    GajiImportError(
+                        parsed.row_number,
+                        f'Gagal menyimpan data gaji: {exc}',
+                    )
+                )
+                _debug_import_failure(
+                    result,
+                    upsert_karyawan=upsert_karyawan,
+                    phase='db_write',
+                    karyawan_id=parsed.karyawan_id,
+                )
+                return result
             if created:
                 result.created += 1
             else:

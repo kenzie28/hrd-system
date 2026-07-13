@@ -1,3 +1,4 @@
+from django.db import IntegrityError
 from rest_framework import status, viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.parsers import MultiPartParser
@@ -76,6 +77,22 @@ class AdminGajiImportView(APIView):
 
         try:
             result = import_gaji_csv(upload, upsert_karyawan=upsert_karyawan)
+        except IntegrityError as exc:
+            debug_exception(
+                'gaji_import_post',
+                'Import CSV gagal: constraint database.',
+                exc,
+                filename=getattr(upload, 'name', None),
+                upsert_karyawan=upsert_karyawan,
+            )
+            result = GajiImportResult(
+                errors=[
+                    GajiImportError(
+                        0,
+                        f'Gagal menyimpan data ke database: {exc}',
+                    ),
+                ],
+            )
         except Exception as exc:
             debug_exception(
                 'gaji_import_post',
@@ -86,7 +103,14 @@ class AdminGajiImportView(APIView):
                 upsert_karyawan=upsert_karyawan,
                 hint='Periksa log Cloud Run; aktifkan ./deploy.sh --debug untuk detail lebih lanjut.',
             )
-            raise
+            result = GajiImportResult(
+                errors=[
+                    GajiImportError(
+                        0,
+                        f'Import gagal: {exc}',
+                    ),
+                ],
+            )
 
         if not result.ok:
             debug_error(

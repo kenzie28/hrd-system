@@ -8,6 +8,7 @@
 # Options:
 #   --env, -e       Update environment variables from .env
 #   --build, -b     Rebuild and push Docker image
+#   --setup, -s     Seed lokasi + admin karyawan on container start
 #   --help, -h      Show this help message
 #
 # Examples:
@@ -15,6 +16,7 @@
 #   ./deploy.sh --build         # Rebuild image and deploy
 #   ./deploy.sh --env           # Deploy with updated env variables
 #   ./deploy.sh --build --env   # Full deployment with rebuild and env update
+#   ./deploy.sh --setup         # Deploy and run initial_setup on container start
 # =============================================================================
 
 set -e
@@ -29,6 +31,7 @@ ENV_FILE=".env"
 
 BUILD_IMAGE=false
 UPDATE_ENV=false
+RUN_SETUP=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -40,6 +43,10 @@ while [[ $# -gt 0 ]]; do
             UPDATE_ENV=true
             shift
             ;;
+        --setup|-s)
+            RUN_SETUP=true
+            shift
+            ;;
         --help|-h)
             echo "HRD System Deployment Script"
             echo ""
@@ -48,6 +55,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --env, -e       Update environment variables from .env"
             echo "  --build, -b     Rebuild and push Docker image (requires Docker)"
+            echo "  --setup, -s     Seed lokasi + admin karyawan on container start"
             echo "  --help, -h      Show this help message"
             echo ""
             echo "Examples:"
@@ -55,6 +63,7 @@ while [[ $# -gt 0 ]]; do
             echo "  ./deploy.sh --build         # Rebuild image and deploy"
             echo "  ./deploy.sh --env           # Deploy with updated env variables"
             echo "  ./deploy.sh --build --env   # Full deployment"
+            echo "  ./deploy.sh --setup         # Deploy with initial data seed"
             exit 0
             ;;
         *)
@@ -74,6 +83,7 @@ echo "Region: ${REGION}"
 echo "Service: ${SERVICE_NAME}"
 echo "Build Image: ${BUILD_IMAGE}"
 echo "Update Env: ${UPDATE_ENV}"
+echo "Run Setup: ${RUN_SETUP}"
 echo ""
 
 if [ "${PROJECT_ID}" = "TODO_insert_YOUR_project_ID" ]; then
@@ -180,9 +190,19 @@ if [ "$UPDATE_ENV" = true ]; then
         fi
     done < "${ENV_FILE}"
 
+    if [ "$RUN_SETUP" = true ]; then
+        if [ -n "$ENV_VARS" ]; then
+            ENV_VARS="${ENV_VARS},RUN_INITIAL_SETUP=true"
+        else
+            ENV_VARS="RUN_INITIAL_SETUP=true"
+        fi
+    fi
+
     if [ -n "$ENV_VARS" ]; then
         DEPLOY_CMD+=(--set-env-vars "${ENV_VARS}")
     fi
+elif [ "$RUN_SETUP" = true ]; then
+    DEPLOY_CMD+=(--update-env-vars "RUN_INITIAL_SETUP=true")
 fi
 
 echo ""
@@ -209,4 +229,11 @@ echo ""
 echo "To view logs:"
 echo "  gcloud run services logs read ${SERVICE_NAME} --region ${REGION}"
 echo ""
+if [ "$RUN_SETUP" = true ]; then
+    echo "Initial setup enabled (RUN_INITIAL_SETUP=true)."
+    echo "HR admin login: karyawan_id 0000003, password 123"
+    echo "Remove RUN_INITIAL_SETUP after first deploy if you do not want setup on every restart:"
+    echo "  gcloud run services update ${SERVICE_NAME} --region ${REGION} --remove-env-vars RUN_INITIAL_SETUP"
+    echo ""
+fi
 echo "=============================================="

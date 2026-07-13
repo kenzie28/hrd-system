@@ -6,6 +6,11 @@ cd /app/backend
 echo "==> Running migrations..."
 python manage.py migrate --noinput
 
+if [ "${RUN_INITIAL_SETUP}" = "true" ]; then
+    echo "==> Running initial setup (lokasi + admin karyawan)..."
+    python manage.py shell < /app/backend/scripts/initial_setup.py
+fi
+
 echo "==> Collecting static files..."
 python manage.py collectstatic --noinput
 

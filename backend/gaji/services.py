@@ -24,13 +24,14 @@ from core.models import Karyawan
 from .models import GajiTemp
 from .temp_karyawan_upsert import upsert_karyawan_from_gaji_row
 
-# Column headers exactly as they appear in the HRD payroll CSV export,
-# after stripping surrounding whitespace. Columns not listed here (e.g.
-# "Total H/S/C", "Target Hadir", "UMP Hadir", "Total Gaji+Tlk+Incent",
-# "U.LEMBUR+Raya") are legacy derived reference numbers in the export and
-# are intentionally not imported — GajiTemp computes its own equivalents.
+# Column headers as they appear in the HRD payroll CSV export, compared after
+# stripping surrounding whitespace on both the expected name and the received
+# header row. Columns not listed here (e.g. "Total H/S/C", "Target Hadir",
+# "UMP Hadir", "Total Gaji+Tlk+Incent", "U.LEMBUR+Raya") are legacy derived
+# reference numbers in the export and are intentionally not imported.
 COL_NO_ID = 'NO.ID'
 COL_NAMA = 'NAMA KARYAWAN'
+COL_GOL = 'Gol'
 COL_JABATAN = 'JABATAN'
 COL_LOKASI = 'Lokasi Kerja'
 COL_PERIODE = 'Periode'
@@ -41,7 +42,7 @@ COL_AL = 'AL'
 COL_FREQ_TARGET = 'Freq.Tercapai Personal'
 COL_RATE_TARGET = 'Rate Target'
 COL_RATE_UMP = 'Rate UMP+'
-COL_GAJI = 'Gaji'
+COL_GAJI_POKOK = 'TRANSPORT Allowance'
 COL_TLM_KERJA = 'TLM Kerja'
 COL_LEMBUR = 'Lembur'
 COL_RATE_LEMBUR = 'Rate Lembur/6Jam'
@@ -49,11 +50,11 @@ COL_RY = 'RY'
 COL_TUNJ_OBAT = 'TUNJ OBAT'
 COL_KOREKSI_ADMIN = 'Koreksi Admin'
 COL_KOREKSI_ABSENSI = 'Koreksi Absensi'
-COL_PREMI_JHT = 'Premi JHT TK'
+COL_PREMI_JHT = 'JHT TK'
 COL_PREMI_JP = 'Premi JP TK'
-COL_F1_BG = 'F1/BG Empl'
+COL_F1_BG = 'F1/BG Empl Kes'
 COL_PPH21 = 'PPh21 yg diSetor'
-COL_NET_TRANSFER = 'Net.Transfer'
+COL_NET_TRANSFER = 'RUMUS Net.Trf = THP'
 COL_TOTAL_TRF_UMAKAN = 'Total Trf.U.Makan'
 
 REQUIRED_COLUMNS = [COL_NO_ID, COL_NAMA, COL_PERIODE, COL_HADIR]
@@ -131,6 +132,17 @@ def _normalize_header(name: str) -> str:
     return (name or '').strip()
 
 
+def _parse_gol_level(value: str) -> int | None:
+    """Return the first digit in Gol as karyawan level (1–8), or None."""
+    for ch in _strip_quote(value):
+        if ch.isdigit():
+            level = int(ch)
+            if 1 <= level <= 8:
+                return level
+            return None
+    return None
+
+
 def _read_rows(fileobj) -> tuple[list[str], list[list[str]]]:
     content = fileobj.read()
     if isinstance(content, bytes):
@@ -143,7 +155,20 @@ def _read_rows(fileobj) -> tuple[list[str], list[list[str]]]:
 
 
 def _row_dict(header: list[str], row: list[str]) -> dict[str, str]:
-    return {header[i]: (row[i] if i < len(row) else '') for i in range(len(header))}
+    return {
+        _normalize_header(header[i]): (row[i] if i < len(row) else '')
+        for i in range(len(header))
+        if _normalize_header(header[i])
+    }
+
+
+def _get_cell(data: dict[str, str], column: str) -> str:
+    return data.get(_normalize_header(column), '')
+
+
+def _header_has_column(header: list[str], column: str) -> bool:
+    normalized = _normalize_header(column)
+    return normalized in {_normalize_header(h) for h in header}
 
 
 @dataclass
@@ -154,6 +179,7 @@ class _ParsedRow:
     jabatan: str
     lokasi_id: str
     wilayah: str
+    level: int | None
     periode: date
     fields: dict
 
@@ -161,25 +187,25 @@ class _ParsedRow:
 def _parse_row(
     row_number: int, data: dict[str, str], errors: list[GajiImportError]
 ) -> _ParsedRow | None:
-    karyawan_id_raw = data.get(COL_NO_ID, '')
+    karyawan_id_raw = _get_cell(data, COL_NO_ID)
     if not _strip_quote(karyawan_id_raw):
         errors.append(GajiImportError(row_number, 'NO.ID kosong.'))
         return None
     karyawan_id = _format_karyawan_id(karyawan_id_raw)
 
-    periode = _parse_periode(data.get(COL_PERIODE, ''))
+    periode = _parse_periode(_get_cell(data, COL_PERIODE))
     if periode is None:
         errors.append(
             GajiImportError(
-                row_number, f'Periode tidak valid: {data.get(COL_PERIODE, "")!r}'
+                row_number, f'Periode tidak valid: {_get_cell(data, COL_PERIODE)!r}'
             )
         )
         return None
 
-    hadir_x, hadir_y, hadir_z = _split_triplet(data.get(COL_HADIR, ''))
+    hadir_x, hadir_y, hadir_z = _split_triplet(_get_cell(data, COL_HADIR))
     hadir = hadir_x + hadir_y + hadir_z
     hari_sakit, hari_cuti, hari_cuti_tambahan = _split_triplet(
-        data.get(COL_SK_CU_CT, '')
+        _get_cell(data, COL_SK_CU_CT)
     )
 
     fields = dict(
@@ -187,35 +213,36 @@ def _parse_row(
         hari_sakit=hari_sakit,
         hari_cuti=hari_cuti,
         hari_cuti_tambahan=hari_cuti_tambahan,
-        freq_pencapaian_target=_parse_int(data.get(COL_FREQ_TARGET, '')),
-        rate_target=_parse_int(data.get(COL_RATE_TARGET, '')),
-        rate_non_target=_parse_int(data.get(COL_RATE_UMP, '')),
-        gaji_pokok=_parse_int(data.get(COL_GAJI, '')),
-        freq_lembur_6_jam=_parse_decimal(data.get(COL_LEMBUR, '')),
-        rate_lembur_6_jam=_parse_int(data.get(COL_RATE_LEMBUR, '')),
-        freq_hari_raya=_parse_int(data.get(COL_RY, '')),
-        tunjangan_lama_kerja=_parse_int(data.get(COL_TLM_KERJA, '')),
-        tunjangan_obat=_parse_int(data.get(COL_TUNJ_OBAT, '')),
-        freq_alpa=_parse_int(data.get(COL_AL, '')),
-        pot_bpjs_jht=-_parse_int(data.get(COL_PREMI_JHT, '')),
-        pot_bpjs_jp=-_parse_int(data.get(COL_PREMI_JP, '')),
-        pot_bpjs_kesehatan=-_parse_int(data.get(COL_F1_BG, '')),
-        pot_pph21=-_parse_int(data.get(COL_PPH21, '')),
-        pot_kehilangan=_parse_int(data.get(COL_KOREKSI_ADMIN, '')),
-        koreksi_absensi=_parse_int(data.get(COL_KOREKSI_ABSENSI, '')),
+        freq_pencapaian_target=_parse_int(_get_cell(data, COL_FREQ_TARGET)),
+        rate_target=_parse_int(_get_cell(data, COL_RATE_TARGET)),
+        rate_non_target=_parse_int(_get_cell(data, COL_RATE_UMP)),
+        gaji_pokok=_parse_int(_get_cell(data, COL_GAJI_POKOK)),
+        freq_lembur_6_jam=_parse_decimal(_get_cell(data, COL_LEMBUR)),
+        rate_lembur_6_jam=_parse_int(_get_cell(data, COL_RATE_LEMBUR)),
+        freq_hari_raya=_parse_int(_get_cell(data, COL_RY)),
+        tunjangan_lama_kerja=_parse_int(_get_cell(data, COL_TLM_KERJA)),
+        tunjangan_obat=_parse_int(_get_cell(data, COL_TUNJ_OBAT)),
+        freq_alpa=_parse_int(_get_cell(data, COL_AL)),
+        pot_bpjs_jht=-_parse_int(_get_cell(data, COL_PREMI_JHT)),
+        pot_bpjs_jp=-_parse_int(_get_cell(data, COL_PREMI_JP)),
+        pot_bpjs_kesehatan=-_parse_int(_get_cell(data, COL_F1_BG)),
+        pot_pph21=-_parse_int(_get_cell(data, COL_PPH21)),
+        pot_kehilangan=_parse_int(_get_cell(data, COL_KOREKSI_ADMIN)),
+        koreksi_absensi=_parse_int(_get_cell(data, COL_KOREKSI_ABSENSI)),
         total_gaji=(
-            _parse_int(data.get(COL_NET_TRANSFER, ''))
-            + _parse_int(data.get(COL_TOTAL_TRF_UMAKAN, ''))
+            _parse_int(_get_cell(data, COL_NET_TRANSFER))
+            + _parse_int(_get_cell(data, COL_TOTAL_TRF_UMAKAN))
         ),
     )
 
     return _ParsedRow(
         row_number=row_number,
         karyawan_id=karyawan_id,
-        nama=_strip_quote(data.get(COL_NAMA, '')),
-        jabatan=_strip_quote(data.get(COL_JABATAN, '')),
-        lokasi_id=_strip_quote(data.get(COL_LOKASI, '')),
-        wilayah=_strip_quote(data.get(COL_WILAYAH, '')),
+        nama=_strip_quote(_get_cell(data, COL_NAMA)),
+        jabatan=_strip_quote(_get_cell(data, COL_JABATAN)),
+        lokasi_id=_strip_quote(_get_cell(data, COL_LOKASI)),
+        wilayah=_strip_quote(_get_cell(data, COL_WILAYAH)),
+        level=_parse_gol_level(_get_cell(data, COL_GOL)),
         periode=periode,
         fields=fields,
     )
@@ -231,6 +258,7 @@ def _resolve_karyawan(
             jabatan=parsed.jabatan,
             lokasi_id=parsed.lokasi_id,
             wilayah=parsed.wilayah,
+            level=parsed.level,
         )
     return Karyawan.objects.filter(karyawan_id=parsed.karyawan_id).first(), False
 
@@ -239,7 +267,7 @@ def import_gaji_csv(fileobj, *, upsert_karyawan: bool = True) -> GajiImportResul
     result = GajiImportResult()
     header, raw_rows = _read_rows(fileobj)
 
-    missing = [c for c in REQUIRED_COLUMNS if c not in header]
+    missing = [c for c in REQUIRED_COLUMNS if not _header_has_column(header, c)]
     if missing:
         result.errors.append(
             GajiImportError(0, f'Kolom wajib tidak ditemukan: {", ".join(missing)}')

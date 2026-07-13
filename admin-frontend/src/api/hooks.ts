@@ -3,6 +3,8 @@ import { api } from './client'
 import type {
   Absensi,
   Cuti,
+  GajiImportResult,
+  GajiTemp,
   Jadwal,
   Karyawan,
   Liburan,
@@ -195,6 +197,38 @@ export function useCutiApprovalMutations() {
     onSuccess: invalidate,
   })
   return { approve, reject }
+}
+
+// ---- Gaji ----
+
+export function useGajiTemp(filters?: RecordFilters) {
+  return useQuery({
+    queryKey: ['admin-gaji', filters],
+    queryFn: async () =>
+      (await api.get<GajiTemp[]>('/admin/gaji/', { params: filterParams(filters) })).data,
+  })
+}
+
+export function useGajiImport() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ file, upsertKaryawan }: { file: File; upsertKaryawan: boolean }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('upsert_karyawan', String(upsertKaryawan))
+      const response = await api.post<GajiImportResult>('/admin/gaji/import/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return response.data
+    },
+    onSuccess: (result) => {
+      if (result.ok) {
+        qc.invalidateQueries({ queryKey: ['admin-gaji'] })
+        qc.invalidateQueries({ queryKey: ['karyawan'] })
+        qc.invalidateQueries({ queryKey: ['lokasi'] })
+      }
+    },
+  })
 }
 
 // ---- Reset Password ----

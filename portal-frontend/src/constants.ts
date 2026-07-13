@@ -40,3 +40,11 @@ export const CUTI_STATUS_COLORS: Record<CutiStatus, string> = {
   DIBATALKAN: 'default',
   APPROVED: 'green',
 }
+
+const currencyFormatter = new Intl.NumberFormat('id-ID', {
+  style: 'currency',
+  currency: 'IDR',
+  maximumFractionDigits: 0,
+})
+
+export const formatCurrency = (value: number) => currencyFormatter.format(value)

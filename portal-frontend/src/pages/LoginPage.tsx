@@ -42,7 +42,11 @@ export default function LoginPage() {
             label="ID Karyawan"
             rules={[{ required: true, message: 'Masukkan ID karyawan.' }]}
           >
-            <Input placeholder="ID karyawan (7 digit)" autoComplete="username" />
+            <Input
+              placeholder="ID karyawan (7 digit)"
+              autoComplete="username"
+              maxLength={7}
+            />
           </Form.Item>
           <Form.Item
             name="password"

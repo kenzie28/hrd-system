@@ -5,6 +5,7 @@ import AbsensiPage from './pages/AbsensiPage'
 import CutiPage from './pages/CutiPage'
 import GajiPage from './pages/GajiPage'
 import HomePage from './pages/HomePage'
+import ChangePasswordPage from './pages/ChangePasswordPage'
 import LoginPage from './pages/LoginPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 
@@ -12,6 +13,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/change-password" element={<ChangePasswordPage />} />
       <Route
         element={
           <ProtectedRoute>

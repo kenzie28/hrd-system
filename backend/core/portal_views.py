@@ -89,28 +89,3 @@ class PortalChangePasswordView(APIView):
         token = Token.objects.create(user=user)
 
         return Response({'token': token.key, 'must_change_password': False})
-
-
-class PortalGajiView(APIView):
-    authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        karyawan = _karyawan_for(request.user)
-        if karyawan is None:
-            return Response(
-                {'detail': 'Akun tidak terhubung ke data karyawan.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        bulan = request.query_params.get('bulan')
-        # Salary breakdown is intentionally empty for now; components will be
-        # filled in later. The shape is returned so the portal can render it.
-        return Response(
-            {
-                'karyawan': PortalKaryawanSerializer(karyawan).data,
-                'bulan': bulan,
-                'components': [],
-                'total': 0,
-            }
-        )

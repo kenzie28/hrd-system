@@ -12,13 +12,14 @@ from attendance.views import (
 from core.admin_views import AdminLoginView, AdminMeView, AdminResetPasswordView
 from core.portal_views import (
     PortalChangePasswordView,
-    PortalGajiView,
     PortalLoginView,
     PortalMeView,
 )
 from core.views import KaryawanViewSet, LokasiViewSet
 from cuti.admin_views import AdminCutiViewSet
 from cuti.views import CutiViewSet, PortalCutiViewSet
+from gaji.admin_views import AdminGajiImportView, AdminGajiViewSet
+from gaji.views import PortalGajiView
 
 router = DefaultRouter()
 router.register('shifts', ShiftViewSet, basename='shift')
@@ -35,6 +36,7 @@ portal_router.register('cuti', PortalCutiViewSet, basename='portal-cuti')
 
 admin_router = DefaultRouter()
 admin_router.register('cuti', AdminCutiViewSet, basename='admin-cuti')
+admin_router.register('gaji', AdminGajiViewSet, basename='admin-gaji')
 
 portal_urlpatterns = [
     path('portal/login/', PortalLoginView.as_view(), name='portal-login'),
@@ -56,6 +58,7 @@ admin_api_urlpatterns = [
         AdminResetPasswordView.as_view(),
         name='admin-reset-password',
     ),
+    path('admin/gaji/import/', AdminGajiImportView.as_view(), name='admin-gaji-import'),
     path('admin/', include(admin_router.urls)),
 ]
 

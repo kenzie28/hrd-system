@@ -115,6 +115,11 @@ export interface AdminLoginResponse {
   karyawan: AdminKaryawan
 }
 
+export interface ChangePasswordResponse {
+  token: string
+  must_change_password: boolean
+}
+
 export type CutiStatus =
   | 'MENUNGGU_SUPERVISOR'
   | 'MENUNGGU_HRD'
@@ -139,4 +144,56 @@ export interface PermohonanCuti {
   supervisor_nama: string | null
   hrd_approver: number | null
   hrd_approver_nama: string | null
+}
+
+export interface GajiTemp {
+  id: number
+  karyawan: number
+  karyawan_nama: string
+  karyawan_kode: string
+  periode: string
+  hadir: number
+  hari_sakit: number
+  hari_cuti: number
+  hari_cuti_tambahan: number
+  freq_pencapaian_target: number
+  rate_target: number
+  nominal_target: number
+  freq_hari_non_target: number
+  rate_non_target: number
+  nominal_non_target: number
+  gaji_pokok: number
+  rate_uang_makan: number
+  nominal_uang_makan: number
+  freq_lembur_6_jam: string
+  rate_lembur_6_jam: number
+  nominal_lembur: number
+  freq_hari_raya: number
+  rate_hari_raya: number
+  nominal_hari_raya: number
+  tunjangan_lama_kerja: number
+  tunjangan_obat: number
+  freq_alpa: number
+  pengurang_alpa: number
+  pot_bpjs_jht: number
+  pot_bpjs_jp: number
+  pot_bpjs_kesehatan: number
+  pot_pph21: number
+  pot_kehilangan: number
+  koreksi_absensi: number
+  total_gaji: number
+}
+
+export interface GajiImportError {
+  row: number
+  message: string
+}
+
+export interface GajiImportResult {
+  ok: boolean
+  total_rows: number
+  created: number
+  updated: number
+  karyawan_created: number
+  errors: GajiImportError[]
 }

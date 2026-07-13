@@ -26,3 +26,11 @@ export const CUTI_TIPE_COLORS: Record<CutiTipe, string> = {
 }
 
 export const fmtTime = (t?: string | null) => (t ? t.slice(0, 5) : '-')
+
+const currencyFormatter = new Intl.NumberFormat('id-ID', {
+  style: 'currency',
+  currency: 'IDR',
+  maximumFractionDigits: 0,
+})
+
+export const formatCurrency = (value: number) => currencyFormatter.format(value)

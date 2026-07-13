@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { useAuth } from '../auth/AuthContext'
 
 export default function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, mustChangePassword, loading } = useAuth()
 
   if (loading) {
     return (
@@ -16,6 +16,10 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
+  }
+
+  if (mustChangePassword) {
+    return <Navigate to="/change-password" replace />
   }
 
   return <>{children}</>

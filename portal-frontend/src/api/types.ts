@@ -72,14 +72,44 @@ export interface ChangePasswordResponse {
   must_change_password: boolean
 }
 
-export interface GajiComponent {
-  label: string
-  amount: number
+export interface GajiDetail {
+  id: number
+  karyawan: number
+  periode: string
+  hadir: number
+  hari_sakit: number
+  hari_cuti: number
+  hari_cuti_tambahan: number
+  freq_pencapaian_target: number
+  rate_target: number
+  nominal_target: number
+  freq_hari_non_target: number
+  rate_non_target: number
+  nominal_non_target: number
+  gaji_pokok: number
+  rate_uang_makan: number
+  nominal_uang_makan: number
+  freq_lembur_6_jam: string
+  rate_lembur_6_jam: number
+  nominal_lembur: number
+  freq_hari_raya: number
+  rate_hari_raya: number
+  nominal_hari_raya: number
+  tunjangan_lama_kerja: number
+  tunjangan_obat: number
+  freq_alpa: number
+  pengurang_alpa: number
+  pot_bpjs_jht: number
+  pot_bpjs_jp: number
+  pot_bpjs_kesehatan: number
+  pot_pph21: number
+  pot_kehilangan: number
+  koreksi_absensi: number
+  total_gaji: number
 }
 
 export interface GajiResponse {
   karyawan: PortalKaryawan
   bulan: string | null
-  components: GajiComponent[]
-  total: number
+  gaji: GajiDetail | null
 }

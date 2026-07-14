@@ -58,11 +58,15 @@ function GajiBreakdown({ gaji }: { gaji: GajiDetail }) {
       },
       { label: 'Rate Target', value: gaji.rate_target },
       { label: 'Nominal dari Target', value: gaji.nominal_target },
-      {
-        label: 'Frequency Hari Non-Target',
-        value: gaji.freq_hari_non_target,
-        isCurrency: false,
-      },
+      ...(gaji.rate_non_target !== 0
+        ? [
+            {
+              label: 'Frequency Hari Non-Target',
+              value: gaji.freq_hari_non_target,
+              isCurrency: false,
+            },
+          ]
+        : []),
       { label: 'Rate Non-Target', value: gaji.rate_non_target },
       { label: 'Nominal dari Non-Target', value: gaji.nominal_non_target },
       { label: 'Gaji Pokok', value: gaji.gaji_pokok },

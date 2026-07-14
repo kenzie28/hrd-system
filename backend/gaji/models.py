@@ -17,8 +17,9 @@ class GajiTemp(models.Model):
     periode = models.DateField(help_text='First day of the payroll month.')
 
     # Attendance tally, from HADIR / SK/CU/CT.
-    # ``hadir`` stores the CSV HADIR triplet with leading ``'`` and spaces stripped
-    # (e.g. ``'19/  /  `` becomes ``19//``). ``total_hadir`` is the sum of the three parts.
+    # ``hadir`` stores the CSV HADIR triplet with leading ``'`` and spaces stripped,
+    # empty parts filled as 0 (e.g. ``'19/  /  `` becomes ``19/0/0``).
+    # ``total_hadir`` is the sum of the three parts.
     hadir = models.CharField(max_length=32, default='', blank=True)
     total_hadir = models.PositiveIntegerField(default=0)
     hari_sakit = models.PositiveIntegerField(default=0)

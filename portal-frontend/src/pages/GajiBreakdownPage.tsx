@@ -68,7 +68,9 @@ function GajiBreakdown({ gaji }: { gaji: GajiDetail }) {
       { label: 'Gaji Pokok', value: gaji.gaji_pokok },
     ]),
     buildSection([
-      { label: 'Frequency Hadir', value: gaji.total_hadir, isCurrency: false },
+      ...(gaji.rate_uang_makan !== 0
+        ? [{ label: 'Frequency Hadir', value: gaji.total_hadir, isCurrency: false }]
+        : []),
       { label: 'Rate Uang Makan', value: gaji.rate_uang_makan },
       { label: 'Nominal dari Uang Makan', value: gaji.nominal_uang_makan },
     ]),

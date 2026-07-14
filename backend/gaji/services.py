@@ -260,10 +260,8 @@ def _parse_row(
         )
         return None
 
-    hadir_raw = _get_cell(data, COL_HADIR)
-    hadir = hadir_raw[1:] if hadir_raw.startswith("'") else hadir_raw
-    hadir = hadir.replace(' ', '')
-    hadir_x, hadir_y, hadir_z = _split_triplet(hadir_raw)
+    hadir_x, hadir_y, hadir_z = _split_triplet(_get_cell(data, COL_HADIR))
+    hadir = f'{hadir_x}/{hadir_y}/{hadir_z}'
     total_hadir = hadir_x + hadir_y + hadir_z
     hari_sakit, hari_cuti, hari_cuti_tambahan = _split_triplet(
         _get_cell(data, COL_SK_CU_CT)

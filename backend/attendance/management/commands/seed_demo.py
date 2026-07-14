@@ -10,7 +10,8 @@ from attendance.models import (
     Liburan,
     Shift,
 )
-from core.models import Karyawan, Lokasi
+from core.models import Lokasi
+from karyawan.models import Karyawan
 from cuti.models import (
     Cuti,
     PermohonanCuti,
@@ -57,7 +58,7 @@ class Command(BaseCommand):
                 k.save(update_fields=['level'])
             karyawan_list.append((k, shift))
 
-        # HRD approver used by the admin-frontend allowlist (core.access).
+        # HRD approver used by the admin-frontend allowlist (karyawan.access).
         Karyawan.objects.update_or_create(
             karyawan_id='9610003',
             defaults={'nama': 'RINI KURNIASIH', 'level': 8},
@@ -83,7 +84,7 @@ class Command(BaseCommand):
         cuti_specs = [
             (karyawan_list[1][0], TipeCuti.SAKIT, 7, 8, StatusPermohonanCuti.APPROVED),
             (karyawan_list[2][0], TipeCuti.TAHUNAN, 13, 15, StatusPermohonanCuti.APPROVED),
-            (karyawan_list[3][0], TipeCuti.IZIN, 9, 9, StatusPermohonanCuti.APPROVED),
+            (karyawan_list[3][0], TipeCuti.IZIN_OFF, 9, 9, StatusPermohonanCuti.APPROVED),
             (karyawan_list[4][0], TipeCuti.MENIKAH, 20, 22, StatusPermohonanCuti.MENUNGGU_HRD),
         ]
         cuti_ranges = {}

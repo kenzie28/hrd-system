@@ -4,7 +4,8 @@ from django.test import TestCase
 
 from attendance.models import Absensi
 from attendance.services import _absensi_end_datetime, _shift_end_datetime
-from core.models import Karyawan, Lokasi
+from core.models import Lokasi
+from karyawan.models import Karyawan
 
 
 class AbsensiKeluarHariOffsetTests(TestCase):

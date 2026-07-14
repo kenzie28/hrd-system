@@ -4,8 +4,8 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from core.models import Karyawan
-from core.portal_views import _karyawan_for
+from karyawan.models import Karyawan
+from karyawan.portal_views import _karyawan_for
 
 from .models import Cuti, PermohonanCuti, StatusPermohonanCuti, ACTIVE_STATUSES
 from .policy import eligible_supervisor_levels

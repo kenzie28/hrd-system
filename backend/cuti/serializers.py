@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from core.models import Karyawan
+from karyawan.models import Karyawan
 
 from .models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from .policy import eligible_supervisor_levels

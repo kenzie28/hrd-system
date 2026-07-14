@@ -28,7 +28,8 @@ import pymysql
 from django.db import transaction
 
 from attendance.models import Absensi
-from core.models import Karyawan, Lokasi
+from core.models import Lokasi
+from karyawan.models import Karyawan
 
 DEFAULT_ID_COUNTER = '99'
 DEFAULT_LOKASI_NAMA = 'HO'

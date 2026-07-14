@@ -12,17 +12,19 @@ export const REKAP_STATUS_COLORS: Record<RekapStatus, string> = {
 }
 
 export const CUTI_TIPE_COLORS: Record<CutiTipe, string> = {
-  IZIN: 'blue',
+  IZIN_OFF: 'blue',
+  IZIN_TELAT: 'blue',
   IZIN_PULANG_CEPAT: 'geekblue',
-  TAHUNAN: 'cyan',
-  SAKIT: 'purple',
-  DUKA_CITA: 'default',
-  MELAHIRKAN: 'magenta',
-  ISTRI_MELAHIRKAN: 'magenta',
-  MENIKAH: 'gold',
-  ANAK_MENIKAH: 'gold',
-  KHITANAN_ANAK: 'orange',
-  PEMBAPTISAN_ANAK: 'orange',
+  IZIN_LOKASI_BEDA: 'geekblue',
+  CUTI_TAHUNAN: 'cyan',
+  CUTI_SAKIT: 'purple',
+  CUTI_DUKA_CITA: 'default',
+  CUTI_MELAHIRKAN: 'magenta',
+  CUTI_ISTRI_MELAHIRKAN: 'magenta',
+  CUTI_MENIKAH: 'gold',
+  CUTI_ANAK_MENIKAH: 'gold',
+  CUTI_KHITANAN_ANAK: 'orange',
+  CUTI_PEMBAPTISAN_ANAK: 'orange',
 }
 
 export const fmtTime = (t?: string | null) => (t ? t.slice(0, 5) : '-')

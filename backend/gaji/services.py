@@ -21,7 +21,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import PositiveIntegerField
 
 from core.debug_log import debug_error, debug_exception
-from core.models import Karyawan
+from karyawan.models import Karyawan
 
 from .models import GajiTemp
 from .temp_karyawan_upsert import upsert_karyawan_from_gaji_row
@@ -55,9 +55,11 @@ COL_KOREKSI_ABSENSI = 'Koreksi Absensi'
 COL_PREMI_JHT = 'JHT TK'
 COL_PREMI_JP = 'Premi JP TK'
 COL_F1_BG = 'F1/BG Empl Kes'
+COL_F1_BG_LEGACY = 'F1/BG Empl'
 COL_PPH21 = 'PPh21 yg diSetor'
 COL_NET_TRANSFER = 'RUMUS Net.Trf = THP'
 COL_TOTAL_TRF_UMAKAN = 'Total Trf.U.Makan'
+DEFAULT_RATE_UANG_MAKAN = 35000
 
 REQUIRED_COLUMNS = [COL_NO_ID, COL_NAMA, COL_PERIODE, COL_HADIR]
 
@@ -192,6 +194,15 @@ def _get_gaji_pokok(data: dict[str, str]) -> int:
     return 0
 
 
+def _get_bpjs_kesehatan(data: dict[str, str]) -> int:
+    """Read BPJS Kesehatan from F1/BG Empl Kes, falling back to F1/BG Empl."""
+    for column in (COL_F1_BG, COL_F1_BG_LEGACY):
+        value = _get_cell(data, column)
+        if _strip_quote(value):
+            return -_parse_int(value)
+    return 0
+
+
 def _validate_fields(
     row_number: int, fields: dict, errors: list[GajiImportError]
 ) -> bool:
@@ -249,14 +260,19 @@ def _parse_row(
         )
         return None
 
-    hadir_x, hadir_y, hadir_z = _split_triplet(_get_cell(data, COL_HADIR))
-    hadir = hadir_x + hadir_y + hadir_z
+    hadir_raw = _get_cell(data, COL_HADIR)
+    hadir = hadir_raw[1:] if hadir_raw.startswith("'") else hadir_raw
+    hadir = hadir.replace(' ', '')
+    hadir_x, hadir_y, hadir_z = _split_triplet(hadir_raw)
+    total_hadir = hadir_x + hadir_y + hadir_z
     hari_sakit, hari_cuti, hari_cuti_tambahan = _split_triplet(
         _get_cell(data, COL_SK_CU_CT)
     )
+    total_trf_uang_makan = _parse_int(_get_cell(data, COL_TOTAL_TRF_UMAKAN))
 
     fields = dict(
         hadir=hadir,
+        total_hadir=total_hadir,
         hari_sakit=hari_sakit,
         hari_cuti=hari_cuti,
         hari_cuti_tambahan=hari_cuti_tambahan,
@@ -264,6 +280,9 @@ def _parse_row(
         rate_target=_parse_int(_get_cell(data, COL_RATE_TARGET)),
         rate_non_target=_parse_int(_get_cell(data, COL_RATE_UMP)),
         gaji_pokok=_get_gaji_pokok(data),
+        rate_uang_makan=(
+            0 if total_trf_uang_makan == 0 else DEFAULT_RATE_UANG_MAKAN
+        ),
         freq_lembur_6_jam=_parse_decimal(_get_cell(data, COL_LEMBUR)),
         rate_lembur_6_jam=_parse_int(_get_cell(data, COL_RATE_LEMBUR)),
         freq_hari_raya=_parse_int(_get_cell(data, COL_RY)),
@@ -272,13 +291,13 @@ def _parse_row(
         freq_alpa=_parse_int(_get_cell(data, COL_AL)),
         pot_bpjs_jht=-_parse_int(_get_cell(data, COL_PREMI_JHT)),
         pot_bpjs_jp=-_parse_int(_get_cell(data, COL_PREMI_JP)),
-        pot_bpjs_kesehatan=-_parse_int(_get_cell(data, COL_F1_BG)),
+        pot_bpjs_kesehatan=_get_bpjs_kesehatan(data),
         pot_pph21=-_parse_int(_get_cell(data, COL_PPH21)),
         pot_kehilangan=_parse_int(_get_cell(data, COL_KOREKSI_ADMIN)),
         koreksi_absensi=_parse_int(_get_cell(data, COL_KOREKSI_ABSENSI)),
         total_gaji=(
             _parse_int(_get_cell(data, COL_NET_TRANSFER))
-            + _parse_int(_get_cell(data, COL_TOTAL_TRF_UMAKAN))
+            + total_trf_uang_makan
         ),
     )
 

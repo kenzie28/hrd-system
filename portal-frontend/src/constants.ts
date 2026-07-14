@@ -19,18 +19,19 @@ export const eligibleSupervisorLevels = (level: number): number[] =>
   LEVEL_APPROVER_MAP[level] ?? []
 
 export const CUTI_TIPE_OPTIONS: { value: CutiTipe; label: string }[] = [
-  { value: 'IZIN', label: 'Izin' },
+  { value: 'IZIN_OFF', label: 'Izin Off' },
   { value: 'IZIN_TELAT', label: 'Izin Telat' },
   { value: 'IZIN_PULANG_CEPAT', label: 'Izin Pulang Cepat' },
-  { value: 'TAHUNAN', label: 'Tahunan' },
-  { value: 'SAKIT', label: 'Sakit' },
-  { value: 'DUKA_CITA', label: 'Duka Cita' },
-  { value: 'MELAHIRKAN', label: 'Melahirkan' },
-  { value: 'ISTRI_MELAHIRKAN', label: 'Istri Melahirkan' },
-  { value: 'MENIKAH', label: 'Menikah' },
-  { value: 'ANAK_MENIKAH', label: 'Anak Menikah' },
-  { value: 'KHITANAN_ANAK', label: 'Khitanan Anak' },
-  { value: 'PEMBAPTISAN_ANAK', label: 'Pembaptisan Anak' },
+  { value: 'IZIN_LOKASI_BEDA', label: 'Izin Absen di Lokasi Beda' },
+  { value: 'CUTI_TAHUNAN', label: 'Cuti Tahunan' },
+  { value: 'CUTI_SAKIT', label: 'Cuti Sakit' },
+  { value: 'CUTI_DUKA_CITA', label: 'Cuti Duka Cita' },
+  { value: 'CUTI_MELAHIRKAN', label: 'Cuti Melahirkan' },
+  { value: 'CUTI_ISTRI_MELAHIRKAN', label: 'Cuti Istri Melahirkan' },
+  { value: 'CUTI_MENIKAH', label: 'Cuti Menikah' },
+  { value: 'CUTI_ANAK_MENIKAH', label: 'Cuti Anak Menikah' },
+  { value: 'CUTI_KHITANAN_ANAK', label: 'Cuti Khitanan Anak' },
+  { value: 'CUTI_PEMBAPTISAN_ANAK', label: 'Cuti Pembaptisan Anak' },
 ]
 
 export const CUTI_STATUS_COLORS: Record<CutiStatus, string> = {

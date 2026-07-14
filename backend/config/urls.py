@@ -9,13 +9,14 @@ from attendance.views import (
     RekapKehadiranViewSet,
     ShiftViewSet,
 )
-from core.admin_views import AdminLoginView, AdminMeView, AdminResetPasswordView
-from core.portal_views import (
+from core.views import LokasiViewSet
+from karyawan.admin_views import AdminLoginView, AdminMeView, AdminResetPasswordView
+from karyawan.portal_views import (
     PortalChangePasswordView,
     PortalLoginView,
     PortalMeView,
 )
-from core.views import KaryawanViewSet, LokasiViewSet
+from karyawan.views import KaryawanViewSet
 from cuti.admin_views import AdminCutiViewSet
 from cuti.views import CutiViewSet, PortalCutiViewSet
 from gaji.admin_views import AdminGajiImportView, AdminGajiViewSet

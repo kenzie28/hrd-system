@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.debug_log import debug_error, debug_exception
-from core.permissions import IsAdminAllowed
+from karyawan.permissions import IsAdminAllowed
 
 from .models import GajiTemp
 from .serializers import GajiTempSerializer

@@ -48,7 +48,8 @@ export function DataGajiTab() {
           { title: 'ID Karyawan', dataIndex: 'karyawan_kode', width: 110 },
           { title: 'Karyawan', dataIndex: 'karyawan_nama' },
           { title: 'Periode', dataIndex: 'periode', width: 100 },
-          { title: 'Hadir', dataIndex: 'hadir', width: 70 },
+          { title: 'Hadir', dataIndex: 'hadir', width: 80 },
+          { title: 'Total Hadir', dataIndex: 'total_hadir', width: 90 },
           { title: 'Alpa', dataIndex: 'freq_alpa', width: 70 },
           {
             title: 'Gaji Pokok',

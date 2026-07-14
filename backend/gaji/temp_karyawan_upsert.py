@@ -2,7 +2,7 @@
 TEMPORARY helper used only while testing the Gaji CSV import end-to-end.
 
 Upserts NAMA KARYAWAN / JABATAN / Lokasi Kerja / Wilayah / level (from Gol)
-from the gaji CSV onto ``core.Karyawan``, creating the Karyawan (with
+from the gaji CSV onto ``karyawan.Karyawan``, creating the Karyawan (with
 ``level=1`` when Gol has no usable digit) and/or the ``core.Lokasi`` if they
 don't exist yet.
 
@@ -13,7 +13,8 @@ longer needed.
 """
 from __future__ import annotations
 
-from core.models import Karyawan, Lokasi
+from core.models import Lokasi
+from karyawan.models import Karyawan
 
 
 def upsert_karyawan_from_gaji_row(

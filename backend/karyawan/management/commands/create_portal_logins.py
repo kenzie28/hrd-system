@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 
-from core.models import Karyawan
-from core.services import create_portal_login
+from karyawan.models import Karyawan
+from karyawan.services import create_portal_login
 
 
 class Command(BaseCommand):

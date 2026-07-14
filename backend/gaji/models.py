@@ -12,12 +12,15 @@ class GajiTemp(models.Model):
     HRD payroll CSV export (see ``gaji-input.csv`` at the repo root)."""
 
     karyawan = models.ForeignKey(
-        'core.Karyawan', on_delete=models.PROTECT, related_name='gaji_temp'
+        'karyawan.Karyawan', on_delete=models.PROTECT, related_name='gaji_temp'
     )
     periode = models.DateField(help_text='First day of the payroll month.')
 
     # Attendance tally, from HADIR / SK/CU/CT.
-    hadir = models.PositiveIntegerField(default=0)
+    # ``hadir`` stores the CSV HADIR triplet with leading ``'`` and spaces stripped
+    # (e.g. ``'19/  /  `` becomes ``19//``). ``total_hadir`` is the sum of the three parts.
+    hadir = models.CharField(max_length=32, default='', blank=True)
+    total_hadir = models.PositiveIntegerField(default=0)
     hari_sakit = models.PositiveIntegerField(default=0)
     hari_cuti = models.PositiveIntegerField(default=0)
     hari_cuti_tambahan = models.PositiveIntegerField(default=0)
@@ -82,7 +85,7 @@ class GajiTemp(models.Model):
 
     @property
     def freq_hari_non_target(self) -> int:
-        return self.hadir - self.freq_pencapaian_target
+        return self.total_hadir - self.freq_pencapaian_target
 
     @property
     def nominal_non_target(self) -> int:
@@ -90,7 +93,7 @@ class GajiTemp(models.Model):
 
     @property
     def nominal_uang_makan(self) -> int:
-        return self.rate_uang_makan * self.hadir
+        return self.rate_uang_makan * self.total_hadir
 
     @property
     def rate_hari_raya(self) -> int:

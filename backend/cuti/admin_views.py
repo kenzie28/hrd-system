@@ -3,8 +3,8 @@ from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.permissions import IsAdminAllowed
-from core.portal_views import _karyawan_for
+from karyawan.permissions import IsAdminAllowed
+from karyawan.portal_views import _karyawan_for
 
 from .models import PermohonanCuti, StatusPermohonanCuti
 from .serializers import PermohonanCutiSerializer

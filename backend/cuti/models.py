@@ -2,18 +2,19 @@ from django.db import models
 
 
 class TipeCuti(models.TextChoices):
-    IZIN = 'IZIN', 'Izin'
+    IZIN_OFF = 'IZIN_OFF', 'Izin Off'
     IZIN_TELAT = 'IZIN_TELAT', 'Izin Telat'
     IZIN_PULANG_CEPAT = 'IZIN_PULANG_CEPAT', 'Izin Pulang Cepat'
-    TAHUNAN = 'TAHUNAN', 'Tahunan'
-    SAKIT = 'SAKIT', 'Sakit'
-    DUKA_CITA = 'DUKA_CITA', 'Duka Cita'
-    MELAHIRKAN = 'MELAHIRKAN', 'Melahirkan'
-    ISTRI_MELAHIRKAN = 'ISTRI_MELAHIRKAN', 'Istri Melahirkan'
-    MENIKAH = 'MENIKAH', 'Menikah'
-    ANAK_MENIKAH = 'ANAK_MENIKAH', 'Anak Menikah'
-    KHITANAN_ANAK = 'KHITANAN_ANAK', 'Khitanan Anak'
-    PEMBAPTISAN_ANAK = 'PEMBAPTISAN_ANAK', 'Pembaptisan Anak'
+    IZIN_LOKASI_BEDA = 'IZIN_LOKASI_BEDA', 'Izin Absen di Lokasi Beda'
+    TAHUNAN = 'CUTI_TAHUNAN', 'Cuti Tahunan'
+    SAKIT = 'CUTI_SAKIT', 'Cuti Sakit'
+    DUKA_CITA = 'CUTI_DUKA_CITA', 'Cuti Duka Cita'
+    MELAHIRKAN = 'CUTI_MELAHIRKAN', 'Cuti Melahirkan'
+    ISTRI_MELAHIRKAN = 'CUTI_ISTRI_MELAHIRKAN', 'Cuti Istri Melahirkan'
+    MENIKAH = 'CUTI_MENIKAH', 'Cuti Menikah'
+    ANAK_MENIKAH = 'CUTI_ANAK_MENIKAH', 'Cuti Anak Menikah'
+    KHITANAN_ANAK = 'CUTI_KHITANAN_ANAK', 'Cuti Khitanan Anak'
+    PEMBAPTISAN_ANAK = 'CUTI_PEMBAPTISAN_ANAK', 'Cuti Pembaptisan Anak'
 
 
 class StatusPermohonanCuti(models.TextChoices):
@@ -34,7 +35,7 @@ ACTIVE_STATUSES = {
 class PermohonanCuti(models.Model):
     # Workflow and Range Data
     karyawan = models.ForeignKey(
-        'core.Karyawan', on_delete=models.PROTECT, related_name='permohonan_cuti'
+        'karyawan.Karyawan', on_delete=models.PROTECT, related_name='permohonan_cuti'
     )
     tipe = models.CharField(max_length=32, choices=TipeCuti.choices)
     alasan = models.TextField(blank=True)
@@ -46,14 +47,14 @@ class PermohonanCuti(models.Model):
         default=StatusPermohonanCuti.MENUNGGU_SUPERVISOR,
     )
     supervisor = models.ForeignKey(
-        'core.Karyawan',
+        'karyawan.Karyawan',
         on_delete=models.PROTECT,
         related_name='cuti_disupervisi',
         null=True,
         blank=True,
     )
     hrd_approver = models.ForeignKey(
-        'core.Karyawan',
+        'karyawan.Karyawan',
         on_delete=models.PROTECT,
         related_name='cuti_diapprove_hrd',
         null=True,

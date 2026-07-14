@@ -29,6 +29,7 @@ class GajiTempSerializer(serializers.ModelSerializer):
             'karyawan_kode',
             'periode',
             'hadir',
+            'total_hadir',
             'hari_sakit',
             'hari_cuti',
             'hari_cuti_tambahan',

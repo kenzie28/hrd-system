@@ -15,8 +15,10 @@ from .models import (
 
 CUTI_TIPE_TO_STATUS = {
     TipeCuti.SAKIT: StatusRekapKehadiran.SAKIT,
-    TipeCuti.IZIN: StatusRekapKehadiran.IZIN,
+    TipeCuti.IZIN_OFF: StatusRekapKehadiran.IZIN,
+    TipeCuti.IZIN_TELAT: StatusRekapKehadiran.IZIN,
     TipeCuti.IZIN_PULANG_CEPAT: StatusRekapKehadiran.IZIN,
+    TipeCuti.IZIN_LOKASI_BEDA: StatusRekapKehadiran.IZIN,
 }
 
 

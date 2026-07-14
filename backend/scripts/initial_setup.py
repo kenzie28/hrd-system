@@ -1,5 +1,6 @@
-from core.models import Karyawan, Lokasi
-from core.services import create_portal_login
+from core.models import Lokasi
+from karyawan.models import Karyawan
+from karyawan.services import create_portal_login
 
 lokasi, _ = Lokasi.objects.update_or_create(
     id='99',

@@ -49,17 +49,19 @@ export interface Absensi {
 }
 
 export type CutiTipe =
-  | 'IZIN'
+  | 'IZIN_OFF'
+  | 'IZIN_TELAT'
   | 'IZIN_PULANG_CEPAT'
-  | 'TAHUNAN'
-  | 'SAKIT'
-  | 'DUKA_CITA'
-  | 'MELAHIRKAN'
-  | 'ISTRI_MELAHIRKAN'
-  | 'MENIKAH'
-  | 'ANAK_MENIKAH'
-  | 'KHITANAN_ANAK'
-  | 'PEMBAPTISAN_ANAK'
+  | 'IZIN_LOKASI_BEDA'
+  | 'CUTI_TAHUNAN'
+  | 'CUTI_SAKIT'
+  | 'CUTI_DUKA_CITA'
+  | 'CUTI_MELAHIRKAN'
+  | 'CUTI_ISTRI_MELAHIRKAN'
+  | 'CUTI_MENIKAH'
+  | 'CUTI_ANAK_MENIKAH'
+  | 'CUTI_KHITANAN_ANAK'
+  | 'CUTI_PEMBAPTISAN_ANAK'
 
 export interface Cuti {
   id: number
@@ -152,7 +154,8 @@ export interface GajiTemp {
   karyawan_nama: string
   karyawan_kode: string
   periode: string
-  hadir: number
+  hadir: string
+  total_hadir: number
   hari_sakit: number
   hari_cuti: number
   hari_cuti_tambahan: number

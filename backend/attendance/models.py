@@ -28,7 +28,7 @@ class Shift(models.Model):
 
 class Jadwal(models.Model):
     karyawan = models.ForeignKey(
-        'core.Karyawan', on_delete=models.CASCADE, related_name='jadwal'
+        'karyawan.Karyawan', on_delete=models.CASCADE, related_name='jadwal'
     )
     shift = models.ForeignKey(
         Shift, on_delete=models.CASCADE, related_name='jadwal')
@@ -49,7 +49,7 @@ class Jadwal(models.Model):
 
 class Absensi(models.Model):
     karyawan = models.ForeignKey(
-        'core.Karyawan', on_delete=models.CASCADE, related_name='absensi'
+        'karyawan.Karyawan', on_delete=models.CASCADE, related_name='absensi'
     )
     lokasi = models.ForeignKey(
         'core.Lokasi', on_delete=models.CASCADE, related_name='absensi'

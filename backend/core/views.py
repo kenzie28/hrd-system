@@ -1,12 +1,7 @@
 from rest_framework import viewsets
 
-from .models import Karyawan, Lokasi
-from .serializers import KaryawanSerializer, LokasiSerializer
-
-
-class KaryawanViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Karyawan.objects.all()
-    serializer_class = KaryawanSerializer
+from .models import Lokasi
+from .serializers import LokasiSerializer
 
 
 class LokasiViewSet(viewsets.ReadOnlyModelViewSet):

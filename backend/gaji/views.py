@@ -4,8 +4,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core.portal_serializers import PortalKaryawanSerializer
-from core.portal_views import _karyawan_for
+from karyawan.serializers import PortalKaryawanSerializer
+from karyawan.portal_views import _karyawan_for
 
 from .models import GajiTemp
 from .serializers import GajiTempSerializer

@@ -10,6 +10,7 @@ class GajiTempAdmin(admin.ModelAdmin):
         'karyawan',
         'periode',
         'hadir',
+        'total_hadir',
         'gaji_pokok',
         'total_gaji',
     ]

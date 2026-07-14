@@ -1,23 +1,24 @@
 from django.contrib.auth import authenticate
-from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .access import is_admin_allowed
 from .models import Karyawan
-from .permissions import IsAdminAllowed
-from .portal_serializers import PortalKaryawanSerializer, PortalLoginSerializer
-from .portal_views import _karyawan_for
-from .services import create_portal_login
+from .serializers import (
+    ChangePasswordSerializer,
+    PortalKaryawanSerializer,
+    PortalLoginSerializer,
+)
 
 
-class AdminLoginView(APIView):
-    """Login for the HRD admin-frontend. Only allowlisted Karyawan may enter."""
+def _karyawan_for(user):
+    return Karyawan.objects.filter(user=user).first()
 
+
+class PortalLoginView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
 
@@ -41,36 +42,50 @@ class AdminLoginView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if not is_admin_allowed(karyawan.karyawan_id):
-            return Response(
-                {'detail': 'Akun Anda tidak memiliki akses ke HRD Admin.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         token, _ = Token.objects.get_or_create(user=user)
         return Response(
             {
                 'token': token.key,
+                'must_change_password': karyawan.must_change_password,
                 'karyawan': PortalKaryawanSerializer(karyawan).data,
             }
         )
 
 
-class AdminMeView(APIView):
+class PortalMeView(APIView):
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAdminAllowed]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         karyawan = _karyawan_for(request.user)
+        if karyawan is None:
+            return Response(
+                {'detail': 'Akun tidak terhubung ke data karyawan.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         return Response(PortalKaryawanSerializer(karyawan).data)
 
 
-class AdminResetPasswordView(APIView):
+class PortalChangePasswordView(APIView):
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAdminAllowed]
+    permission_classes = [IsAuthenticated]
 
-    def post(self, request, pk):
-        karyawan = get_object_or_404(Karyawan, pk=pk)
-        create_portal_login(karyawan)
-        karyawan.refresh_from_db()
-        return Response(PortalKaryawanSerializer(karyawan).data)
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_password = serializer.validated_data['new_password']
+
+        user = request.user
+        user.set_password(new_password)
+        user.save()
+
+        karyawan = _karyawan_for(user)
+        if karyawan is not None:
+            karyawan.must_change_password = False
+            karyawan.save(update_fields=['must_change_password'])
+
+        # Rotate the token so old sessions are invalidated after a password change.
+        Token.objects.filter(user=user).delete()
+        token = Token.objects.create(user=user)
+
+        return Response({'token': token.key, 'must_change_password': False})

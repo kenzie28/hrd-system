@@ -1,4 +1,4 @@
-import type { CutiStatus, CutiTipe } from './api/types'
+import type { CutiStatus, CutiTipe, LemburStatus } from './api/types'
 
 // Mirror of backend cuti/policy.py LEVEL_APPROVER_MAP. Keep both in sync.
 // Maps a requester's level to the supervisor levels they may request.
@@ -41,6 +41,16 @@ export const CUTI_STATUS_COLORS: Record<CutiStatus, string> = {
   DIBATALKAN: 'default',
   APPROVED: 'green',
 }
+
+export const LEMBUR_STATUS_COLORS: Record<LemburStatus, string> = {
+  MENUNGGU_SUPERVISOR: 'orange',
+  MENUNGGU_HRD: 'blue',
+  DITOLAK: 'red',
+  DIBATALKAN: 'default',
+  APPROVED: 'green',
+}
+
+export const fmtTime = (t?: string | null) => (t ? t.slice(0, 5) : '-')
 
 const currencyFormatter = new Intl.NumberFormat('id-ID', {
   style: 'currency',

@@ -8,13 +8,15 @@ Single Docker image: Django API + HR admin UI + employee portal, deployed to Goo
 - [Docker](https://docs.docker.com/get-docker/) (for local builds)
 - A GCP project with billing enabled
 
+All Google Cloud setup, build, and deploy scripts live in [`google-cloud/`](google-cloud/).
+
 ## First-time setup
 
-1. Edit `PROJECT_ID` in `one-time-gcloud-setup.sh` and `deploy.sh` (replace `TODO_insert_YOUR_project_ID`).
+1. Edit `PROJECT_ID` in `google-cloud/one-time-gcloud-setup.sh` and `google-cloud/deploy.sh` (replace `TODO_insert_YOUR_project_ID`).
 2. Run one-time GCP setup:
 
 ```bash
-./one-time-gcloud-setup.sh
+./google-cloud/one-time-gcloud-setup.sh
 ```
 
 3. Copy and edit environment file:
@@ -27,7 +29,7 @@ cp .env.example .env
 4. First deploy:
 
 ```bash
-./deploy.sh --build --env
+./google-cloud/deploy.sh --build --env
 ```
 
 ## Environment variables
@@ -42,11 +44,11 @@ cp .env.example .env
 | `DJANGO_SUPERUSER_EMAIL` | no | Email for superuser (default `admin@example.com`) |
 | `PAYROLL_DB_*` | no | Payroll import only (see `.env.example`) |
 
-Loaded via `./deploy.sh --env` from `.env`.
+Loaded via `./google-cloud/deploy.sh --env` from `.env`.
 
 ## Production URLs
 
-After deploy, `{SERVICE_URL}` is printed by `deploy.sh`:
+After deploy, `{SERVICE_URL}` is printed by `google-cloud/deploy.sh`:
 
 | URL | App |
 |-----|-----|
@@ -59,10 +61,10 @@ After deploy, `{SERVICE_URL}` is printed by `deploy.sh`:
 
 | Command | Effect |
 |---------|--------|
-| `./deploy.sh` | Redeploy existing `latest` image |
-| `./deploy.sh --build` | Rebuild and push image, then deploy |
-| `./deploy.sh --env` | Deploy with updated `.env` variables |
-| `./deploy.sh --build --env` | Full deploy (first time or after code changes) |
+| `./google-cloud/deploy.sh` | Redeploy existing `latest` image |
+| `./google-cloud/deploy.sh --build` | Rebuild and push image, then deploy |
+| `./google-cloud/deploy.sh --env` | Deploy with updated `.env` variables |
+| `./google-cloud/deploy.sh --build --env` | Full deploy (first time or after code changes) |
 
 ## Post-deploy
 
@@ -79,7 +81,7 @@ python manage.py seed_demo
 Locally with Docker:
 
 ```bash
-docker build -t hrd-system .
+docker build -f google-cloud/Dockerfile -t hrd-system .
 docker run -p 8080:8080 --env-file .env hrd-system
 # Portal: http://localhost:8080/portal/
 # HR Admin: http://localhost:8080/hr/

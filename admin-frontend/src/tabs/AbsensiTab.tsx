@@ -3,6 +3,7 @@ import {
   App,
   Button,
   DatePicker,
+  Empty,
   Form,
   InputNumber,
   Modal,
@@ -41,6 +42,11 @@ export function AbsensiTab() {
 
   const [editing, setEditing] = useState<Absensi | null>(null)
   const [form] = Form.useForm<EditFormValues>()
+
+  const karyawanOptions = useMemo(
+    () => (karyawan ?? []).map((k) => ({ label: k.nama, value: k.id })),
+    [karyawan],
+  )
 
   const jamMasuk = Form.useWatch('jam_masuk', form)
   const durasiJam = Form.useWatch('durasi_jam', form)
@@ -82,10 +88,9 @@ export function AbsensiTab() {
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
       <Space wrap>
         <Select
-          placeholder="Semua karyawan"
-          style={{ minWidth: 180 }}
-          allowClear
-          options={(karyawan ?? []).map((k) => ({ label: k.nama, value: k.id }))}
+          placeholder="Pilih karyawan"
+          style={{ minWidth: 220 }}
+          options={karyawanOptions}
           value={karyawanId}
           onChange={(value) => setKaryawanId(value ?? undefined)}
           showSearch
@@ -98,51 +103,56 @@ export function AbsensiTab() {
           allowClear={false}
         />
       </Space>
-      <Table<Absensi>
-        rowKey="id"
-        size="small"
-        loading={isLoading}
-        dataSource={absensi}
-        pagination={{ pageSize: 20, showSizeChanger: false }}
-        columns={[
-          { title: 'Tanggal', dataIndex: 'tanggal', sorter: (a, b) => a.tanggal.localeCompare(b.tanggal) },
-          { title: 'Karyawan', dataIndex: 'karyawan_nama' },
-          { title: 'Lokasi', dataIndex: 'lokasi_nama' },
-          { title: 'Jam Masuk', dataIndex: 'jam_masuk', render: fmtTime },
-          { title: 'Durasi', dataIndex: 'durasi', render: (d: string) => d.slice(0, 5) },
-          {
-            title: 'Jam Keluar',
-            render: (_, record) => (
-              <JamKeluar
-                jamKeluar={record.jam_keluar}
-                keluarHariOffset={record.keluar_hari_offset}
-              />
-            ),
-          },
-          {
-            title: 'Aksi',
-            width: 160,
-            render: (_, record) => (
-              <Space>
-                <Button size="small" onClick={() => openEdit(record)}>
-                  Edit
-                </Button>
-                <Popconfirm
-                  title="Hapus absensi ini?"
-                  onConfirm={async () => {
-                    await remove.mutateAsync(record.id)
-                    message.success('Absensi dihapus')
-                  }}
-                >
-                  <Button size="small" danger>
-                    Hapus
+
+      {!karyawanId ? (
+        <Empty description="Pilih karyawan untuk meninjau riwayat absensinya." />
+      ) : (
+        <Table<Absensi>
+          rowKey="id"
+          size="small"
+          loading={isLoading}
+          dataSource={absensi}
+          pagination={{ pageSize: 20, showSizeChanger: false }}
+          columns={[
+            { title: 'Tanggal', dataIndex: 'tanggal', sorter: (a, b) => a.tanggal.localeCompare(b.tanggal) },
+            { title: 'Lokasi', dataIndex: 'lokasi_nama' },
+            { title: 'Jam Masuk', dataIndex: 'jam_masuk', render: fmtTime },
+            { title: 'Durasi', dataIndex: 'durasi', render: (d: string) => d.slice(0, 5) },
+            {
+              title: 'Jam Keluar',
+              render: (_, record) => (
+                <JamKeluar
+                  jamKeluar={record.jam_keluar}
+                  keluarHariOffset={record.keluar_hari_offset}
+                />
+              ),
+            },
+            {
+              title: 'Aksi',
+              width: 160,
+              render: (_, record) => (
+                <Space>
+                  <Button size="small" onClick={() => openEdit(record)}>
+                    Edit
                   </Button>
-                </Popconfirm>
-              </Space>
-            ),
-          },
-        ]}
-      />
+                  <Popconfirm
+                    title="Hapus absensi ini?"
+                    onConfirm={async () => {
+                      await remove.mutateAsync(record.id)
+                      message.success('Absensi dihapus')
+                    }}
+                  >
+                    <Button size="small" danger>
+                      Hapus
+                    </Button>
+                  </Popconfirm>
+                </Space>
+              ),
+            },
+          ]}
+        />
+      )}
+
       <Modal
         title={editing ? `Edit Absensi — ${editing.karyawan_nama}, ${editing.tanggal}` : 'Edit Absensi'}
         open={editing != null}

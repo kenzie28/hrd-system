@@ -13,9 +13,10 @@ class KaryawanAdmin(admin.ModelAdmin):
         'jabatan',
         'wilayah',
         'level',
-        'default_shift',
+        'cuti_tahunan',
         'user',
         'must_change_password',
     ]
+    list_editable = ['cuti_tahunan']
     list_filter = ['level', 'lokasi_kerja', 'wilayah']
     search_fields = ['karyawan_id', 'nama']

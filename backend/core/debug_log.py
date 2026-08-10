@@ -1,6 +1,6 @@
 """Failure-only diagnostic output for Cloud Run debugging.
 
-Enabled when ``HRD_DEBUG`` is true (set automatically by ``./deploy.sh --debug``).
+Enabled when ``HRD_DEBUG`` is true (set automatically by ``./google-cloud/deploy.sh --debug``).
 Normal success paths stay silent.
 """
 from __future__ import annotations

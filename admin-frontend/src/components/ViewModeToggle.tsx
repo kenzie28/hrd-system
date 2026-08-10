@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Calendar,
   DatePicker,
@@ -22,11 +22,13 @@ export interface ViewModeToggleProps<T> {
   /** Compact one-line rendering used inside calendar cells. */
   renderBadge: (record: T) => ReactNode
   karyawanId?: number
-  onKaryawanChange: (id?: number) => void
+  onKaryawanChange?: (id?: number) => void
   month: Dayjs
   onMonthChange: (month: Dayjs) => void
   /** Extra toolbar content, e.g. action buttons. */
   toolbarExtra?: ReactNode
+  /** Hide karyawan filter (e.g. global holiday list). */
+  hideKaryawanFilter?: boolean
 }
 
 export function ViewModeToggle<T extends { id: number }>({
@@ -40,6 +42,7 @@ export function ViewModeToggle<T extends { id: number }>({
   month,
   onMonthChange,
   toolbarExtra,
+  hideKaryawanFilter = false,
 }: ViewModeToggleProps<T>) {
   const [mode, setMode] = useState<ViewMode>('table')
   const { data: karyawan } = useKaryawan()
@@ -69,16 +72,18 @@ export function ViewModeToggle<T extends { id: number }>({
             { label: 'Calendar', value: 'calendar' },
           ]}
         />
-        <Select
-          placeholder="Semua karyawan"
-          style={{ minWidth: 180 }}
-          allowClear
-          options={karyawanOptions}
-          value={karyawanId}
-          onChange={(value) => onKaryawanChange(value ?? undefined)}
-          showSearch
-          optionFilterProp="label"
-        />
+        {!hideKaryawanFilter && (
+          <Select
+            placeholder="Semua karyawan"
+            style={{ minWidth: 180 }}
+            allowClear
+            options={karyawanOptions}
+            value={karyawanId}
+            onChange={(value) => onKaryawanChange?.(value ?? undefined)}
+            showSearch
+            optionFilterProp="label"
+          />
+        )}
         <DatePicker
           picker="month"
           value={month}

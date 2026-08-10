@@ -6,8 +6,11 @@ import CutiPage from './pages/CutiPage'
 import GajiPage from './pages/GajiPage'
 import HomePage from './pages/HomePage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
+import KaryawanPage from './pages/KaryawanPage'
+import LemburPage from './pages/LemburPage'
+import LiburanPage from './pages/LiburanPage'
 import LoginPage from './pages/LoginPage'
-import ResetPasswordPage from './pages/ResetPasswordPage'
+import ShiftPage from './pages/ShiftPage'
 
 export default function App() {
   return (
@@ -22,9 +25,12 @@ export default function App() {
         }
       >
         <Route path="/" element={<HomePage />} />
+        <Route path="/shift" element={<ShiftPage />} />
         <Route path="/absensi" element={<AbsensiPage />} />
         <Route path="/cuti" element={<CutiPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/lembur" element={<LemburPage />} />
+        <Route path="/liburan" element={<LiburanPage />} />
+        <Route path="/karyawan" element={<KaryawanPage />} />
         <Route path="/gaji" element={<GajiPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

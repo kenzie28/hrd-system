@@ -1,5 +1,6 @@
 import {
   App as AntApp,
+  Alert,
   Button,
   DatePicker,
   Form,
@@ -8,8 +9,10 @@ import {
   Spin,
 } from 'antd'
 import type { Dayjs } from 'dayjs'
+import { useMemo } from 'react'
 import { useCreateCuti, useSupervisorOptions } from '../../api/cuti'
 import type { CreatePermohonanCutiPayload, CutiTipe } from '../../api/types'
+import { useAuth } from '../../auth/AuthContext'
 import { CUTI_TIPE_OPTIONS } from '../../constants'
 
 interface FormValues {
@@ -22,8 +25,26 @@ interface FormValues {
 export default function AjukanCutiTab() {
   const [form] = Form.useForm<FormValues>()
   const { message } = AntApp.useApp()
+  const { karyawan } = useAuth()
   const { data: supervisors, isLoading } = useSupervisorOptions()
   const createCuti = useCreateCuti()
+
+  const sisaCutiTahunan = karyawan?.cuti_tahunan ?? 0
+  const tipe = Form.useWatch('tipe', form)
+
+  const tipeOptions = useMemo(
+    () =>
+      CUTI_TIPE_OPTIONS.map((opt) =>
+        opt.value === 'CUTI_TAHUNAN'
+          ? {
+              ...opt,
+              label: `${opt.label} (Sisa: ${sisaCutiTahunan} hari)`,
+              disabled: sisaCutiTahunan <= 0,
+            }
+          : opt,
+      ),
+    [sisaCutiTahunan],
+  )
 
   const onFinish = async (values: FormValues) => {
     const payload: CreatePermohonanCutiPayload = {
@@ -54,17 +75,40 @@ export default function AjukanCutiTab() {
       requiredMark={false}
       style={{ maxWidth: 480 }}
     >
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message={`Sisa jatah Cuti Tahunan Anda: ${sisaCutiTahunan} hari`}
+      />
       <Form.Item
         name="tipe"
-        label="Tipe Cuti"
-        rules={[{ required: true, message: 'Pilih tipe cuti.' }]}
+        label="Tipe"
+        rules={[{ required: true, message: 'Pilih tipe.' }]}
       >
-        <Select placeholder="Pilih tipe cuti" options={CUTI_TIPE_OPTIONS} />
+        <Select placeholder="Pilih tipe" options={tipeOptions} />
       </Form.Item>
       <Form.Item
         name="rentang"
         label="Tanggal Mulai - Selesai"
-        rules={[{ required: true, message: 'Pilih rentang tanggal.' }]}
+        dependencies={['tipe']}
+        rules={[
+          { required: true, message: 'Pilih rentang tanggal.' },
+          {
+            validator: (_, value?: [Dayjs, Dayjs]) => {
+              if (!value || tipe !== 'CUTI_TAHUNAN') return Promise.resolve()
+              const jumlahHari = value[1].diff(value[0], 'day') + 1
+              if (jumlahHari > sisaCutiTahunan) {
+                return Promise.reject(
+                  new Error(
+                    `Sisa cuti tahunan Anda hanya ${sisaCutiTahunan} hari, tidak mencukupi untuk ${jumlahHari} hari yang diajukan.`,
+                  ),
+                )
+              }
+              return Promise.resolve()
+            },
+          },
+        ]}
         extra="Pilih tanggal yang sama di awal dan akhir untuk request cuti satu hari."
       >
         <DatePicker.RangePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
@@ -89,7 +133,7 @@ export default function AjukanCutiTab() {
         />
       </Form.Item>
       <Form.Item name="alasan" label="Alasan (opsional)">
-        <Input.TextArea rows={3} placeholder="Alasan pengajuan cuti" />
+        <Input.TextArea rows={3} placeholder="Alasan pengajuan" />
       </Form.Item>
       <Button
         type="primary"
@@ -97,7 +141,7 @@ export default function AjukanCutiTab() {
         loading={createCuti.isPending}
         disabled={!supervisors?.length}
       >
-        Ajukan Cuti
+        Ajukan
       </Button>
     </Form>
   )

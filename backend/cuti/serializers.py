@@ -82,6 +82,22 @@ class PermohonanCutiCreateSerializer(serializers.ModelSerializer):
                 {'tanggal_selesai': 'Tanggal selesai tidak boleh sebelum tanggal mulai.'}
             )
 
+        if attrs.get('tipe') == TipeCuti.TAHUNAN:
+            jumlah_hari = (attrs['tanggal_selesai'] - attrs['tanggal_mulai']).days + 1
+            if requester.cuti_tahunan <= 0:
+                raise serializers.ValidationError(
+                    {'tipe': 'Jatah cuti tahunan Anda sudah habis.'}
+                )
+            if jumlah_hari > requester.cuti_tahunan:
+                raise serializers.ValidationError(
+                    {
+                        'tipe': (
+                            f'Sisa cuti tahunan Anda hanya {requester.cuti_tahunan} hari, '
+                            f'tidak mencukupi untuk {jumlah_hari} hari yang diajukan.'
+                        )
+                    }
+                )
+
         supervisor = attrs.get('supervisor')
         if supervisor is None:
             raise serializers.ValidationError({'supervisor': 'Supervisor wajib dipilih.'})

@@ -49,10 +49,14 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'corsheaders',
     'core',
-    'attendance',
+    'shift',
+    'absensi',
+    'rekap_kehadiran',
     'karyawan',
     'cuti',
+    'lembur',
     'gaji',
+    'liburan',
 ]
 
 MIDDLEWARE = [

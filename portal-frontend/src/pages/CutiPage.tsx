@@ -1,4 +1,6 @@
-import { Tabs, Typography } from 'antd'
+import { Badge, Tabs, Typography } from 'antd'
+import type { ReactNode } from 'react'
+import { useCutiApprovals } from '../api/cuti'
 import { useAuth } from '../auth/AuthContext'
 import { MIN_SUPERVISOR_LEVEL } from '../constants'
 import AjukanCutiTab from './cuti/AjukanCutiTab'
@@ -8,16 +10,22 @@ import StatusCutiTab from './cuti/StatusCutiTab'
 export default function CutiPage() {
   const { karyawan } = useAuth()
   const isSupervisor = (karyawan?.level ?? 0) >= MIN_SUPERVISOR_LEVEL
+  const { data: approvals } = useCutiApprovals(isSupervisor)
+  const hasPending = (approvals?.length ?? 0) > 0
 
-  const items = [
-    { key: 'ajukan', label: 'Ajukan Cuti', children: <AjukanCutiTab /> },
-    { key: 'status', label: 'Status Cuti', children: <StatusCutiTab /> },
+  const items: { key: string; label: ReactNode; children: ReactNode }[] = [
+    { key: 'ajukan', label: 'Ajukan', children: <AjukanCutiTab /> },
+    { key: 'status', label: 'Status', children: <StatusCutiTab /> },
   ]
 
   if (isSupervisor) {
     items.push({
       key: 'persetujuan',
-      label: 'Persetujuan',
+      label: (
+        <Badge dot={hasPending} offset={[6, 0]}>
+          Persetujuan
+        </Badge>
+      ),
       children: <PersetujuanCutiTab />,
     })
   }

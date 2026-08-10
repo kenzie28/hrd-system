@@ -17,13 +17,6 @@ class Karyawan(models.Model):
     level = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(8)]
     )
-    default_shift = models.ForeignKey(
-        'attendance.Shift',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='karyawan_default',
-    )
     user = models.OneToOneField(
         'auth.User',
         on_delete=models.SET_NULL,
@@ -32,9 +25,14 @@ class Karyawan(models.Model):
         related_name='karyawan',
     )
     must_change_password = models.BooleanField(default=True)
+    cuti_tahunan = models.PositiveSmallIntegerField(
+        default=12,
+        help_text='Sisa jatah cuti tahunan (hari) yang masih bisa diambil.',
+    )
 
     class Meta:
         verbose_name_plural = 'Karyawan'
 
     def __str__(self):
         return self.nama
+

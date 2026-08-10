@@ -1,14 +1,23 @@
-import type { CutiTipe, RekapStatus } from './api/types'
+import type { CutiTipe, HariKerja } from './api/types'
 
-export const REKAP_STATUS_COLORS: Record<RekapStatus, string> = {
-  HADIR: 'green',
-  TERLAMBAT: 'orange',
-  PULANG_CEPAT: 'gold',
-  IZIN: 'blue',
-  SAKIT: 'purple',
-  CUTI: 'cyan',
-  ALPA: 'red',
-  LIBUR: 'geekblue',
+export const HARI_KERJA_OPTIONS: { label: string; value: HariKerja }[] = [
+  { label: 'Senin', value: 'SENIN' },
+  { label: 'Selasa', value: 'SELASA' },
+  { label: 'Rabu', value: 'RABU' },
+  { label: 'Kamis', value: 'KAMIS' },
+  { label: 'Jumat', value: 'JUMAT' },
+  { label: 'Sabtu', value: 'SABTU' },
+  { label: 'Minggu', value: 'MINGGU' },
+]
+
+export const HARI_KERJA_ORDER: Record<HariKerja, number> = {
+  SENIN: 0,
+  SELASA: 1,
+  RABU: 2,
+  KAMIS: 3,
+  JUMAT: 4,
+  SABTU: 5,
+  MINGGU: 6,
 }
 
 export const CUTI_TIPE_COLORS: Record<CutiTipe, string> = {

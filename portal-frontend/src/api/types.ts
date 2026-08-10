@@ -4,6 +4,7 @@ export interface PortalKaryawan {
   nama: string
   level: number
   must_change_password: boolean
+  cuti_tahunan: number
 }
 
 export type CutiTipe =
@@ -22,6 +23,13 @@ export type CutiTipe =
   | 'CUTI_PEMBAPTISAN_ANAK'
 
 export type CutiStatus =
+  | 'MENUNGGU_SUPERVISOR'
+  | 'MENUNGGU_HRD'
+  | 'DITOLAK'
+  | 'DIBATALKAN'
+  | 'APPROVED'
+
+export type LemburStatus =
   | 'MENUNGGU_SUPERVISOR'
   | 'MENUNGGU_HRD'
   | 'DITOLAK'
@@ -59,6 +67,27 @@ export interface CreatePermohonanCutiPayload {
   alasan?: string
   tanggal_mulai: string
   tanggal_selesai: string
+  supervisor: number
+}
+
+export interface PermohonanLembur {
+  id: number
+  karyawan: number
+  karyawan_nama: string
+  karyawan_kode: string
+  alasan: string
+  tanggal: string
+  status: LemburStatus
+  status_display: string
+  supervisor: number | null
+  supervisor_nama: string | null
+  hrd_approver: number | null
+  hrd_approver_nama: string | null
+}
+
+export interface CreatePermohonanLemburPayload {
+  alasan?: string
+  tanggal: string
   supervisor: number
 }
 
@@ -114,4 +143,16 @@ export interface GajiResponse {
   karyawan: PortalKaryawan
   bulan: string | null
   gaji: GajiDetail | null
+}
+
+export interface Absensi {
+  id: number
+  karyawan: number
+  lokasi: string
+  lokasi_nama: string
+  tanggal: string
+  jam_masuk: string
+  durasi: string
+  jam_keluar: string
+  keluar_hari_offset: number
 }

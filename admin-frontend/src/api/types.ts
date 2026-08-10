@@ -1,7 +1,34 @@
+export type HariKerja =
+  | 'SENIN'
+  | 'SELASA'
+  | 'RABU'
+  | 'KAMIS'
+  | 'JUMAT'
+  | 'SABTU'
+  | 'MINGGU'
+
 export interface Shift {
   id: number
+  lokasi_kerja: string
+  lokasi_kerja_nama: string
+  hari: HariKerja
+  hari_display: string
   jam_masuk: string
   jam_keluar: string
+}
+
+export interface ShiftImportError {
+  row: number
+  message: string
+}
+
+export interface ShiftImportResult {
+  ok: boolean
+  total_rows: number
+  created: number
+  errors: ShiftImportError[]
+  received_headers: string[]
+  required_columns: string[]
 }
 
 export interface Karyawan {
@@ -12,7 +39,31 @@ export interface Karyawan {
   jabatan: string
   wilayah: string
   level: number
-  default_shift: number | null
+  cuti_tahunan: number
+}
+
+export interface KaryawanWrite {
+  karyawan_id: string
+  nama: string
+  lokasi_kerja?: string | null
+  jabatan?: string
+  wilayah?: string
+  level: number
+  cuti_tahunan?: number
+}
+
+export interface KaryawanImportError {
+  row: number
+  message: string
+}
+
+export interface KaryawanImportResult {
+  ok: boolean
+  total_rows: number
+  created: number
+  errors: KaryawanImportError[]
+  received_headers: string[]
+  required_columns: string[]
 }
 
 export interface Lokasi {
@@ -26,13 +77,18 @@ export interface Liburan {
   tanggal: string
 }
 
-export interface Jadwal {
-  id: number
-  karyawan: number
-  karyawan_nama: string
-  shift: number
-  shift_detail: Shift
-  tanggal: string
+export interface LiburanImportError {
+  row: number
+  message: string
+}
+
+export interface LiburanImportResult {
+  ok: boolean
+  total_rows: number
+  created: number
+  errors: LiburanImportError[]
+  received_headers: string[]
+  required_columns: string[]
 }
 
 export interface Absensi {
@@ -46,6 +102,27 @@ export interface Absensi {
   durasi: string
   jam_keluar: string
   keluar_hari_offset: number
+}
+
+export interface AbsensiConflictGroup {
+  karyawan: number
+  karyawan_nama: string
+  tanggal: string
+  entries: Absensi[]
+}
+
+export interface AbsensiImportError {
+  row: number
+  message: string
+}
+
+export interface AbsensiImportResult {
+  ok: boolean
+  total_rows: number
+  created: number
+  errors: AbsensiImportError[]
+  received_headers: string[]
+  required_columns: string[]
 }
 
 export type CutiTipe =
@@ -72,31 +149,6 @@ export interface Cuti {
   tipe: CutiTipe
   tipe_display: string
   supervisor_nama: string | null
-}
-
-export type RekapStatus =
-  | 'HADIR'
-  | 'TERLAMBAT'
-  | 'PULANG_CEPAT'
-  | 'IZIN'
-  | 'SAKIT'
-  | 'CUTI'
-  | 'ALPA'
-  | 'LIBUR'
-
-export interface Rekap {
-  id: number
-  jadwal: number
-  jadwal_detail: Jadwal
-  karyawan: number
-  karyawan_nama: string
-  tanggal: string
-  absensi: number | null
-  absensi_detail: Absensi | null
-  cuti: number | null
-  cuti_detail: Cuti | null
-  status: RekapStatus
-  status_display: string
 }
 
 export interface RecordFilters {
@@ -141,6 +193,28 @@ export interface PermohonanCuti {
   tanggal_selesai: string
   jumlah_hari: number
   status: CutiStatus
+  status_display: string
+  supervisor: number | null
+  supervisor_nama: string | null
+  hrd_approver: number | null
+  hrd_approver_nama: string | null
+}
+
+export type LemburStatus =
+  | 'MENUNGGU_SUPERVISOR'
+  | 'MENUNGGU_HRD'
+  | 'DITOLAK'
+  | 'DIBATALKAN'
+  | 'APPROVED'
+
+export interface PermohonanLembur {
+  id: number
+  karyawan: number
+  karyawan_nama: string
+  karyawan_kode: string
+  alasan: string
+  tanggal: string
+  status: LemburStatus
   status_display: string
   supervisor: number | null
   supervisor_nama: string | null

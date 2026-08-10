@@ -101,7 +101,7 @@ class AdminGajiImportView(APIView):
                 filename=getattr(upload, 'name', None),
                 size=getattr(upload, 'size', None),
                 upsert_karyawan=upsert_karyawan,
-                hint='Periksa log Cloud Run; aktifkan ./deploy.sh --debug untuk detail lebih lanjut.',
+                hint='Periksa log Cloud Run; aktifkan ./google-cloud/deploy.sh --debug untuk detail lebih lanjut.',
             )
             result = GajiImportResult(
                 errors=[

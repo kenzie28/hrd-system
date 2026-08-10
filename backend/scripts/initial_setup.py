@@ -15,7 +15,6 @@ karyawan, created = Karyawan.objects.update_or_create(
         'jabatan': 'Director',
         'wilayah': '',
         'level': 8,
-        'default_shift': None,
     },
 )
 

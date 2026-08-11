@@ -253,13 +253,38 @@ echo "Deploying HRD System"
 echo "=============================================="
 echo ""
 
-echo "==> Starting containers (docker compose up -d)..."
-compose up -d --remove-orphans
+# Always rebuild so SPA/API proxy/entrypoint fixes ship without a separate
+# `./build.sh` (git pull + ./deploy.sh is enough after env secrets exist).
+echo "==> Building images and starting containers..."
+compose up -d --build --remove-orphans
 
 echo ""
 echo "==> Waiting for services to become healthy..."
 # Give mysql healthcheck + backend migrations a moment, then show status.
-sleep 3
+sleep 5
 compose ps
+
+# Smoke-test same-origin API proxy through the admin frontend container.
+admin_port="$(env_value ADMIN_FRONTEND_PORT 5128)"
+echo ""
+echo "==> Smoke-test: GET http://127.0.0.1:${admin_port}/healthz"
+if curl -fsS "http://127.0.0.1:${admin_port}/healthz" >/dev/null 2>&1; then
+    echo "    healthz OK"
+else
+    echo "    WARNING: healthz failed — frontend may still be starting."
+fi
+echo "==> Smoke-test: POST login path via proxy (expect HTTP 401 without body)"
+code="$(curl -sS -o /dev/null -w '%{http_code}' \
+    -X POST "http://127.0.0.1:${admin_port}/api/admin/login/" \
+    -H 'Content-Type: application/json' \
+    -d '{}' 2>/dev/null || echo '000')"
+if [ "${code}" = "000" ]; then
+    echo "    FAIL: could not reach /api through admin frontend (code=${code})."
+    echo "    Check: docker compose logs admin-frontend backend"
+elif [ "${code}" = "401" ] || [ "${code}" = "400" ]; then
+    echo "    OK: proxy reached backend (HTTP ${code})."
+else
+    echo "    WARNING: unexpected HTTP ${code} from /api/admin/login/ (expected 400/401)."
+fi
 
 print_urls

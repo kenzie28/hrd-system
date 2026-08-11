@@ -8,18 +8,20 @@ COPY admin-frontend/package.json admin-frontend/package-lock.json ./
 RUN npm ci
 COPY admin-frontend/ ./
 
-# Same-origin /api (proxied by nginx at runtime). Absolute overrides via build arg
-# only needed for unusual multi-host setups.
-ARG VITE_API_URL=/api
-ARG VITE_API_KEY=
-ENV VITE_API_URL=${VITE_API_URL}
-ENV VITE_API_KEY=${VITE_API_KEY}
+# Always bake relative /api — browser hits the same host:port as the SPA.
+ENV VITE_API_URL=/api
+ENV VITE_API_KEY=
 
-RUN npm run build
+RUN npm run build \
+ && grep -R -q '/api' dist/assets \
+ || (echo "ERROR: built SPA does not reference /api — check admin-frontend api client." >&2; exit 1)
 
 FROM nginx:1.27-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-# envsubst on container start: injects API_KEY into the proxy header.
+# Stock nginx entrypoint runs envsubst on *.template → conf.d/default.conf
+# only substitutes ${ENV_VAR} (e.g. ${API_KEY}); nginx $uri stays intact.
 COPY docker/admin-frontend/nginx.conf.template /etc/nginx/templates/default.conf.template
+RUN rm -f /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
+# Keep the image default ENTRYPOINT [/docker-entrypoint.sh] + CMD nginx.

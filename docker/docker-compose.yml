@@ -68,17 +68,11 @@ services:
     build:
       context: ..
       dockerfile: docker/admin-frontend/Dockerfile
-      args:
-        # Relative /api: browser hits the same host/port as the SPA (works for
-        # localhost, server IP, or domain). Override only for multi-host setups.
-        VITE_API_URL: ${ADMIN_VITE_API_URL:-/api}
-        # Key is injected by nginx at runtime; build-time key optional.
-        VITE_API_KEY: ${ADMIN_VITE_API_KEY:-}
     restart: unless-stopped
     depends_on:
       - backend
     environment:
-      # Used by nginx template to set X-Api-Key when proxying /api → backend.
+      # Used by nginx entrypoint to set X-Api-Key when proxying /api → backend.
       API_KEY: ${API_KEY:?API_KEY is required, run ./build.sh first}
     ports:
       - "${ADMIN_FRONTEND_PORT:-5128}:80"
@@ -87,9 +81,6 @@ services:
     build:
       context: ..
       dockerfile: docker/portal-frontend/Dockerfile
-      args:
-        VITE_API_URL: ${PORTAL_VITE_API_URL:-/api}
-        VITE_API_KEY: ${PORTAL_VITE_API_KEY:-}
     restart: unless-stopped
     depends_on:
       - backend

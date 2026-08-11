@@ -61,11 +61,17 @@ export function parseLoginError(err: unknown): ParsedLoginError {
     return { message: 'Login gagal. Coba lagi.' }
   }
 
+  const attempted =
+    (typeof err.config?.baseURL === 'string' ? err.config.baseURL : '') +
+    (typeof err.config?.url === 'string' ? err.config.url : '')
+
   // Request never reached the API (CORS, wrong host, offline, etc.).
   if (!err.response) {
     return {
       message:
-        'Tidak dapat terhubung ke server. Periksa koneksi atau alamat API.',
+        `Tidak dapat terhubung ke server` +
+        (attempted ? ` (${attempted})` : '') +
+        '. Buka admin melalui port frontend (bukan file HTML), pastikan nginx mem-proxy /api, lalu rebuild: ./build.sh && ./deploy.sh.',
     }
   }
 

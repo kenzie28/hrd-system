@@ -2,10 +2,21 @@ import axios from 'axios'
 
 export const ADMIN_TOKEN_STORAGE_KEY = 'admin_token'
 
-// Default to same-origin /api (Docker nginx proxy). Vite local dev can override
-// with VITE_API_URL=http://localhost:8028/api.
+/**
+ * Resolve API base URL.
+ * - In the browser: always same-origin `/api` (Docker nginx or Vite dev proxy).
+ * - Absolute `VITE_API_URL` only used when it looks like http(s):// (rare overrides).
+ */
+function resolveApiBaseUrl(): string {
+  const env = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
+  if (env && /^https?:\/\//i.test(env)) {
+    return env.replace(/\/$/, '')
+  }
+  return '/api'
+}
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: resolveApiBaseUrl(),
   headers: {
     ...(import.meta.env.VITE_API_KEY
       ? { 'X-Api-Key': import.meta.env.VITE_API_KEY }

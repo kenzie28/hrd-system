@@ -8,7 +8,7 @@ python manage.py migrate --noinput
 
 if [ "${RUN_INITIAL_SETUP}" = "true" ]; then
     echo "==> Running initial setup (lokasi + admin karyawan)..."
-    python manage.py shell < /app/backend/scripts/initial_setup.py
+    python manage.py ensure_seed_admin
 fi
 
 echo "==> Collecting static files..."

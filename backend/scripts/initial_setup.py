@@ -1,28 +1,5 @@
-from core.models import Lokasi
-from karyawan.models import Karyawan
-from karyawan.services import create_portal_login
+"""Legacy entry used by docs; prefer: python manage.py ensure_seed_admin."""
 
-lokasi, _ = Lokasi.objects.update_or_create(
-    id='99',
-    defaults={'nama': 'Headquarters'},
-)
+from karyawan.seed import ensure_seed_admin
 
-karyawan, created = Karyawan.objects.update_or_create(
-    karyawan_id='0000003',
-    defaults={
-        'nama': 'Kenzie Mihardja',
-        'lokasi_kerja': lokasi,
-        'jabatan': 'Director',
-        'wilayah': '',
-        'level': 8,
-    },
-)
-
-if karyawan.user_id is None:
-    create_portal_login(karyawan)
-
-action = 'Created' if created else 'Updated'
-print(
-    f'{action} karyawan {karyawan.karyawan_id} — {karyawan.nama} '
-    f'({karyawan.jabatan}, level {karyawan.level}, lokasi {lokasi.id} {lokasi.nama})'
-)
+print(ensure_seed_admin())

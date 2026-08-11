@@ -8,10 +8,16 @@ interface LoginForm {
   password: string
 }
 
+interface LoginErrorBody {
+  detail?: string
+  field?: 'karyawan_id' | 'password' | string
+}
+
 export default function LoginPage() {
   const { login, isAuthenticated, loading } = useAuth()
   const navigate = useNavigate()
   const { message } = AntApp.useApp()
+  const [form] = Form.useForm<LoginForm>()
   const [submitting, setSubmitting] = useState(false)
 
   if (!loading && isAuthenticated) {
@@ -23,8 +29,16 @@ export default function LoginPage() {
     try {
       await login(values.karyawan_id.trim(), values.password)
       navigate('/', { replace: true })
-    } catch {
-      message.error('ID karyawan atau kata sandi salah.')
+    } catch (err: unknown) {
+      const data = (err as { response?: { data?: LoginErrorBody } })?.response
+        ?.data
+      const detail = data?.detail ?? 'Login gagal. Periksa ID karyawan dan kata sandi.'
+      const field = data?.field
+      if (field === 'karyawan_id' || field === 'password') {
+        form.setFields([{ name: field, errors: [detail] }])
+      } else {
+        message.error(detail)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -36,7 +50,12 @@ export default function LoginPage() {
         <Typography.Title level={3} style={{ textAlign: 'center' }}>
           Portal Karyawan
         </Typography.Title>
-        <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={onFinish}
+          requiredMark={false}
+        >
           <Form.Item
             name="karyawan_id"
             label="ID Karyawan"

@@ -33,7 +33,7 @@ echo "==> Running migrations..."
 "${PYTHON}" manage.py migrate --noinput
 
 echo "==> Creating lokasi and karyawan..."
-"${PYTHON}" manage.py shell < "${SCRIPT_DIR}/backend/scripts/initial_setup.py"
+"${PYTHON}" manage.py ensure_seed_admin
 
 echo ""
 echo "Done. HR admin login: karyawan_id 0000003, password 123 (change on first login)."

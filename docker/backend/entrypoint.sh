@@ -34,9 +34,11 @@ echo "==> Running migrations..."
 python manage.py migrate --noinput
 
 # Idempotent: ensures HQ lokasi + admin karyawan 0000003 (Kenzie Mihardja) exist.
-# Password defaults to 123 and is only set when the portal user is first created.
+# Password defaults to 123 and is only set when the portal user is first created
+# or re-linked. Use a management command (not `shell < script`) so seeding cannot
+# be silently skipped by Django's non-blocking stdin select check.
 echo "==> Ensuring default admin karyawan (0000003 / Kenzie Mihardja)..."
-python manage.py shell < /app/backend/scripts/initial_setup.py
+python manage.py ensure_seed_admin
 
 echo "==> Collecting static files..."
 python manage.py collectstatic --noinput

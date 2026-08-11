@@ -1,4 +1,3 @@
-from django.contrib.auth import authenticate
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
@@ -6,6 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .login import authenticate_karyawan_credentials
 from .models import Karyawan
 from .serializers import (
     ChangePasswordSerializer,
@@ -28,12 +28,9 @@ class PortalLoginView(APIView):
         karyawan_id = serializer.validated_data['karyawan_id']
         password = serializer.validated_data['password']
 
-        user = authenticate(username=karyawan_id, password=password)
-        if user is None:
-            return Response(
-                {'detail': 'ID karyawan atau kata sandi salah.'},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
+        user, auth_error = authenticate_karyawan_credentials(karyawan_id, password)
+        if auth_error is not None:
+            return auth_error
 
         karyawan = _karyawan_for(user)
         if karyawan is None:

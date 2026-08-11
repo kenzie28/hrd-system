@@ -8,10 +8,16 @@ interface LoginForm {
   password: string
 }
 
+interface LoginErrorBody {
+  detail?: string
+  field?: 'karyawan_id' | 'password' | string
+}
+
 export default function LoginPage() {
   const { login, isAuthenticated, loading } = useAuth()
   const navigate = useNavigate()
   const { message } = AntApp.useApp()
+  const [form] = Form.useForm<LoginForm>()
   const [submitting, setSubmitting] = useState(false)
 
   if (!loading && isAuthenticated) {
@@ -24,10 +30,15 @@ export default function LoginPage() {
       await login(values.karyawan_id.trim(), values.password)
       navigate('/', { replace: true })
     } catch (err: unknown) {
-      const detail =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data
-          ?.detail ?? 'ID karyawan atau kata sandi salah.'
-      message.error(detail)
+      const data = (err as { response?: { data?: LoginErrorBody } })?.response
+        ?.data
+      const detail = data?.detail ?? 'Login gagal. Periksa ID karyawan dan kata sandi.'
+      const field = data?.field
+      if (field === 'karyawan_id' || field === 'password') {
+        form.setFields([{ name: field, errors: [detail] }])
+      } else {
+        message.error(detail)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -39,7 +50,12 @@ export default function LoginPage() {
         <Typography.Title level={3} style={{ textAlign: 'center' }}>
           HRD Admin
         </Typography.Title>
-        <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={onFinish}
+          requiredMark={false}
+        >
           <Form.Item
             name="karyawan_id"
             label="ID Karyawan"

@@ -1,4 +1,3 @@
-from django.contrib.auth import authenticate
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404
@@ -13,6 +12,7 @@ from rest_framework.views import APIView
 from core.debug_log import debug_error, debug_exception
 
 from .access import is_admin_allowed
+from .login import authenticate_karyawan_credentials
 from .models import Karyawan
 from .permissions import IsAdminAllowed
 from .portal_views import _karyawan_for
@@ -42,12 +42,9 @@ class AdminLoginView(APIView):
         karyawan_id = serializer.validated_data['karyawan_id']
         password = serializer.validated_data['password']
 
-        user = authenticate(username=karyawan_id, password=password)
-        if user is None:
-            return Response(
-                {'detail': 'ID karyawan atau kata sandi salah.'},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
+        user, auth_error = authenticate_karyawan_credentials(karyawan_id, password)
+        if auth_error is not None:
+            return auth_error
 
         karyawan = _karyawan_for(user)
         if karyawan is None:

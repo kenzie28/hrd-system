@@ -26,6 +26,9 @@ else
     exit 1
 fi
 
+# Same SQLite default as `dev/dev.sh`.
+export DB_ENGINE=sqlite
+
 echo "==> Running migrations..."
 "${PYTHON}" manage.py migrate --noinput
 

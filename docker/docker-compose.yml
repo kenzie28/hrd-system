@@ -1,0 +1,87 @@
+# =============================================================================
+# HRD System — self-hosted Docker Compose stack
+# =============================================================================
+# 4 services:
+#   mysql            - MySQL 8, data persisted on the `mysql_data` volume
+#   backend           - Django REST API (gunicorn), requires an API key
+#   admin-frontend    - HR admin SPA (nginx)
+#   portal-frontend   - Employee self-service SPA (nginx)
+#
+# Usage:
+#   ./build.sh            # generates docker/.env secrets + builds images
+#   docker compose up -d  # start the whole ecosystem
+#
+# Build context for every service is the repo root (`..`) so each Dockerfile
+# can copy its own app directory (backend/, admin-frontend/, portal-frontend/).
+# =============================================================================
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-hrd_system}
+      MYSQL_USER: ${DB_USER:-admin}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-Bears0204}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Bears0204}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-Bears0204}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_ENGINE: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-hrd_system}
+      DB_USER: ${DB_USER:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:-Bears0204}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required, run ./build.sh first}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
+      DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME:-admin}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:-Bears0204}
+      DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL:-admin@example.com}
+      API_KEY: ${API_KEY:?API_KEY is required, run ./build.sh first}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+
+  admin-frontend:
+    build:
+      context: ..
+      dockerfile: docker/admin-frontend/Dockerfile
+      args:
+        VITE_API_URL: ${ADMIN_VITE_API_URL:-http://localhost:${BACKEND_PORT:-8000}/api}
+        VITE_API_KEY: ${API_KEY:?API_KEY is required, run ./build.sh first}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${ADMIN_FRONTEND_PORT:-5173}:80"
+
+  portal-frontend:
+    build:
+      context: ..
+      dockerfile: docker/portal-frontend/Dockerfile
+      args:
+        VITE_API_URL: ${PORTAL_VITE_API_URL:-http://localhost:${BACKEND_PORT:-8000}/api}
+        VITE_API_KEY: ${API_KEY:?API_KEY is required, run ./build.sh first}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${PORTAL_FRONTEND_PORT:-5174}:80"
+
+volumes:
+  mysql_data:

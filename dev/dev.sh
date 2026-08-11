@@ -4,7 +4,7 @@
 # =============================================================================
 # Usage: ./dev/dev.sh
 #
-#   Backend:         http://localhost:8000
+#   Backend:         http://localhost:8000  (SQLite; no Docker / MySQL needed)
 #   Admin frontend:  http://localhost:5173
 #   Portal frontend: http://localhost:5174
 #
@@ -24,6 +24,11 @@ else
     exit 1
 fi
 
+# Local dev always uses SQLite (Docker stack sets DB_ENGINE=mysql itself).
+export DB_ENGINE=sqlite
+# Do not enforce the Docker API key in plain local dev.
+unset API_KEY
+
 PIDS=()
 
 cleanup() {
@@ -37,7 +42,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "==> Backend     → http://localhost:8000"
+echo "==> Backend     → http://localhost:8000  (SQLite)"
 (cd "${SCRIPT_DIR}/backend" && "${PYTHON}" manage.py runserver) &
 PIDS+=($!)
 

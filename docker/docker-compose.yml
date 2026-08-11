@@ -8,8 +8,9 @@
 #   portal-frontend   - Employee self-service SPA (nginx)
 #
 # Usage:
-#   ./build.sh            # generates docker/.env secrets + builds images
-#   docker compose up -d  # start the whole ecosystem
+#   ./build.sh    # generates docker/.env secrets + builds images
+#   ./deploy.sh   # start the whole ecosystem (builds if images are missing)
+#   ./push.sh     # tag + push images to Docker Hub
 #
 # Build context for every service is the repo root (`..`) so each Dockerfile
 # can copy its own app directory (backend/, admin-frontend/, portal-frontend/).

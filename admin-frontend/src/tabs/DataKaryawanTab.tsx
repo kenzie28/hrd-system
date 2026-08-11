@@ -14,13 +14,21 @@ import {
   Input,
   InputNumber,
   Modal,
+  Popconfirm,
   Select,
   Space,
   Table,
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { useKaryawan, useKaryawanCreate, useKaryawanUpdate, useLokasi } from '../api/hooks'
+import axios from 'axios'
+import {
+  useKaryawan,
+  useKaryawanCreate,
+  useKaryawanDelete,
+  useKaryawanUpdate,
+  useLokasi,
+} from '../api/hooks'
 import type { Karyawan } from '../api/types'
 
 type ColumnKey =
@@ -90,11 +98,13 @@ export function DataKaryawanTab() {
   const { data: lokasiList } = useLokasi()
   const create = useKaryawanCreate()
   const update = useKaryawanUpdate()
+  const remove = useKaryawanDelete()
 
   const [search, setSearch] = useState('')
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(loadVisibleColumns)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingLabel, setEditingLabel] = useState('')
   const [form] = Form.useForm<KaryawanFormValues>()
 
   const lokasiMap = useMemo(() => {
@@ -194,6 +204,7 @@ export function DataKaryawanTab() {
 
   const openCreate = () => {
     setEditingId(null)
+    setEditingLabel('')
     form.resetFields()
     form.setFieldsValue({
       level: 1,
@@ -207,6 +218,7 @@ export function DataKaryawanTab() {
 
   const openEdit = (record: Karyawan) => {
     setEditingId(record.id)
+    setEditingLabel(`${record.karyawan_id} — ${record.nama}`)
     form.setFieldsValue({
       karyawan_id: record.karyawan_id,
       nama: record.nama,
@@ -217,6 +229,14 @@ export function DataKaryawanTab() {
       cuti_tahunan: record.cuti_tahunan,
     })
     setModalOpen(true)
+  }
+
+  const apiErrorDetail = (err: unknown, fallback: string) => {
+    if (axios.isAxiosError(err)) {
+      const detail = err.response?.data?.detail
+      if (typeof detail === 'string' && detail.trim()) return detail
+    }
+    return fallback
   }
 
   const handleSubmit = async () => {
@@ -239,8 +259,24 @@ export function DataKaryawanTab() {
         message.success('Karyawan ditambahkan')
       }
       setModalOpen(false)
-    } catch {
-      message.error(isEditing ? 'Gagal memperbarui karyawan' : 'Gagal menambahkan karyawan')
+    } catch (err) {
+      message.error(
+        apiErrorDetail(
+          err,
+          isEditing ? 'Gagal memperbarui karyawan' : 'Gagal menambahkan karyawan',
+        ),
+      )
+    }
+  }
+
+  const handleDelete = async () => {
+    if (editingId == null) return
+    try {
+      await remove.mutateAsync(editingId)
+      message.success('Karyawan dihapus')
+      setModalOpen(false)
+    } catch (err) {
+      message.error(apiErrorDetail(err, 'Gagal menghapus karyawan'))
     }
   }
 
@@ -308,11 +344,49 @@ export function DataKaryawanTab() {
         title={isEditing ? 'Edit Karyawan' : 'Tambah Karyawan'}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
-        onOk={handleSubmit}
-        confirmLoading={create.isPending || update.isPending}
-        okText="Simpan"
         destroyOnHidden
         width={480}
+        footer={
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <div>
+              {isEditing ? (
+                <Popconfirm
+                  title="Hapus karyawan ini?"
+                  description={
+                    editingLabel
+                      ? `${editingLabel} akan dihapus. Tindakan ini tidak bisa dibatalkan.`
+                      : 'Tindakan ini tidak bisa dibatalkan.'
+                  }
+                  okText="Hapus"
+                  cancelText="Batal"
+                  okButtonProps={{ danger: true, loading: remove.isPending }}
+                  onConfirm={handleDelete}
+                >
+                  <Button danger loading={remove.isPending}>
+                    Hapus
+                  </Button>
+                </Popconfirm>
+              ) : null}
+            </div>
+            <Space>
+              <Button onClick={() => setModalOpen(false)}>Batal</Button>
+              <Button
+                type="primary"
+                loading={create.isPending || update.isPending}
+                onClick={handleSubmit}
+              >
+                Simpan
+              </Button>
+            </Space>
+          </div>
+        }
       >
         <Form form={form} layout="vertical" requiredMark="optional">
           <Form.Item

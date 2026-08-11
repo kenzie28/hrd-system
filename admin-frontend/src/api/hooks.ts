@@ -57,6 +57,16 @@ export function useKaryawanUpdate() {
   })
 }
 
+export function useKaryawanDelete() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`/admin/karyawan/${id}/`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['karyawan'] })
+    },
+  })
+}
+
 function normalizeKaryawanImportResult(
   data: Partial<KaryawanImportResult> & { ok?: boolean },
 ): KaryawanImportResult {

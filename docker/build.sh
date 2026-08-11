@@ -12,7 +12,7 @@
 # exist *before* `docker compose build` runs.
 #
 # After building, start the stack with:
-#   docker compose up -d
+#   ./deploy.sh
 # =============================================================================
 
 set -e
@@ -69,7 +69,7 @@ echo "Build complete!"
 echo "=============================================="
 echo ""
 echo "Start the ecosystem with:"
-echo "  cd docker && docker compose up -d"
+echo "  ./deploy.sh"
 echo ""
 echo "Ports (see docker/.env to change):"
 BACKEND_PORT="$(grep -E '^BACKEND_PORT=' "${ENV_FILE}" | cut -d'=' -f2-)"

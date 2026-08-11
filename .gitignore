@@ -57,9 +57,6 @@ dist-ssr/
 *.local
 
 # Environment files
-.env
-.env.*
-!.env.example
 
 # IDEs and editors
 .vscode/*

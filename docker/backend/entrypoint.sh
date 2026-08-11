@@ -33,6 +33,11 @@ PY
 echo "==> Running migrations..."
 python manage.py migrate --noinput
 
+# Idempotent: ensures HQ lokasi + admin karyawan 0000003 (Kenzie Mihardja) exist.
+# Password defaults to 123 and is only set when the portal user is first created.
+echo "==> Ensuring default admin karyawan (0000003 / Kenzie Mihardja)..."
+python manage.py shell < /app/backend/scripts/initial_setup.py
+
 echo "==> Collecting static files..."
 python manage.py collectstatic --noinput
 

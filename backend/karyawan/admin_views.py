@@ -1,5 +1,6 @@
 from django.contrib.auth import authenticate
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
@@ -107,7 +108,7 @@ class AdminKaryawanCreateView(APIView):
 
 
 class AdminKaryawanDetailView(APIView):
-    """Update a single Karyawan from the admin Master Karyawan table."""
+    """Update or delete a single Karyawan from the admin Master Karyawan table."""
 
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAdminAllowed]
@@ -118,6 +119,40 @@ class AdminKaryawanDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(KaryawanWriteSerializer(karyawan).data)
+
+    def delete(self, request, pk):
+        karyawan = get_object_or_404(Karyawan, pk=pk)
+
+        # Never allow an admin to delete their own login account.
+        if karyawan.user_id and karyawan.user_id == request.user.id:
+            return Response(
+                {'detail': 'Tidak dapat menghapus akun yang sedang Anda gunakan.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if request.user.username == karyawan.karyawan_id:
+            return Response(
+                {'detail': 'Tidak dapat menghapus akun yang sedang Anda gunakan.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        portal_user = karyawan.user
+        try:
+            with transaction.atomic():
+                karyawan.delete()
+                if portal_user is not None:
+                    portal_user.delete()
+        except ProtectedError:
+            return Response(
+                {
+                    'detail': (
+                        'Karyawan tidak dapat dihapus karena masih punya data terkait '
+                        '(cuti, lembur, atau gaji). Hapus data tersebut terlebih dahulu.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class AdminKaryawanImportView(APIView):

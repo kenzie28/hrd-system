@@ -1,16 +1,12 @@
 import { useState } from 'react'
-import { Button, Card, Form, Input, Typography, App as AntApp } from 'antd'
+import { Alert, Button, Card, Form, Input, Typography, App as AntApp } from 'antd'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { parseLoginError } from '../auth/loginError'
 
 interface LoginForm {
   karyawan_id: string
   password: string
-}
-
-interface LoginErrorBody {
-  detail?: string
-  field?: 'karyawan_id' | 'password' | string
 }
 
 export default function LoginPage() {
@@ -19,6 +15,7 @@ export default function LoginPage() {
   const { message } = AntApp.useApp()
   const [form] = Form.useForm<LoginForm>()
   const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   if (!loading && isAuthenticated) {
     return <Navigate to="/" replace />
@@ -26,19 +23,21 @@ export default function LoginPage() {
 
   const onFinish = async (values: LoginForm) => {
     setSubmitting(true)
+    setFormError(null)
+    form.setFields([
+      { name: 'karyawan_id', errors: [] },
+      { name: 'password', errors: [] },
+    ])
     try {
       await login(values.karyawan_id.trim(), values.password)
       navigate('/', { replace: true })
     } catch (err: unknown) {
-      const data = (err as { response?: { data?: LoginErrorBody } })?.response
-        ?.data
-      const detail = data?.detail ?? 'Login gagal. Periksa ID karyawan dan kata sandi.'
-      const field = data?.field
+      const { message: detail, field } = parseLoginError(err)
+      setFormError(detail)
       if (field === 'karyawan_id' || field === 'password') {
         form.setFields([{ name: field, errors: [detail] }])
-      } else {
-        message.error(detail)
       }
+      message.error(detail)
     } finally {
       setSubmitting(false)
     }
@@ -50,6 +49,14 @@ export default function LoginPage() {
         <Typography.Title level={3} style={{ textAlign: 'center' }}>
           Portal Karyawan
         </Typography.Title>
+        {formError ? (
+          <Alert
+            type="error"
+            showIcon
+            message={formError}
+            style={{ marginBottom: 16 }}
+          />
+        ) : null}
         <Form
           form={form}
           layout="vertical"

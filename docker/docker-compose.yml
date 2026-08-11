@@ -4,8 +4,14 @@
 # 4 services:
 #   mysql            - MySQL 8, data persisted on the `mysql_data` volume
 #   backend           - Django REST API (gunicorn), requires an API key
-#   admin-frontend    - HR admin SPA (nginx)
-#   portal-frontend   - Employee self-service SPA (nginx)
+#   admin-frontend    - HR admin SPA (nginx) — proxies /api → backend
+#   portal-frontend   - Employee SPA (nginx) — proxies /api → backend
+#
+# Zero-config path:
+#   git pull && ./build.sh && ./deploy.sh
+#
+# Frontends call same-origin /api; nginx injects X-Api-Key from API_KEY env.
+# No need to set public hostnames or bake absolute API URLs for normal deploys.
 #
 # Usage:
 #   ./build.sh    # generates docker/.env secrets + builds images
@@ -56,33 +62,41 @@ services:
       DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL:-admin@example.com}
       API_KEY: ${API_KEY:?API_KEY is required, run ./build.sh first}
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${BACKEND_PORT:-8028}:8000"
 
   admin-frontend:
     build:
       context: ..
       dockerfile: docker/admin-frontend/Dockerfile
       args:
-        VITE_API_URL: ${ADMIN_VITE_API_URL:-http://localhost:${BACKEND_PORT:-8000}/api}
-        VITE_API_KEY: ${API_KEY:?API_KEY is required, run ./build.sh first}
+        # Relative /api: browser hits the same host/port as the SPA (works for
+        # localhost, server IP, or domain). Override only for multi-host setups.
+        VITE_API_URL: ${ADMIN_VITE_API_URL:-/api}
+        # Key is injected by nginx at runtime; build-time key optional.
+        VITE_API_KEY: ${ADMIN_VITE_API_KEY:-}
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      # Used by nginx template to set X-Api-Key when proxying /api → backend.
+      API_KEY: ${API_KEY:?API_KEY is required, run ./build.sh first}
     ports:
-      - "${ADMIN_FRONTEND_PORT:-5173}:80"
+      - "${ADMIN_FRONTEND_PORT:-5128}:80"
 
   portal-frontend:
     build:
       context: ..
       dockerfile: docker/portal-frontend/Dockerfile
       args:
-        VITE_API_URL: ${PORTAL_VITE_API_URL:-http://localhost:${BACKEND_PORT:-8000}/api}
-        VITE_API_KEY: ${API_KEY:?API_KEY is required, run ./build.sh first}
+        VITE_API_URL: ${PORTAL_VITE_API_URL:-/api}
+        VITE_API_KEY: ${PORTAL_VITE_API_KEY:-}
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      API_KEY: ${API_KEY:?API_KEY is required, run ./build.sh first}
     ports:
-      - "${PORTAL_FRONTEND_PORT:-5174}:80"
+      - "${PORTAL_FRONTEND_PORT:-5129}:80"
 
 volumes:
   mysql_data:

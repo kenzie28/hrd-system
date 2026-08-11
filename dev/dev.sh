@@ -4,9 +4,9 @@
 # =============================================================================
 # Usage: ./dev/dev.sh
 #
-#   Backend:         http://localhost:8000  (SQLite; no Docker / MySQL needed)
-#   Admin frontend:  http://localhost:5173
-#   Portal frontend: http://localhost:5174
+#   Backend:         http://localhost:8028  (SQLite; no Docker / MySQL needed)
+#   Admin frontend:  http://localhost:5128
+#   Portal frontend: http://localhost:5129
 #
 # Ctrl+C stops all three.
 # =============================================================================
@@ -42,15 +42,15 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "==> Backend     → http://localhost:8000  (SQLite)"
-(cd "${SCRIPT_DIR}/backend" && "${PYTHON}" manage.py runserver) &
+echo "==> Backend     → http://localhost:8028  (SQLite)"
+(cd "${SCRIPT_DIR}/backend" && "${PYTHON}" manage.py runserver 8028) &
 PIDS+=($!)
 
-echo "==> Admin UI    → http://localhost:5173"
+echo "==> Admin UI    → http://localhost:5128"
 (cd "${SCRIPT_DIR}/admin-frontend" && npm run dev) &
 PIDS+=($!)
 
-echo "==> Portal UI   → http://localhost:5174"
+echo "==> Portal UI   → http://localhost:5129"
 (cd "${SCRIPT_DIR}/portal-frontend" && npm run dev) &
 PIDS+=($!)
 

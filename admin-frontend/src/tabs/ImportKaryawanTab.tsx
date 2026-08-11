@@ -134,12 +134,17 @@ const EXAMPLE_ROWS = [
   },
   {
     row: 2,
-    values: ['0000010', 'Andi Wijaya', '1', 'Staff', 'JKT', '01'],
+    values: ['0000010', 'Andi Wijaya', '1', 'SPG', 'CP', '23'],
     isHeader: false,
   },
   {
     row: 3,
-    values: ['0000011', 'Budi Santoso', '2', 'Supervisor', '', '02'],
+    values: ['0000011', 'Budi Santoso', '2', 'Staff', 'BEI', '26'],
+    isHeader: false,
+  },
+  {
+    row: 3,
+    values: ['0000012', 'Sri Wahyuni', '5', 'Supervisor', '', '99'],
     isHeader: false,
   },
 ] as const

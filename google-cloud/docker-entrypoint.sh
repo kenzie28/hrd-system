@@ -3,8 +3,8 @@ set -e
 
 cd /app/backend
 
-echo "==> Running migrations..."
-python manage.py migrate --noinput
+echo "==> Ensuring database schema (migrate + table check)..."
+python manage.py ensure_schema
 
 if [ "${RUN_INITIAL_SETUP}" = "true" ]; then
     echo "==> Running initial setup (lokasi + admin karyawan)..."

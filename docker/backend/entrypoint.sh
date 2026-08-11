@@ -30,8 +30,11 @@ else:
     sys.exit("MySQL did not become ready in time.")
 PY
 
-echo "==> Running migrations..."
-python manage.py migrate --noinput
+# migrate + verify tables exist. If django_migrations says apps are applied but
+# tables are missing (common with a half-initialized mysql volume), history for
+# those apps is reset and migrations are re-applied before seeding.
+echo "==> Ensuring database schema (migrate + table check)..."
+python manage.py ensure_schema
 
 # Idempotent: ensures HQ lokasi + admin karyawan 0000003 (Kenzie Mihardja) exist.
 # Password defaults to 123 and is only set when the portal user is first created

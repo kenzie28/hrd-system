@@ -29,8 +29,8 @@ fi
 # Same SQLite default as `dev/dev.sh`.
 export DB_ENGINE=sqlite
 
-echo "==> Running migrations..."
-"${PYTHON}" manage.py migrate --noinput
+echo "==> Ensuring database schema..."
+"${PYTHON}" manage.py ensure_schema
 
 echo "==> Creating lokasi and karyawan..."
 "${PYTHON}" manage.py ensure_seed_admin

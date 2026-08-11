@@ -35,6 +35,12 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
+
+# Fail if app migrations missing (e.g. gitignored migrations in build context).
+RUN test -f core/migrations/0001_initial.py \
+ && test -f karyawan/migrations/0001_initial.py \
+ || (echo "ERROR: Django migration files missing from image. Commit backend/*/migrations/*.py." >&2; exit 1)
+
 COPY google-cloud/nginx.conf /etc/nginx/conf.d/default.conf
 COPY google-cloud/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh

@@ -33,8 +33,9 @@ db.sqlite3
 db.sqlite3-journal
 media/
 staticfiles/
-**/migrations/*.py
-!**/migrations/__init__.py
+# IMPORTANT: commit migration files. Ignoring them makes Docker/CI images
+# ship empty migrations packages, so `migrate` never creates app tables
+# (only admin/auth/sessions) — then seed fails with "Table ... doesn't exist".
 
 # Test and coverage output
 .coverage

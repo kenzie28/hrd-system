@@ -59,6 +59,23 @@ ensure_env_var() {
 ensure_env_var "API_KEY" "$(random_hex)"
 ensure_env_var "DJANGO_SECRET_KEY" "$(random_hex)"
 
+# Migrations must exist on the host (and be committed) so `COPY backend/` packs them.
+# A .gitignore that excluded **/migrations/*.py caused images that only ran auth/admin
+# migrations and then crashed creating core_lokasi.
+for req in \
+    core/migrations/0001_initial.py \
+    karyawan/migrations/0001_initial.py \
+    absensi/migrations/0001_initial.py \
+    shift/migrations/0001_initial.py
+do
+    if [ ! -f "${SCRIPT_DIR}/../backend/${req}" ]; then
+        echo "Error: missing backend/${req}"
+        echo "Run: cd backend && python manage.py makemigrations"
+        echo "Then commit migration files (do not gitignore them)."
+        exit 1
+    fi
+done
+
 echo ""
 echo "==> Building Docker images (mysql pulled, backend/admin-frontend/portal-frontend built)..."
 docker compose --env-file "${ENV_FILE}" -f "${SCRIPT_DIR}/docker-compose.yml" build

@@ -14,6 +14,8 @@ import type {
   Liburan,
   LiburanImportResult,
   Lokasi,
+  LokasiImportResult,
+  LokasiWrite,
   PermohonanCuti,
   PermohonanLembur,
   RecordFilters,
@@ -159,6 +161,126 @@ export function useLokasi() {
   return useQuery({
     queryKey: ['lokasi'],
     queryFn: async () => (await api.get<Lokasi[]>('/lokasi/')).data,
+  })
+}
+
+export function useLokasiCreate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: LokasiWrite) =>
+      api.post<Lokasi>('/admin/lokasi/', data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lokasi'] })
+    },
+  })
+}
+
+export function useLokasiUpdate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: Partial<LokasiWrite> & { id: string }) =>
+      api.patch<Lokasi>(`/admin/lokasi/${id}/`, data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lokasi'] })
+    },
+  })
+}
+
+export function useLokasiDelete() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/lokasi/${id}/`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lokasi'] })
+    },
+  })
+}
+
+function normalizeLokasiImportResult(
+  data: Partial<LokasiImportResult> & { ok?: boolean },
+): LokasiImportResult {
+  const errors = Array.isArray(data.errors)
+    ? data.errors.map((e) => ({
+        row: typeof e?.row === 'number' ? e.row : 0,
+        message: String(e?.message ?? 'Error tidak diketahui.'),
+      }))
+    : []
+
+  return {
+    ok: Boolean(data.ok),
+    total_rows: data.total_rows ?? 0,
+    created: data.created ?? 0,
+    errors,
+    received_headers: Array.isArray(data.received_headers) ? data.received_headers : [],
+    required_columns: Array.isArray(data.required_columns) ? data.required_columns : [],
+  }
+}
+
+function isLokasiImportResult(data: unknown): data is LokasiImportResult {
+  return typeof data === 'object' && data !== null && 'errors' in data
+}
+
+function lokasiImportFailure(message: string): LokasiImportResult {
+  return normalizeLokasiImportResult({
+    ok: false,
+    errors: [{ row: 0, message }],
+  })
+}
+
+function parseLokasiImportError(err: unknown): LokasiImportResult {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data
+    if (isLokasiImportResult(data)) {
+      return normalizeLokasiImportResult(data)
+    }
+    if (typeof data === 'string' && data.trim()) {
+      return lokasiImportFailure(data)
+    }
+    if (typeof data === 'object' && data !== null) {
+      const record = data as Record<string, unknown>
+      if (typeof record.detail === 'string' && record.detail) {
+        return lokasiImportFailure(record.detail)
+      }
+      if (Array.isArray(record.detail)) {
+        return lokasiImportFailure(record.detail.map(String).join(' '))
+      }
+      if (typeof record.message === 'string' && record.message) {
+        return lokasiImportFailure(record.message)
+      }
+    }
+    if (err.response?.status) {
+      return lokasiImportFailure(
+        `Server mengembalikan status ${err.response.status}. Periksa koneksi atau hubungi admin.`,
+      )
+    }
+    if (err.message) {
+      return lokasiImportFailure(err.message)
+    }
+  }
+  return lokasiImportFailure('Gagal mengunggah file CSV. Periksa koneksi atau coba lagi.')
+}
+
+export function useLokasiImport() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ file }: { file: File }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      try {
+        const response = await api.post<LokasiImportResult>(
+          '/admin/lokasi/import/',
+          formData,
+        )
+        return normalizeLokasiImportResult(response.data)
+      } catch (err) {
+        return parseLokasiImportError(err)
+      }
+    },
+    onSuccess: (result) => {
+      if (result.ok) {
+        qc.invalidateQueries({ queryKey: ['lokasi'] })
+      }
+    },
   })
 }
 

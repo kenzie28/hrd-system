@@ -11,7 +11,7 @@ from django.db.migrations.recorder import MigrationRecorder
 
 # Tables that must exist before seeding / serving traffic.
 REQUIRED_MODELS = (
-    'core.Lokasi',
+    'lokasi.Lokasi',
     'karyawan.Karyawan',
     'auth.User',
     'authtoken.Token',
@@ -70,7 +70,7 @@ class Command(BaseCommand):
                 'Required tables still missing after re-migrate: '
                 f'{", ".join(still_missing)}. '
                 'Confirm the image contains app migration files '
-                '(e.g. core/migrations/0001_initial.py), then rebuild. '
+                '(e.g. lokasi/migrations/0001_initial.py), then rebuild. '
                 'If the MySQL volume is corrupt, reset it with: '
                 'docker compose down -v  (DESTROYS DB DATA).'
             )

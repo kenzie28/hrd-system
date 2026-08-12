@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from django.contrib.auth.models import User
 from django.db import transaction
 
-from core.models import Lokasi
+from lokasi.models import Lokasi
 
 from .models import Karyawan
 

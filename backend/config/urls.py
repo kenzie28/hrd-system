@@ -6,7 +6,8 @@ from absensi.admin_views import AdminAbsensiImportView
 from absensi.views import AbsensiViewSet, PortalAbsensiViewSet
 from shift.admin_views import AdminShiftImportView
 from shift.views import ShiftViewSet
-from core.views import LokasiViewSet
+from lokasi.views import LokasiViewSet
+from lokasi.admin_views import AdminLokasiImportView, AdminLokasiViewSet
 from cuti.admin_views import AdminCutiViewSet
 from cuti.views import CutiViewSet, PortalCutiViewSet
 from lembur.admin_views import AdminLemburViewSet
@@ -49,6 +50,7 @@ admin_router.register('cuti', AdminCutiViewSet, basename='admin-cuti')
 admin_router.register('lembur', AdminLemburViewSet, basename='admin-lembur')
 admin_router.register('gaji', AdminGajiViewSet, basename='admin-gaji')
 admin_router.register('liburan', AdminLiburanViewSet, basename='admin-liburan')
+admin_router.register('lokasi', AdminLokasiViewSet, basename='admin-lokasi')
 
 
 portal_urlpatterns = [
@@ -96,6 +98,11 @@ admin_api_urlpatterns = [
         'admin/liburan/import/',
         AdminLiburanImportView.as_view(),
         name='admin-liburan-import',
+    ),
+    path(
+        'admin/lokasi/import/',
+        AdminLokasiImportView.as_view(),
+        name='admin-lokasi-import',
     ),
     path(
         'admin/shift/import/',

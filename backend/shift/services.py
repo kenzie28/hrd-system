@@ -8,7 +8,7 @@ from datetime import datetime, time
 
 from django.db import transaction
 
-from core.models import Lokasi
+from lokasi.models import Lokasi
 
 from .models import HariKerja, Shift
 

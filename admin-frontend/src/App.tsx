@@ -10,6 +10,7 @@ import KaryawanPage from './pages/KaryawanPage'
 import LemburPage from './pages/LemburPage'
 import LiburanPage from './pages/LiburanPage'
 import LoginPage from './pages/LoginPage'
+import LokasiPage from './pages/LokasiPage'
 import ShiftPage from './pages/ShiftPage'
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/lembur" element={<LemburPage />} />
         <Route path="/liburan" element={<LiburanPage />} />
         <Route path="/karyawan" element={<KaryawanPage />} />
+        <Route path="/lokasi" element={<LokasiPage />} />
         <Route path="/gaji" element={<GajiPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

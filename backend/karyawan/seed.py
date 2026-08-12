@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.contrib.auth.models import User
 
-from core.models import Lokasi
+from lokasi.models import Lokasi
 
 from .models import Karyawan
 from .services import create_portal_login

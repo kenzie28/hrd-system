@@ -2,7 +2,7 @@
 # HRD System — self-hosted Docker Compose stack
 # =============================================================================
 # 4 services:
-#   mysql            - MySQL 8, data persisted on the `mysql_data` volume
+#   mysql            - MySQL 8, data persisted on the `hrd-system-db` volume
 #   backend           - Django REST API (gunicorn), requires an API key
 #   admin-frontend    - HR admin SPA (nginx) — proxies /api → backend
 #   portal-frontend   - Employee SPA (nginx) — proxies /api → backend
@@ -32,7 +32,7 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-Bears0204}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Bears0204}
     volumes:
-      - mysql_data:/var/lib/mysql
+      - hrd_system_db:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-Bears0204}"]
       interval: 5s
@@ -90,4 +90,5 @@ services:
       - "${PORTAL_FRONTEND_PORT:-5129}:80"
 
 volumes:
-  mysql_data:
+  hrd_system_db:
+    name: hrd-system-db

@@ -22,6 +22,8 @@
 # can copy its own app directory (backend/, admin-frontend/, portal-frontend/).
 # =============================================================================
 
+name: docker-hrd-system
+
 services:
   mysql:
     image: mysql:8.0

@@ -37,7 +37,7 @@ fi
 
 # Compose names images as <project>-<service>. Project name is the directory
 # name unless overridden in COMPOSE_PROJECT_NAME.
-COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-docker}"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-docker-hrd-system}"
 LOCAL_BACKEND="${COMPOSE_PROJECT_NAME}-backend"
 LOCAL_ADMIN="${COMPOSE_PROJECT_NAME}-admin-frontend"
 LOCAL_PORTAL="${COMPOSE_PROJECT_NAME}-portal-frontend"

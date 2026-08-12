@@ -64,6 +64,7 @@ ensure_env_var "DJANGO_SECRET_KEY" "$(random_hex)"
 # migrations and then crashed creating core_lokasi.
 for req in \
     core/migrations/0001_initial.py \
+    lokasi/migrations/0001_initial.py \
     karyawan/migrations/0001_initial.py \
     absensi/migrations/0001_initial.py \
     shift/migrations/0001_initial.py

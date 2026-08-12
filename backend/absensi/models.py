@@ -8,7 +8,7 @@ class Absensi(models.Model):
         'karyawan.Karyawan', on_delete=models.CASCADE, related_name='absensi'
     )
     lokasi = models.ForeignKey(
-        'core.Lokasi', on_delete=models.CASCADE, related_name='absensi'
+        'lokasi.Lokasi', on_delete=models.CASCADE, related_name='absensi'
     )
     tanggal = models.DateField()
     jam_masuk = models.TimeField()

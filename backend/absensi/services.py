@@ -8,7 +8,7 @@ from datetime import date, datetime, time, timedelta
 
 from django.db import transaction
 
-from core.models import Lokasi
+from lokasi.models import Lokasi
 from karyawan.models import Karyawan
 
 from .models import Absensi

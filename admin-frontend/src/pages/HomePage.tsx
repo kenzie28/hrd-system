@@ -1,6 +1,7 @@
 import {
   CalendarOutlined,
   ClockCircleOutlined,
+  EnvironmentOutlined,
   FlagOutlined,
   ScheduleOutlined,
   SolutionOutlined,
@@ -76,6 +77,13 @@ export default function HomePage() {
       description: 'Kelola data karyawan, import CSV, dan reset password.',
       icon: <TeamOutlined style={{ fontSize: 32 }} />,
       path: '/karyawan',
+    },
+    {
+      key: 'lokasi',
+      title: 'Master Lokasi Kerja',
+      description: 'Kelola lokasi kerja dan import CSV.',
+      icon: <EnvironmentOutlined style={{ fontSize: 32 }} />,
+      path: '/lokasi',
     },
     {
       key: 'gaji',

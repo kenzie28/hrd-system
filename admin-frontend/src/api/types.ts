@@ -71,6 +71,25 @@ export interface Lokasi {
   nama: string
 }
 
+export interface LokasiWrite {
+  id: string
+  nama: string
+}
+
+export interface LokasiImportError {
+  row: number
+  message: string
+}
+
+export interface LokasiImportResult {
+  ok: boolean
+  total_rows: number
+  created: number
+  errors: LokasiImportError[]
+  received_headers: string[]
+  required_columns: string[]
+}
+
 export interface Liburan {
   id: number
   nama: string

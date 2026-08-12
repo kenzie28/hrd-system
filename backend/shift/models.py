@@ -13,7 +13,7 @@ class HariKerja(models.TextChoices):
 
 class Shift(models.Model):
     lokasi_kerja = models.ForeignKey(
-        'core.Lokasi', on_delete=models.CASCADE, related_name='shifts'
+        'lokasi.Lokasi', on_delete=models.CASCADE, related_name='shifts'
     )
     hari = models.CharField(max_length=8, choices=HariKerja.choices)
     jam_masuk = models.TimeField()

@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'corsheaders',
     'core',
+    'lokasi',
     'shift',
     'absensi',
     'rekap_kehadiran',

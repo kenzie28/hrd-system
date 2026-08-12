@@ -6,7 +6,7 @@ class Karyawan(models.Model):
     karyawan_id = models.CharField(max_length=7, unique=True)
     nama = models.CharField(max_length=128)
     lokasi_kerja = models.ForeignKey(
-        'core.Lokasi',
+        'lokasi.Lokasi',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

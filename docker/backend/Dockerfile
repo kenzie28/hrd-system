@@ -13,7 +13,8 @@ COPY backend/ .
 
 # Fail the image build if app migrations were not included (common when
 # migrations were gitignored or the build machine only has __init__.py).
-RUN test -f core/migrations/0001_initial.py \
+# core and rekap_kehadiran have no models, so they have no 0001_initial.py.
+RUN test -f lokasi/migrations/0001_initial.py \
  && test -f karyawan/migrations/0001_initial.py \
  && test -f absensi/migrations/0001_initial.py \
  && test -f shift/migrations/0001_initial.py \

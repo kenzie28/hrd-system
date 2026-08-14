@@ -64,11 +64,14 @@ ensure_env_var "DJANGO_SECRET_KEY" "$(random_hex)"
 # A .gitignore that excluded **/migrations/*.py caused images that only ran auth/admin
 # migrations and then crashed creating core_lokasi.
 for req in \
-    core/migrations/0001_initial.py \
     lokasi/migrations/0001_initial.py \
     karyawan/migrations/0001_initial.py \
     absensi/migrations/0001_initial.py \
-    shift/migrations/0001_initial.py
+    shift/migrations/0001_initial.py \
+    cuti/migrations/0001_initial.py \
+    gaji/migrations/0001_initial.py \
+    lembur/migrations/0001_initial.py \
+    liburan/migrations/0001_initial.py
 do
     if [ ! -f "${SCRIPT_DIR}/../backend/${req}" ]; then
         echo "Error: missing backend/${req}"

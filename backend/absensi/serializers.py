@@ -20,6 +20,9 @@ class AbsensiSerializer(serializers.ModelSerializer):
             'id', 'karyawan_id', 'karyawan_nama', 'lokasi', 'lokasi_nama',
             'tanggal', 'jam_masuk', 'durasi', 'jam_keluar', 'keluar_hari_offset',
         ]
+        # Uniqueness is enforced in the DB; create is idempotent in the view
+        # (get_or_create) and must not fail validation on exact duplicates.
+        validators = []
 
 
 class AbsensiConflictGroupSerializer(serializers.Serializer):

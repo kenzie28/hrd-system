@@ -26,6 +26,7 @@ cd "${SCRIPT_DIR}"
 ENV_FILE="${SCRIPT_DIR}/.env"
 ENV_EXAMPLE="${SCRIPT_DIR}/.env.example"
 COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yml"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-docker-hrd-system}"
 
 DO_BUILD=false
 DO_DOWN=false
@@ -93,7 +94,7 @@ if ! docker compose version &>/dev/null; then
 fi
 
 compose() {
-    docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
+    docker compose -p "${COMPOSE_PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
 }
 
 env_value() {
@@ -228,7 +229,6 @@ if [ "${DO_BUILD}" = true ]; then
     echo ""
 else
     # Build only if local images for the compose project are missing.
-    COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-docker}"
     NEED_BUILD=false
     for img in \
         "${COMPOSE_PROJECT_NAME}-backend" \

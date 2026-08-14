@@ -22,6 +22,7 @@ cd "${SCRIPT_DIR}"
 
 ENV_FILE="${SCRIPT_DIR}/.env"
 ENV_EXAMPLE="${SCRIPT_DIR}/.env.example"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-docker-hrd-system}"
 
 if [ ! -f "${ENV_FILE}" ]; then
     echo "==> Creating docker/.env from .env.example..."
@@ -79,7 +80,7 @@ done
 
 echo ""
 echo "==> Building Docker images (mysql pulled, backend/admin-frontend/portal-frontend built)..."
-docker compose --env-file "${ENV_FILE}" -f "${SCRIPT_DIR}/docker-compose.yml" build
+docker compose -p "${COMPOSE_PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${SCRIPT_DIR}/docker-compose.yml" build
 
 echo ""
 echo "=============================================="

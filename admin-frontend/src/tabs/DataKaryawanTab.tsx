@@ -252,7 +252,7 @@ export function DataKaryawanTab() {
     }
     try {
       if (isEditing) {
-        await update.mutateAsync({ karyawan_id: editingId, ...payload })
+        await update.mutateAsync({ ...payload, karyawan_id: editingId })
         message.success('Karyawan diperbarui')
       } else {
         await create.mutateAsync(payload)

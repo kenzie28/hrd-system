@@ -6,9 +6,9 @@ export function ResetPasswordKaryawanTab() {
   const { message } = AntApp.useApp()
   const { data: karyawanList, isLoading } = useKaryawan()
   const resetPassword = useResetPassword()
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const selectedKaryawan = karyawanList?.find((k) => k.id === selectedId)
+  const selectedKaryawan = karyawanList?.find((k) => k.karyawan_id === selectedId)
 
   const handleReset = async () => {
     if (selectedId === null) return
@@ -37,7 +37,7 @@ export function ResetPasswordKaryawanTab() {
           optionFilterProp="label"
           style={{ width: '100%' }}
           options={karyawanList?.map((k) => ({
-            value: k.id,
+            value: k.karyawan_id,
             label: `${k.nama} (${k.karyawan_id})`,
           }))}
         />

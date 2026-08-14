@@ -16,7 +16,7 @@ import type { CreatePermohonanLemburPayload } from '../../api/types'
 
 interface FormValues {
   tanggal: Dayjs
-  supervisor: number
+  supervisor: string
   alasan?: string
 }
 
@@ -74,7 +74,7 @@ export default function AjukanLemburTab() {
           placeholder="Pilih supervisor"
           disabled={!supervisors?.length}
           options={(supervisors ?? []).map((s) => ({
-            value: s.id,
+            value: s.karyawan_id,
             label: `${s.nama} (Level ${s.level})`,
           }))}
         />

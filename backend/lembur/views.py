@@ -82,7 +82,7 @@ class PortalLemburViewSet(viewsets.ModelViewSet):
         levels = eligible_supervisor_levels(karyawan.level)
         qs = (
             Karyawan.objects.filter(level__in=levels)
-            .exclude(id=karyawan.id)
+            .exclude(pk=karyawan.pk)
             .order_by('nama')
         )
         return Response(SupervisorOptionSerializer(qs, many=True).data)

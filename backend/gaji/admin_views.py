@@ -19,10 +19,10 @@ from .services import (
 
 
 def _apply_common_filters(queryset, params):
-    """Filter by ?karyawan=<id> and ?bulan=YYYY-MM."""
-    karyawan = params.get('karyawan')
-    if karyawan:
-        queryset = queryset.filter(karyawan_id=karyawan)
+    """Filter by ?karyawan_id=<id> and ?bulan=YYYY-MM."""
+    karyawan_id = params.get('karyawan_id')
+    if karyawan_id:
+        queryset = queryset.filter(karyawan_id=karyawan_id)
     bulan = params.get('bulan')
     if bulan:
         year, month = map(int, bulan.split('-'))

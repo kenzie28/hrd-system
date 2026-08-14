@@ -6,7 +6,6 @@ from .models import Karyawan
 @admin.register(Karyawan)
 class KaryawanAdmin(admin.ModelAdmin):
     list_display = [
-        'id',
         'karyawan_id',
         'nama',
         'lokasi_kerja',

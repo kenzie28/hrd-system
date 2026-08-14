@@ -1,5 +1,4 @@
 export interface PortalKaryawan {
-  id: number
   karyawan_id: string
   nama: string
   level: number
@@ -37,7 +36,6 @@ export type LemburStatus =
   | 'APPROVED'
 
 export interface SupervisorOption {
-  id: number
   karyawan_id: string
   nama: string
   level: number
@@ -45,9 +43,8 @@ export interface SupervisorOption {
 
 export interface PermohonanCuti {
   id: number
-  karyawan: number
+  karyawan_id: string
   karyawan_nama: string
-  karyawan_kode: string
   tipe: CutiTipe
   tipe_display: string
   alasan: string
@@ -56,9 +53,9 @@ export interface PermohonanCuti {
   jumlah_hari: number
   status: CutiStatus
   status_display: string
-  supervisor: number | null
+  supervisor: string | null
   supervisor_nama: string | null
-  hrd_approver: number | null
+  hrd_approver: string | null
   hrd_approver_nama: string | null
 }
 
@@ -67,28 +64,27 @@ export interface CreatePermohonanCutiPayload {
   alasan?: string
   tanggal_mulai: string
   tanggal_selesai: string
-  supervisor: number
+  supervisor: string
 }
 
 export interface PermohonanLembur {
   id: number
-  karyawan: number
+  karyawan_id: string
   karyawan_nama: string
-  karyawan_kode: string
   alasan: string
   tanggal: string
   status: LemburStatus
   status_display: string
-  supervisor: number | null
+  supervisor: string | null
   supervisor_nama: string | null
-  hrd_approver: number | null
+  hrd_approver: string | null
   hrd_approver_nama: string | null
 }
 
 export interface CreatePermohonanLemburPayload {
   alasan?: string
   tanggal: string
-  supervisor: number
+  supervisor: string
 }
 
 export interface LoginResponse {
@@ -104,7 +100,7 @@ export interface ChangePasswordResponse {
 
 export interface GajiDetail {
   id: number
-  karyawan: number
+  karyawan_id: string
   periode: string
   hadir: string
   total_hadir: number
@@ -147,7 +143,7 @@ export interface GajiResponse {
 
 export interface Absensi {
   id: number
-  karyawan: number
+  karyawan_id: string
   lokasi: string
   lokasi_nama: string
   tanggal: string

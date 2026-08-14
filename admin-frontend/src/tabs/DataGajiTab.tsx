@@ -7,14 +7,14 @@ import { formatCurrency } from '../constants'
 
 export function DataGajiTab() {
   const [month, setMonth] = useState(() => dayjs())
-  const [karyawanId, setKaryawanId] = useState<number>()
+  const [karyawanId, setKaryawanId] = useState<string>()
   const { data: karyawan } = useKaryawan()
   const { data, isLoading } = useGajiTemp({
-    karyawan: karyawanId,
+    karyawan_id: karyawanId,
     bulan: month.format('YYYY-MM'),
   })
 
-  const karyawanOptions = (karyawan ?? []).map((k) => ({ label: k.nama, value: k.id }))
+  const karyawanOptions = (karyawan ?? []).map((k) => ({ label: k.nama, value: k.karyawan_id }))
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -45,7 +45,7 @@ export function DataGajiTab() {
         pagination={{ pageSize: 20, showSizeChanger: false }}
         scroll={{ x: true }}
         columns={[
-          { title: 'ID Karyawan', dataIndex: 'karyawan_kode', width: 110 },
+          { title: 'ID Karyawan', dataIndex: 'karyawan_id', width: 110 },
           { title: 'Karyawan', dataIndex: 'karyawan_nama' },
           { title: 'Periode', dataIndex: 'periode', width: 100 },
           { title: 'Hadir', dataIndex: 'hadir', width: 80 },

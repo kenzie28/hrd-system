@@ -8,8 +8,10 @@ class GajiTempSerializer(serializers.ModelSerializer):
     computed properties. Used by both the portal detail endpoint and the
     admin review list."""
 
+    karyawan_id = serializers.PrimaryKeyRelatedField(
+        source='karyawan', read_only=True
+    )
     karyawan_nama = serializers.CharField(source='karyawan.nama', read_only=True)
-    karyawan_kode = serializers.CharField(source='karyawan.karyawan_id', read_only=True)
 
     nominal_target = serializers.IntegerField(read_only=True)
     freq_hari_non_target = serializers.IntegerField(read_only=True)
@@ -24,9 +26,8 @@ class GajiTempSerializer(serializers.ModelSerializer):
         model = GajiTemp
         fields = [
             'id',
-            'karyawan',
+            'karyawan_id',
             'karyawan_nama',
-            'karyawan_kode',
             'periode',
             'hadir',
             'total_hadir',

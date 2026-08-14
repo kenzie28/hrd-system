@@ -7,9 +7,9 @@ import { ViewModeToggle } from '../components/ViewModeToggle'
 
 export function LemburTab() {
   const [month, setMonth] = useState(() => dayjs())
-  const [karyawanId, setKaryawanId] = useState<number>()
+  const [karyawanId, setKaryawanId] = useState<string>()
   const { data: lembur, isLoading } = useLembur({
-    karyawan: karyawanId,
+    karyawan_id: karyawanId,
     bulan: month.format('YYYY-MM'),
   })
 
@@ -28,7 +28,7 @@ export function LemburTab() {
           dataIndex: 'tanggal',
           sorter: (a, b) => a.tanggal.localeCompare(b.tanggal),
         },
-        { title: 'ID Karyawan', dataIndex: 'karyawan_kode', width: 110 },
+        { title: 'ID Karyawan', dataIndex: 'karyawan_id', width: 110 },
         { title: 'Karyawan', dataIndex: 'karyawan_nama' },
         {
           title: 'Alasan',

@@ -28,9 +28,9 @@ class AdminLemburViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             qs = qs.filter(status=StatusPermohonanLembur.MENUNGGU_HRD)
 
-        karyawan = self.request.query_params.get('karyawan')
-        if karyawan:
-            qs = qs.filter(karyawan_id=karyawan)
+        karyawan_id = self.request.query_params.get('karyawan_id')
+        if karyawan_id:
+            qs = qs.filter(karyawan_id=karyawan_id)
         bulan = self.request.query_params.get('bulan')
         if bulan:
             year, month = map(int, bulan.split('-'))

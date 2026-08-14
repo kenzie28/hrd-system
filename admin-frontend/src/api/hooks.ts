@@ -25,7 +25,7 @@ import type {
 
 function filterParams(filters?: RecordFilters) {
   return {
-    karyawan: filters?.karyawan,
+    karyawan_id: filters?.karyawan_id,
     bulan: filters?.bulan,
   }
 }
@@ -51,8 +51,8 @@ export function useKaryawanCreate() {
 export function useKaryawanUpdate() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: Partial<KaryawanWrite> & { id: number }) =>
-      api.patch<Karyawan>(`/admin/karyawan/${id}/`, data).then((r) => r.data),
+    mutationFn: ({ karyawan_id, ...data }: Partial<KaryawanWrite> & { karyawan_id: string }) =>
+      api.patch<Karyawan>(`/admin/karyawan/${karyawan_id}/`, data).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['karyawan'] })
     },
@@ -62,7 +62,7 @@ export function useKaryawanUpdate() {
 export function useKaryawanDelete() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => api.delete(`/admin/karyawan/${id}/`),
+    mutationFn: (karyawanId: string) => api.delete(`/admin/karyawan/${karyawanId}/`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['karyawan'] })
     },
@@ -534,7 +534,7 @@ export function useAbsensi(filters?: RecordFilters) {
     queryKey: ['absensi', filters],
     queryFn: async () =>
       (await api.get<Absensi[]>('/absensi/', { params: filterParams(filters) })).data,
-    enabled: filters?.karyawan != null,
+    enabled: filters?.karyawan_id != null,
   })
 }
 
@@ -862,7 +862,7 @@ export function useGajiImport() {
 
 export function useResetPassword() {
   return useMutation({
-    mutationFn: (karyawanId: number) =>
+    mutationFn: (karyawanId: string) =>
       api.post(`/admin/karyawan/${karyawanId}/reset-password/`).then((r) => r.data),
   })
 }

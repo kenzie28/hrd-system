@@ -1,9 +1,14 @@
 from rest_framework import serializers
 
+from karyawan.models import Karyawan
+
 from .models import Absensi
 
 
 class AbsensiSerializer(serializers.ModelSerializer):
+    karyawan_id = serializers.PrimaryKeyRelatedField(
+        source='karyawan', queryset=Karyawan.objects.all()
+    )
     karyawan_nama = serializers.CharField(source='karyawan.nama', read_only=True)
     lokasi_nama = serializers.CharField(source='lokasi.nama', read_only=True)
     jam_keluar = serializers.TimeField(read_only=True)
@@ -12,13 +17,13 @@ class AbsensiSerializer(serializers.ModelSerializer):
     class Meta:
         model = Absensi
         fields = [
-            'id', 'karyawan', 'karyawan_nama', 'lokasi', 'lokasi_nama',
+            'id', 'karyawan_id', 'karyawan_nama', 'lokasi', 'lokasi_nama',
             'tanggal', 'jam_masuk', 'durasi', 'jam_keluar', 'keluar_hari_offset',
         ]
 
 
 class AbsensiConflictGroupSerializer(serializers.Serializer):
-    karyawan = serializers.IntegerField()
+    karyawan_id = serializers.CharField()
     karyawan_nama = serializers.CharField()
     tanggal = serializers.DateField()
     entries = AbsensiSerializer(many=True)

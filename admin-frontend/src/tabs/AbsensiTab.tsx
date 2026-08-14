@@ -31,9 +31,9 @@ interface EditFormValues {
 export function AbsensiTab() {
   const { message } = App.useApp()
   const [month, setMonth] = useState(() => dayjs())
-  const [karyawanId, setKaryawanId] = useState<number>()
+  const [karyawanId, setKaryawanId] = useState<string>()
   const { data: absensi, isLoading } = useAbsensi({
-    karyawan: karyawanId,
+    karyawan_id: karyawanId,
     bulan: month.format('YYYY-MM'),
   })
   const { data: karyawan } = useKaryawan()
@@ -44,7 +44,7 @@ export function AbsensiTab() {
   const [form] = Form.useForm<EditFormValues>()
 
   const karyawanOptions = useMemo(
-    () => (karyawan ?? []).map((k) => ({ label: k.nama, value: k.id })),
+    () => (karyawan ?? []).map((k) => ({ label: k.nama, value: k.karyawan_id })),
     [karyawan],
   )
 

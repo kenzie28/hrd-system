@@ -18,7 +18,7 @@ import { CUTI_TIPE_OPTIONS } from '../../constants'
 interface FormValues {
   tipe: CutiTipe
   rentang: [Dayjs, Dayjs]
-  supervisor: number
+  supervisor: string
   alasan?: string
 }
 
@@ -127,7 +127,7 @@ export default function AjukanCutiTab() {
           placeholder="Pilih supervisor"
           disabled={!supervisors?.length}
           options={(supervisors ?? []).map((s) => ({
-            value: s.id,
+            value: s.karyawan_id,
             label: `${s.nama} (Level ${s.level})`,
           }))}
         />

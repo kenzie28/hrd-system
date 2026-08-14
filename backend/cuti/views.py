@@ -18,10 +18,10 @@ from .serializers import (
 
 
 def _apply_common_filters(queryset, params, karyawan_field='permohonan__karyawan_id', tanggal_field='tanggal'):
-    """Filter by ?karyawan=<id> and ?bulan=YYYY-MM."""
-    karyawan = params.get('karyawan')
-    if karyawan:
-        queryset = queryset.filter(**{karyawan_field: karyawan})
+    """Filter by ?karyawan_id=<id> and ?bulan=YYYY-MM."""
+    karyawan_id = params.get('karyawan_id')
+    if karyawan_id:
+        queryset = queryset.filter(**{karyawan_field: karyawan_id})
     bulan = params.get('bulan')
     if bulan:
         year, month = map(int, bulan.split('-'))
@@ -109,7 +109,7 @@ class PortalCutiViewSet(viewsets.ModelViewSet):
         levels = eligible_supervisor_levels(karyawan.level)
         qs = (
             Karyawan.objects.filter(level__in=levels)
-            .exclude(id=karyawan.id)
+            .exclude(pk=karyawan.pk)
             .order_by('nama')
         )
         return Response(SupervisorOptionSerializer(qs, many=True).data)

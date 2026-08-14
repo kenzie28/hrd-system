@@ -9,14 +9,16 @@ from .policy import eligible_supervisor_levels
 class SupervisorOptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Karyawan
-        fields = ['id', 'karyawan_id', 'nama', 'level']
+        fields = ['karyawan_id', 'nama', 'level']
 
 
 class PermohonanLemburSerializer(serializers.ModelSerializer):
     """Read serializer for a single overtime request across portal/admin."""
 
+    karyawan_id = serializers.PrimaryKeyRelatedField(
+        source='karyawan', read_only=True
+    )
     karyawan_nama = serializers.CharField(source='karyawan.nama', read_only=True)
-    karyawan_kode = serializers.CharField(source='karyawan.karyawan_id', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     supervisor_nama = serializers.CharField(
         source='supervisor.nama', read_only=True, default=None
@@ -28,7 +30,7 @@ class PermohonanLemburSerializer(serializers.ModelSerializer):
     class Meta:
         model = PermohonanLembur
         fields = [
-            'id', 'karyawan', 'karyawan_nama', 'karyawan_kode',
+            'id', 'karyawan_id', 'karyawan_nama',
             'alasan', 'tanggal',
             'status', 'status_display',
             'supervisor', 'supervisor_nama',
@@ -47,7 +49,7 @@ class PermohonanLemburCreateSerializer(serializers.ModelSerializer):
         supervisor = attrs.get('supervisor')
         if supervisor is None:
             raise serializers.ValidationError({'supervisor': 'Supervisor wajib dipilih.'})
-        if supervisor.id == requester.id:
+        if supervisor.pk == requester.pk:
             raise serializers.ValidationError(
                 {'supervisor': 'Anda tidak dapat memilih diri sendiri sebagai supervisor.'}
             )

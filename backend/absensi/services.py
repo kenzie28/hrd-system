@@ -93,14 +93,14 @@ def import_absensi_csv(upload) -> AbsensiImportResult:
     """Validate and create Absensi rows from a CSV with columns
     karyawan_id, lokasi_kerja, tanggal, jam_masuk, jam_keluar.
 
-    karyawan_id must reference an existing Karyawan (by its business ID, not
-    the numeric PK). lokasi_kerja must reference an existing Lokasi. tanggal
-    accepts yyyy-mm-dd; jam_masuk/jam_keluar accept HH:MM or HH:MM:SS. When
-    jam_keluar is not after jam_masuk it is treated as an overnight shift
-    (durasi spans into the next calendar day). Multiple rows for the same
-    employee/day are allowed on purpose — HRD resolves conflicts separately.
-    Delimiter may be comma or semicolon (auto-detected). All rows are
-    validated before any write.
+    karyawan_id must reference an existing Karyawan. lokasi_kerja must
+    reference an existing Lokasi. tanggal accepts yyyy-mm-dd;
+    jam_masuk/jam_keluar accept HH:MM or HH:MM:SS. When jam_keluar is not
+    after jam_masuk it is treated as an overnight shift (durasi spans into
+    the next calendar day). Multiple rows for the same employee/day are
+    allowed on purpose — HRD resolves conflicts separately. Delimiter may
+    be comma or semicolon (auto-detected). All rows are validated before
+    any write.
     """
     result = AbsensiImportResult()
 

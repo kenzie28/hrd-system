@@ -36,7 +36,7 @@ export function AbsensiKonflikTab() {
       {isLoading && <Typography.Text type="secondary">Memuat…</Typography.Text>}
       {(data ?? []).map((group) => (
         <Card
-          key={`${group.karyawan}-${group.tanggal}`}
+          key={`${group.karyawan_id}-${group.tanggal}`}
           size="small"
           title={`${group.karyawan_nama} — ${group.tanggal}`}
         >

@@ -21,8 +21,8 @@ export interface ViewModeToggleProps<T> {
   getDate: (record: T) => string
   /** Compact one-line rendering used inside calendar cells. */
   renderBadge: (record: T) => ReactNode
-  karyawanId?: number
-  onKaryawanChange?: (id?: number) => void
+  karyawanId?: string
+  onKaryawanChange?: (id?: string) => void
   month: Dayjs
   onMonthChange: (month: Dayjs) => void
   /** Extra toolbar content, e.g. action buttons. */
@@ -48,7 +48,7 @@ export function ViewModeToggle<T extends { id: number }>({
   const { data: karyawan } = useKaryawan()
 
   const karyawanOptions = useMemo(
-    () => (karyawan ?? []).map((k) => ({ label: k.nama, value: k.id })),
+    () => (karyawan ?? []).map((k) => ({ label: k.nama, value: k.karyawan_id })),
     [karyawan],
   )
 

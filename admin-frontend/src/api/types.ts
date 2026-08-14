@@ -32,7 +32,6 @@ export interface ShiftImportResult {
 }
 
 export interface Karyawan {
-  id: number
   karyawan_id: string
   nama: string
   lokasi_kerja: string | null
@@ -112,7 +111,7 @@ export interface LiburanImportResult {
 
 export interface Absensi {
   id: number
-  karyawan: number
+  karyawan_id: string
   karyawan_nama: string
   lokasi: string
   lokasi_nama: string
@@ -124,7 +123,7 @@ export interface Absensi {
 }
 
 export interface AbsensiConflictGroup {
-  karyawan: number
+  karyawan_id: string
   karyawan_nama: string
   tanggal: string
   entries: Absensi[]
@@ -163,7 +162,7 @@ export interface Cuti {
   id: number
   permohonan: number
   tanggal: string
-  karyawan: number
+  karyawan_id: string
   karyawan_nama: string
   tipe: CutiTipe
   tipe_display: string
@@ -171,12 +170,11 @@ export interface Cuti {
 }
 
 export interface RecordFilters {
-  karyawan?: number
+  karyawan_id?: string
   bulan?: string
 }
 
 export interface AdminKaryawan {
-  id: number
   karyawan_id: string
   nama: string
   level: number
@@ -202,9 +200,8 @@ export type CutiStatus =
 
 export interface PermohonanCuti {
   id: number
-  karyawan: number
+  karyawan_id: string
   karyawan_nama: string
-  karyawan_kode: string
   tipe: CutiTipe
   tipe_display: string
   alasan: string
@@ -213,9 +210,9 @@ export interface PermohonanCuti {
   jumlah_hari: number
   status: CutiStatus
   status_display: string
-  supervisor: number | null
+  supervisor: string | null
   supervisor_nama: string | null
-  hrd_approver: number | null
+  hrd_approver: string | null
   hrd_approver_nama: string | null
 }
 
@@ -228,24 +225,22 @@ export type LemburStatus =
 
 export interface PermohonanLembur {
   id: number
-  karyawan: number
+  karyawan_id: string
   karyawan_nama: string
-  karyawan_kode: string
   alasan: string
   tanggal: string
   status: LemburStatus
   status_display: string
-  supervisor: number | null
+  supervisor: string | null
   supervisor_nama: string | null
-  hrd_approver: number | null
+  hrd_approver: string | null
   hrd_approver_nama: string | null
 }
 
 export interface GajiTemp {
   id: number
-  karyawan: number
+  karyawan_id: string
   karyawan_nama: string
-  karyawan_kode: string
   periode: string
   hadir: string
   total_hadir: number

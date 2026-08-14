@@ -34,7 +34,7 @@ export function PersetujuanLemburTab() {
       scroll={{ x: true }}
       locale={{ emptyText: 'Tidak ada permohonan menunggu persetujuan HRD.' }}
       columns={[
-        { title: 'ID Karyawan', dataIndex: 'karyawan_kode', width: 110 },
+        { title: 'ID Karyawan', dataIndex: 'karyawan_id', width: 110 },
         { title: 'Karyawan', dataIndex: 'karyawan_nama' },
         { title: 'Tanggal', dataIndex: 'tanggal' },
         {

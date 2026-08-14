@@ -7,7 +7,6 @@ class KaryawanSerializer(serializers.ModelSerializer):
     class Meta:
         model = Karyawan
         fields = [
-            'id',
             'karyawan_id',
             'nama',
             'lokasi_kerja',
@@ -24,7 +23,6 @@ class KaryawanWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Karyawan
         fields = [
-            'id',
             'karyawan_id',
             'nama',
             'lokasi_kerja',
@@ -33,14 +31,16 @@ class KaryawanWriteSerializer(serializers.ModelSerializer):
             'level',
             'cuti_tahunan',
         ]
-        read_only_fields = ['id']
+
+    def update(self, instance, validated_data):
+        validated_data.pop('karyawan_id', None)
+        return super().update(instance, validated_data)
 
 
 class PortalKaryawanSerializer(serializers.ModelSerializer):
     class Meta:
         model = Karyawan
         fields = [
-            'id',
             'karyawan_id',
             'nama',
             'level',

@@ -8,9 +8,9 @@ import { CUTI_TIPE_COLORS } from '../constants'
 
 export function CutiTab() {
   const [month, setMonth] = useState(() => dayjs())
-  const [karyawanId, setKaryawanId] = useState<number>()
+  const [karyawanId, setKaryawanId] = useState<string>()
   const { data: cuti, isLoading } = useCuti({
-    karyawan: karyawanId,
+    karyawan_id: karyawanId,
     bulan: month.format('YYYY-MM'),
   })
 

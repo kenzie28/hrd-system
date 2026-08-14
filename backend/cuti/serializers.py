@@ -9,7 +9,7 @@ from .policy import eligible_supervisor_levels
 class CutiSerializer(serializers.ModelSerializer):
     """Read-only per-day leave ledger row (used by the admin Rekap/Cuti views)."""
 
-    karyawan = serializers.IntegerField(source='permohonan.karyawan_id', read_only=True)
+    karyawan_id = serializers.CharField(source='permohonan.karyawan_id', read_only=True)
     karyawan_nama = serializers.CharField(
         source='permohonan.karyawan.nama', read_only=True
     )
@@ -24,7 +24,7 @@ class CutiSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cuti
         fields = [
-            'id', 'permohonan', 'tanggal', 'karyawan', 'karyawan_nama',
+            'id', 'permohonan', 'tanggal', 'karyawan_id', 'karyawan_nama',
             'tipe', 'tipe_display', 'supervisor_nama',
         ]
 
@@ -32,14 +32,16 @@ class CutiSerializer(serializers.ModelSerializer):
 class SupervisorOptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Karyawan
-        fields = ['id', 'karyawan_id', 'nama', 'level']
+        fields = ['karyawan_id', 'nama', 'level']
 
 
 class PermohonanCutiSerializer(serializers.ModelSerializer):
     """Read serializer for a single leave request across all portals/admin."""
 
+    karyawan_id = serializers.PrimaryKeyRelatedField(
+        source='karyawan', read_only=True
+    )
     karyawan_nama = serializers.CharField(source='karyawan.nama', read_only=True)
-    karyawan_kode = serializers.CharField(source='karyawan.karyawan_id', read_only=True)
     tipe_display = serializers.CharField(source='get_tipe_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     supervisor_nama = serializers.CharField(
@@ -53,7 +55,7 @@ class PermohonanCutiSerializer(serializers.ModelSerializer):
     class Meta:
         model = PermohonanCuti
         fields = [
-            'id', 'karyawan', 'karyawan_nama', 'karyawan_kode',
+            'id', 'karyawan_id', 'karyawan_nama',
             'tipe', 'tipe_display', 'alasan',
             'tanggal_mulai', 'tanggal_selesai', 'jumlah_hari',
             'status', 'status_display',
@@ -101,7 +103,7 @@ class PermohonanCutiCreateSerializer(serializers.ModelSerializer):
         supervisor = attrs.get('supervisor')
         if supervisor is None:
             raise serializers.ValidationError({'supervisor': 'Supervisor wajib dipilih.'})
-        if supervisor.id == requester.id:
+        if supervisor.pk == requester.pk:
             raise serializers.ValidationError(
                 {'supervisor': 'Anda tidak dapat memilih diri sendiri sebagai supervisor.'}
             )

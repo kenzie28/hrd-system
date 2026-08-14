@@ -7,3 +7,4 @@ from .serializers import KaryawanSerializer
 class KaryawanViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Karyawan.objects.all()
     serializer_class = KaryawanSerializer
+    lookup_field = 'karyawan_id'

@@ -103,7 +103,7 @@ export function DataKaryawanTab() {
   const [search, setSearch] = useState('')
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(loadVisibleColumns)
   const [modalOpen, setModalOpen] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [editingLabel, setEditingLabel] = useState('')
   const [form] = Form.useForm<KaryawanFormValues>()
 
@@ -217,7 +217,7 @@ export function DataKaryawanTab() {
   }
 
   const openEdit = (record: Karyawan) => {
-    setEditingId(record.id)
+    setEditingId(record.karyawan_id)
     setEditingLabel(`${record.karyawan_id} — ${record.nama}`)
     form.setFieldsValue({
       karyawan_id: record.karyawan_id,
@@ -252,7 +252,7 @@ export function DataKaryawanTab() {
     }
     try {
       if (isEditing) {
-        await update.mutateAsync({ id: editingId, ...payload })
+        await update.mutateAsync({ karyawan_id: editingId, ...payload })
         message.success('Karyawan diperbarui')
       } else {
         await create.mutateAsync(payload)
@@ -331,7 +331,7 @@ export function DataKaryawanTab() {
       </Space>
 
       <Table<Karyawan>
-        rowKey="id"
+        rowKey="karyawan_id"
         size="small"
         loading={isLoading}
         dataSource={filtered}

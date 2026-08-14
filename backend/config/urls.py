@@ -79,12 +79,12 @@ admin_api_urlpatterns = [
         name='admin-karyawan-create',
     ),
     path(
-        'admin/karyawan/<int:pk>/',
+        'admin/karyawan/<str:pk>/',
         AdminKaryawanDetailView.as_view(),
         name='admin-karyawan-detail',
     ),
     path(
-        'admin/karyawan/<int:pk>/reset-password/',
+        'admin/karyawan/<str:pk>/reset-password/',
         AdminResetPasswordView.as_view(),
         name='admin-reset-password',
     ),

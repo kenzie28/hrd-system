@@ -3,7 +3,7 @@ from django.db import models
 
 
 class Karyawan(models.Model):
-    karyawan_id = models.CharField(max_length=7, unique=True)
+    karyawan_id = models.CharField(max_length=7, primary_key=True)
     nama = models.CharField(max_length=128)
     lokasi_kerja = models.ForeignKey(
         'lokasi.Lokasi',

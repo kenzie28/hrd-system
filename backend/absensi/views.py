@@ -13,10 +13,10 @@ from .serializers import AbsensiConflictGroupSerializer, AbsensiSerializer
 
 
 def _apply_common_filters(queryset, params):
-    """Filter by ?karyawan=<id> and ?bulan=YYYY-MM."""
-    karyawan = params.get('karyawan')
-    if karyawan:
-        queryset = queryset.filter(karyawan_id=karyawan)
+    """Filter by ?karyawan_id=<id> and ?bulan=YYYY-MM."""
+    karyawan_id = params.get('karyawan_id')
+    if karyawan_id:
+        queryset = queryset.filter(karyawan_id=karyawan_id)
     bulan = params.get('bulan')
     if bulan:
         year, month = map(int, bulan.split('-'))
@@ -33,7 +33,7 @@ class AbsensiViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def conflicts(self, request):
-        """Group Absensi entries by (karyawan, tanggal); return only groups with >1 entry.
+        """Group Absensi entries by (karyawan_id, tanggal); return only groups with >1 entry.
 
         Multiple clock-in/out entries for the same employee/day are never
         overwritten on create — they are stored side-by-side here until HRD
@@ -42,9 +42,9 @@ class AbsensiViewSet(viewsets.ModelViewSet):
         qs = Absensi.objects.select_related('karyawan', 'lokasi').order_by(
             'karyawan_id', 'tanggal', 'jam_masuk'
         )
-        karyawan = request.query_params.get('karyawan')
-        if karyawan:
-            qs = qs.filter(karyawan_id=karyawan)
+        karyawan_id = request.query_params.get('karyawan_id')
+        if karyawan_id:
+            qs = qs.filter(karyawan_id=karyawan_id)
 
         groups = []
         for (karyawan_id, tanggal), entries in groupby(
@@ -54,7 +54,7 @@ class AbsensiViewSet(viewsets.ModelViewSet):
             if len(entries) > 1:
                 groups.append(
                     {
-                        'karyawan': karyawan_id,
+                        'karyawan_id': karyawan_id,
                         'karyawan_nama': entries[0].karyawan.nama,
                         'tanggal': tanggal,
                         'entries': entries,

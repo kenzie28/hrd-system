@@ -1,6 +1,6 @@
 from itertools import groupby
 
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -31,13 +31,39 @@ class AbsensiViewSet(viewsets.ModelViewSet):
         qs = Absensi.objects.select_related('karyawan', 'lokasi')
         return _apply_common_filters(qs, self.request.query_params)
 
+    def create(self, request, *args, **kwargs):
+        """Create Absensi, or return the existing row if all key fields match.
+
+        Idempotent only when karyawan, lokasi, tanggal, jam_masuk, and durasi
+        are identical. Different jam_masuk/durasi for the same day still create
+        a new row (conflict resolution). Returns 201 if created, 200 if found.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        absensi, created = Absensi.objects.get_or_create(
+            karyawan=data['karyawan'],
+            lokasi=data['lokasi'],
+            tanggal=data['tanggal'],
+            jam_masuk=data['jam_masuk'],
+            durasi=data['durasi'],
+        )
+        out = self.get_serializer(absensi)
+        headers = self.get_success_headers(out.data) if created else {}
+        return Response(
+            out.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+            headers=headers,
+        )
+
     @action(detail=False, methods=['get'])
     def conflicts(self, request):
         """Group Absensi entries by (karyawan_id, tanggal); return only groups with >1 entry.
 
         Multiple clock-in/out entries for the same employee/day are never
         overwritten on create — they are stored side-by-side here until HRD
-        resolves which one(s) should be kept.
+        resolves which one(s) should be kept. Exact duplicates (same lokasi,
+        jam_masuk, and durasi) are skipped by create instead.
         """
         qs = Absensi.objects.select_related('karyawan', 'lokasi').order_by(
             'karyawan_id', 'tanggal', 'jam_masuk'

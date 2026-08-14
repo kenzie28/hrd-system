@@ -1,0 +1,18 @@
+# =============================================================================
+# Overlay used only by ./test.sh
+# =============================================================================
+# Isolates the smoke-test stack from a live `./deploy.sh` stack:
+#   - project name docker-hrd-system-test (set again via -p in test.sh)
+#   - dedicated MySQL volume `hrd-system-db-test` (never hrd-system-db)
+#
+# Host ports are *not* listed here. test.sh overrides BACKEND_PORT /
+# ADMIN_FRONTEND_PORT / PORTAL_FRONTEND_PORT in the shell so Compose
+# interpolates different values than docker/.env (no port clash with a
+# running live stack).
+# =============================================================================
+
+name: docker-hrd-system-test
+
+volumes:
+  hrd_system_db:
+    name: hrd-system-db-test

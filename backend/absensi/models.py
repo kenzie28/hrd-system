@@ -17,6 +17,12 @@ class Absensi(models.Model):
     class Meta:
         verbose_name_plural = 'Absensi'
         ordering = ['-tanggal', 'karyawan__nama']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['karyawan', 'lokasi', 'tanggal', 'jam_masuk', 'durasi'],
+                name='absensi_unique_exact_entry',
+            ),
+        ]
 
     @property
     def jam_keluar(self):

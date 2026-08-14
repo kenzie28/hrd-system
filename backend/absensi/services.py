@@ -97,9 +97,10 @@ def import_absensi_csv(upload) -> AbsensiImportResult:
     reference an existing Lokasi. tanggal accepts yyyy-mm-dd;
     jam_masuk/jam_keluar accept HH:MM or HH:MM:SS. When jam_keluar is not
     after jam_masuk it is treated as an overnight shift (durasi spans into
-    the next calendar day). Multiple rows for the same employee/day are
-    allowed on purpose — HRD resolves conflicts separately. Delimiter may
-    be comma or semicolon (auto-detected). All rows are validated before
+    the next calendar day).     Multiple rows for the same employee/day are
+    allowed on purpose — HRD resolves conflicts separately. Exact duplicates
+    (same karyawan, lokasi, tanggal, jam_masuk, durasi) are skipped. Delimiter
+    may be comma or semicolon (auto-detected). All rows are validated before
     any write.
     """
     result = AbsensiImportResult()
@@ -141,6 +142,7 @@ def import_absensi_csv(upload) -> AbsensiImportResult:
     karyawan_cache: dict[str, Karyawan | None] = {}
     lokasi_cache: dict[str, Lokasi | None] = {}
     to_create: list[Absensi] = []
+    seen_keys: set[tuple] = set()
 
     for row_num, row in enumerate(reader, start=2):
         result.total_rows += 1
@@ -222,6 +224,20 @@ def import_absensi_csv(upload) -> AbsensiImportResult:
             keluar_dt += timedelta(days=1)
         durasi = keluar_dt - masuk_dt
 
+        key = (karyawan.pk, lokasi.pk, tanggal, jam_masuk, durasi)
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+
+        if Absensi.objects.filter(
+            karyawan=karyawan,
+            lokasi=lokasi,
+            tanggal=tanggal,
+            jam_masuk=jam_masuk,
+            durasi=durasi,
+        ).exists():
+            continue
+
         to_create.append(
             Absensi(
                 karyawan=karyawan,
@@ -235,13 +251,14 @@ def import_absensi_csv(upload) -> AbsensiImportResult:
     if result.errors:
         return result
 
-    if not to_create:
+    if result.total_rows == 0:
         result.errors.append(
             AbsensiImportError(0, 'File CSV tidak memiliki baris data.')
         )
         return result
 
-    with transaction.atomic():
-        Absensi.objects.bulk_create(to_create)
-    result.created = len(to_create)
+    if to_create:
+        with transaction.atomic():
+            Absensi.objects.bulk_create(to_create)
+        result.created = len(to_create)
     return result

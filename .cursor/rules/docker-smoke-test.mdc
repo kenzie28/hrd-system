@@ -1,0 +1,16 @@
+---
+description: Run docker/test.sh after significant changes before considering work ready to commit
+alwaysApply: true
+---
+
+# Docker smoke test before commit
+
+After significant changes (backend, frontends, Dockerfiles, compose, nginx, entrypoint, migrations, env), run:
+
+```
+./docker/test.sh
+```
+
+Do this before telling the user the work is ready to commit. If the script fails, fix the issue and re-run until it passes.
+
+Skip for docs-only or comment-only edits, or when the user asks not to. The test stack is isolated (project `docker-hrd-system-test`, volume `hrd-system-db-test`) and does not touch a live `./deploy.sh` database.

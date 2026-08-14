@@ -16,6 +16,7 @@
 # Usage:
 #   ./build.sh    # generates docker/.env secrets + builds images
 #   ./deploy.sh   # start the whole ecosystem (builds if images are missing)
+#   ./test.sh     # isolated build + deploy smoke test (does not touch live DB)
 #   ./push.sh     # tag + push images to Docker Hub
 #
 # Build context for every service is the repo root (`..`) so each Dockerfile

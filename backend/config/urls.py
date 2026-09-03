@@ -18,6 +18,7 @@ from karyawan.admin_views import (
     AdminKaryawanCreateView,
     AdminKaryawanDetailView,
     AdminKaryawanImportView,
+    AdminKaryawanUpdateImportView,
     AdminLoginView,
     AdminMeView,
     AdminResetPasswordView,
@@ -72,6 +73,11 @@ admin_api_urlpatterns = [
         'admin/karyawan/import/',
         AdminKaryawanImportView.as_view(),
         name='admin-karyawan-import',
+    ),
+    path(
+        'admin/karyawan/import-update/',
+        AdminKaryawanUpdateImportView.as_view(),
+        name='admin-karyawan-import-update',
     ),
     path(
         'admin/karyawan/',

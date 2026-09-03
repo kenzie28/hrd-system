@@ -20,9 +20,11 @@ function isVisibleRow({ value }: RowSpec): boolean {
 
 function Row({ label, value, isCurrency = true }: RowSpec) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-      <Typography.Text type="secondary">{label}</Typography.Text>
-      <Typography.Text>
+    <div className="gaji-row">
+      <Typography.Text type="secondary" className="gaji-row-label">
+        {label}
+      </Typography.Text>
+      <Typography.Text className="gaji-row-value">
         {typeof value === 'string' || !isCurrency ? value : formatCurrency(value)}
       </Typography.Text>
     </div>
@@ -119,11 +121,11 @@ function GajiBreakdown({ gaji }: { gaji: GajiDetail }) {
 
       {sections.length > 0 ? <Divider style={{ margin: '4px 0' }} /> : null}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
+      <div className="gaji-total">
         <Typography.Title level={5} style={{ margin: 0 }}>
           Gaji Diterima
         </Typography.Title>
-        <Typography.Title level={5} style={{ margin: 0 }}>
+        <Typography.Title level={5} style={{ margin: 0 }} className="gaji-row-value">
           {formatCurrency(gaji.total_gaji)}
         </Typography.Title>
       </div>
@@ -149,7 +151,7 @@ export default function GajiBreakdownPage() {
       >
         Kembali
       </Button>
-      <Typography.Title level={3} style={{ marginTop: 0 }}>
+      <Typography.Title level={3} className="page-title" style={{ marginTop: 0 }}>
         Rincian Gaji — {bulanLabel}
       </Typography.Title>
 

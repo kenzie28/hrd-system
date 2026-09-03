@@ -75,7 +75,7 @@ export function ViewModeToggle<T extends { id: number }>({
         {!hideKaryawanFilter && (
           <Select
             placeholder="Semua karyawan"
-            style={{ minWidth: 180 }}
+            style={{ minWidth: 180, maxWidth: '100%' }}
             allowClear
             options={karyawanOptions}
             value={karyawanId}
@@ -101,6 +101,7 @@ export function ViewModeToggle<T extends { id: number }>({
           dataSource={data}
           loading={loading}
           pagination={{ pageSize: 20, showSizeChanger: false }}
+          scroll={{ x: 'max-content' }}
         />
       )}
 

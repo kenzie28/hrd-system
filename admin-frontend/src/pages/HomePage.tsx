@@ -37,14 +37,14 @@ export default function HomePage() {
       key: 'shift',
       title: 'Shift',
       description: 'Kelola jam shift per lokasi kerja.',
-      icon: <ScheduleOutlined style={{ fontSize: 32 }} />,
+      icon: <ScheduleOutlined className="home-module-icon" />,
       path: '/shift',
     },
     {
       key: 'absensi',
       title: 'Absensi',
       description: 'Tinjau riwayat absensi karyawan dan selesaikan konflik.',
-      icon: <SolutionOutlined style={{ fontSize: 32 }} />,
+      icon: <SolutionOutlined className="home-module-icon" />,
       path: '/absensi',
       pendingCount: absensiConflictCount,
     },
@@ -52,7 +52,7 @@ export default function HomePage() {
       key: 'cuti',
       title: 'Cuti & Izin',
       description: 'Lihat cuti dan setujui permohonan.',
-      icon: <CalendarOutlined style={{ fontSize: 32 }} />,
+      icon: <CalendarOutlined className="home-module-icon" />,
       path: '/cuti',
       pendingCount: pendingCutiCount,
     },
@@ -60,7 +60,7 @@ export default function HomePage() {
       key: 'lembur',
       title: 'Lembur',
       description: 'Lihat lembur dan setujui permohonan.',
-      icon: <ClockCircleOutlined style={{ fontSize: 32 }} />,
+      icon: <ClockCircleOutlined className="home-module-icon" />,
       path: '/lembur',
       pendingCount: pendingLemburCount,
     },
@@ -68,82 +68,65 @@ export default function HomePage() {
       key: 'liburan',
       title: 'Liburan',
       description: 'Kelola hari libur nasional dan perusahaan.',
-      icon: <FlagOutlined style={{ fontSize: 32 }} />,
+      icon: <FlagOutlined className="home-module-icon" />,
       path: '/liburan',
     },
     {
       key: 'karyawan',
       title: 'Master Karyawan',
-      description: 'Kelola data karyawan, import CSV, dan reset password.',
-      icon: <TeamOutlined style={{ fontSize: 32 }} />,
+      description: 'Kelola data karyawan, import/update CSV, dan reset password.',
+      icon: <TeamOutlined className="home-module-icon" />,
       path: '/karyawan',
     },
     {
       key: 'lokasi',
       title: 'Master Lokasi Kerja',
       description: 'Kelola lokasi kerja dan import CSV.',
-      icon: <EnvironmentOutlined style={{ fontSize: 32 }} />,
+      icon: <EnvironmentOutlined className="home-module-icon" />,
       path: '/lokasi',
     },
     {
       key: 'gaji',
       title: 'Gaji',
       description: 'Modul gaji (segera hadir).',
-      icon: <WalletOutlined style={{ fontSize: 32 }} />,
+      icon: <WalletOutlined className="home-module-icon" />,
       path: '/gaji',
     },
   ]
 
   return (
     <div>
-      <Typography.Title level={3}>
+      <Typography.Title level={3} className="home-welcome">
         Selamat datang{karyawan ? `, ${karyawan.nama}` : ''}
       </Typography.Title>
-      <Row gutter={[16, 16]} style={{ paddingTop: 8, paddingRight: 8 }}>
+      <Row gutter={[12, 12]} className="home-modules">
         {modules.map((module) => (
           <Col xs={24} sm={12} key={module.key}>
-            <div style={{ position: 'relative' }}>
-              {(module.pendingCount ?? 0) > 0 && (
-                <span
-                  aria-label={`${module.pendingCount} menunggu persetujuan`}
-                  style={{
-                    position: 'absolute',
-                    top: -8,
-                    right: -8,
-                    zIndex: 2,
-                    minWidth: 22,
-                    height: 22,
-                    padding: '0 6px',
-                    borderRadius: 11,
-                    background: '#ff4d4f',
-                    color: '#fff',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    lineHeight: '18px',
-                    textAlign: 'center',
-                    border: '2px solid #fff',
-                    boxShadow: '0 2px 8px rgba(255, 77, 79, 0.45)',
-                    pointerEvents: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  {module.pendingCount! > 99 ? '99+' : module.pendingCount}
-                </span>
-              )}
-              <Card hoverable onClick={() => navigate(module.path)}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  {module.icon}
-                  <div>
-                    <Typography.Title level={4} style={{ margin: 0 }}>
-                      {module.title}
-                    </Typography.Title>
-                    <Typography.Text type="secondary">
-                      {module.description}
-                    </Typography.Text>
+            <Card
+              hoverable
+              className="home-module-card"
+              onClick={() => navigate(module.path)}
+            >
+              <div className="home-module-body">
+                {module.icon}
+                <div className="home-module-text">
+                  <div className="home-module-title-row">
+                    <Typography.Title level={4}>{module.title}</Typography.Title>
+                    {(module.pendingCount ?? 0) > 0 && (
+                      <span
+                        className="home-module-badge"
+                        aria-label={`${module.pendingCount} menunggu persetujuan`}
+                      >
+                        {module.pendingCount! > 99 ? '99+' : module.pendingCount}
+                      </span>
+                    )}
                   </div>
+                  <Typography.Text type="secondary">
+                    {module.description}
+                  </Typography.Text>
                 </div>
-              </Card>
-            </div>
+              </div>
+            </Card>
           </Col>
         ))}
       </Row>

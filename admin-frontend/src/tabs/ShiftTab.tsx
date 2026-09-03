@@ -79,7 +79,7 @@ export function ShiftTab() {
       <Space wrap>
         <Select
           placeholder="Pilih lokasi kerja"
-          style={{ minWidth: 240 }}
+          style={{ minWidth: 180, maxWidth: '100%' }}
           options={lokasiOptions}
           value={lokasiKerja}
           onChange={setLokasiKerja}
@@ -105,6 +105,7 @@ export function ShiftTab() {
           loading={isLoading}
           dataSource={sortedShifts}
           pagination={false}
+          scroll={{ x: 'max-content' }}
           columns={[
             { title: 'Hari', dataIndex: 'hari_display', width: 100 },
             { title: 'Jam Masuk', dataIndex: 'jam_masuk', render: fmtTime },

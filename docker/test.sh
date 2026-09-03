@@ -491,6 +491,20 @@ else
     fail "GET /api/admin/lokasi/ skipped (no admin token)"
 fi
 
+# Karyawan update-import route is mounted (multipart without CSV → 400).
+if [ -n "${ADMIN_TOKEN}" ]; then
+    curl_status POST "${ADMIN_URL}/api/admin/karyawan/import-update/" \
+        -H "Authorization: Token ${ADMIN_TOKEN}" \
+        -F "x=1"
+    if [ "${HTTP_CODE}" = "400" ] && echo "${CURL_BODY}" | grep -q 'File CSV wajib diunggah'; then
+        pass "POST /api/admin/karyawan/import-update/ without file → 400"
+    else
+        fail "POST /api/admin/karyawan/import-update/ → HTTP ${HTTP_CODE} body=${CURL_BODY}"
+    fi
+else
+    fail "POST /api/admin/karyawan/import-update/ skipped (no admin token)"
+fi
+
 # Django admin page on the backend port (no API key required).
 curl_status GET "${BACKEND_URL}/django-admin/login/"
 if [ "${HTTP_CODE}" = "200" ] && echo "${CURL_BODY}" | grep -qi 'Django'; then

@@ -45,7 +45,7 @@ export default function LoginPage() {
 
   return (
     <div className="portal-centered">
-      <Card style={{ width: 360 }}>
+      <Card className="auth-card">
         <Typography.Title level={3} style={{ textAlign: 'center' }}>
           Portal Karyawan
         </Typography.Title>

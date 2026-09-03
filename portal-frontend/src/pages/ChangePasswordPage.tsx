@@ -33,7 +33,7 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="portal-centered">
-      <Card style={{ width: 360 }}>
+      <Card className="auth-card">
         <Typography.Title level={3} style={{ textAlign: 'center' }}>
           Ubah Kata Sandi
         </Typography.Title>

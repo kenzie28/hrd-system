@@ -22,10 +22,15 @@ from .serializers import (
     PortalLoginSerializer,
 )
 from .services import (
+    COL_KARYAWAN_ID,
+    OPTIONAL_COLUMNS,
+    REQUIRED_COLUMNS,
+    UPDATE_OPTIONAL_COLUMNS,
     KaryawanImportError,
     KaryawanImportResult,
     create_portal_login,
     import_karyawan_csv,
+    import_karyawan_update_csv,
     serialize_karyawan_import_result,
 )
 
@@ -152,77 +157,120 @@ class AdminKaryawanDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def _karyawan_csv_import_response(request, importer, *, log_event: str, empty_result=None):
+    upload = request.FILES.get('file')
+    if upload is None:
+        debug_error(
+            log_event,
+            'Request tanpa file CSV.',
+            content_type=request.content_type,
+            hint='Kirim multipart/form-data dengan field "file" berisi CSV.',
+        )
+        return Response(
+            serialize_karyawan_import_result(
+                empty_result
+                or KaryawanImportResult(
+                    errors=[
+                        KaryawanImportError(0, 'File CSV wajib diunggah.'),
+                    ],
+                )
+            ),
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        result = importer(upload)
+    except IntegrityError as exc:
+        debug_exception(
+            log_event,
+            'Import CSV gagal: constraint database.',
+            exc,
+            filename=getattr(upload, 'name', None),
+        )
+        result = KaryawanImportResult(
+            errors=[
+                KaryawanImportError(
+                    0,
+                    f'Gagal menyimpan data ke database: {exc}',
+                ),
+            ],
+            required_columns=(
+                list(empty_result.required_columns) if empty_result else list(REQUIRED_COLUMNS)
+            ),
+            optional_columns=(
+                list(empty_result.optional_columns) if empty_result else list(OPTIONAL_COLUMNS)
+            ),
+        )
+    except Exception as exc:
+        debug_exception(
+            log_event,
+            'Import CSV gagal dengan exception tak terduga.',
+            exc,
+            filename=getattr(upload, 'name', None),
+            size=getattr(upload, 'size', None),
+        )
+        result = KaryawanImportResult(
+            errors=[
+                KaryawanImportError(
+                    0,
+                    f'Import gagal: {exc}',
+                ),
+            ],
+            required_columns=(
+                list(empty_result.required_columns) if empty_result else list(REQUIRED_COLUMNS)
+            ),
+            optional_columns=(
+                list(empty_result.optional_columns) if empty_result else list(OPTIONAL_COLUMNS)
+            ),
+        )
+
+    if not result.ok:
+        debug_error(
+            log_event,
+            'Import selesai dengan error validasi — tidak ada data disimpan.',
+            filename=getattr(upload, 'name', None),
+            total_rows=result.total_rows,
+            error_count=len(result.errors),
+        )
+
+    return Response(
+        serialize_karyawan_import_result(result),
+        status=status.HTTP_200_OK,
+    )
+
+
 class AdminKaryawanImportView(APIView):
-    """CSV upload: karyawan_id, nama, level (+ optional jabatan, wilayah, lokasi_kerja)."""
+    """CSV upload to create new karyawan: karyawan_id, nama, level (+ optional fields)."""
 
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAdminAllowed]
     parser_classes = [MultiPartParser]
 
     def post(self, request):
-        upload = request.FILES.get('file')
-        if upload is None:
-            debug_error(
-                'karyawan_import_post',
-                'Request tanpa file CSV.',
-                content_type=request.content_type,
-                hint='Kirim multipart/form-data dengan field "file" berisi CSV.',
-            )
-            return Response(
-                serialize_karyawan_import_result(
-                    KaryawanImportResult(
-                        errors=[
-                            KaryawanImportError(0, 'File CSV wajib diunggah.'),
-                        ],
-                    )
-                ),
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        return _karyawan_csv_import_response(
+            request,
+            import_karyawan_csv,
+            log_event='karyawan_import_post',
+        )
 
-        try:
-            result = import_karyawan_csv(upload)
-        except IntegrityError as exc:
-            debug_exception(
-                'karyawan_import_post',
-                'Import CSV gagal: constraint database.',
-                exc,
-                filename=getattr(upload, 'name', None),
-            )
-            result = KaryawanImportResult(
+
+class AdminKaryawanUpdateImportView(APIView):
+    """CSV upload to update existing karyawan. karyawan_id required; other columns optional."""
+
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        return _karyawan_csv_import_response(
+            request,
+            import_karyawan_update_csv,
+            log_event='karyawan_update_import_post',
+            empty_result=KaryawanImportResult(
                 errors=[
-                    KaryawanImportError(
-                        0,
-                        f'Gagal menyimpan data ke database: {exc}',
-                    ),
+                    KaryawanImportError(0, 'File CSV wajib diunggah.'),
                 ],
-            )
-        except Exception as exc:
-            debug_exception(
-                'karyawan_import_post',
-                'Import CSV gagal dengan exception tak terduga.',
-                exc,
-                filename=getattr(upload, 'name', None),
-                size=getattr(upload, 'size', None),
-            )
-            result = KaryawanImportResult(
-                errors=[
-                    KaryawanImportError(
-                        0,
-                        f'Import gagal: {exc}',
-                    ),
-                ],
-            )
-
-        if not result.ok:
-            debug_error(
-                'karyawan_import_post',
-                'Import selesai dengan error validasi — tidak ada data disimpan.',
-                filename=getattr(upload, 'name', None),
-                total_rows=result.total_rows,
-                error_count=len(result.errors),
-            )
-
-        return Response(
-            serialize_karyawan_import_result(result),
-            status=status.HTTP_200_OK,
+                required_columns=[COL_KARYAWAN_ID],
+                optional_columns=list(UPDATE_OPTIONAL_COLUMNS),
+            ),
         )

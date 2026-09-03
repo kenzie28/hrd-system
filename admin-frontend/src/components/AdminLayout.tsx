@@ -1,5 +1,5 @@
 import { HomeOutlined, LogoutOutlined } from '@ant-design/icons'
-import { Button, Layout, Space, Typography } from 'antd'
+import { Button, Layout } from 'antd'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 
@@ -7,60 +7,56 @@ export default function AdminLayout() {
   const { karyawan, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const userLabel = karyawan
+    ? `${karyawan.nama} (${karyawan.karyawan_id})`
+    : ''
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Layout.Header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <Space>
+    <Layout className="app-shell">
+      <Layout.Header className="app-header">
+        <div className="app-header-left">
           {location.pathname !== '/' && (
             <Button
               type="text"
               icon={<HomeOutlined />}
-              style={{ color: '#fff' }}
+              className="app-header-btn"
+              aria-label="Home"
               onClick={() => navigate('/')}
             >
-              Home
+              <span className="app-header-btn-label">Home</span>
             </Button>
           )}
-          <Typography.Title level={4} style={{ color: '#fff', margin: 0 }}>
-            HRD System — Admin
-          </Typography.Title>
-        </Space>
-        <Space>
+          <span className="app-header-title">
+            <span className="app-header-title-full">HRD System — Admin</span>
+            <span className="app-header-title-short">Admin</span>
+          </span>
+        </div>
+        <div className="app-header-right">
           {karyawan && (
-            <Typography.Text style={{ color: '#fff' }}>
-              {karyawan.nama} ({karyawan.karyawan_id})
-            </Typography.Text>
+            <span className="app-header-user" title={userLabel}>
+              <span className="app-header-user-name">{karyawan.nama}</span>
+              <span className="app-header-user-id">
+                {' '}
+                ({karyawan.karyawan_id})
+              </span>
+            </span>
           )}
           <Button
             type="text"
             icon={<LogoutOutlined />}
-            style={{ color: '#fff' }}
+            className="app-header-btn"
+            aria-label="Keluar"
             onClick={() => {
               logout()
               navigate('/login', { replace: true })
             }}
           >
-            Keluar
+            <span className="app-header-btn-label">Keluar</span>
           </Button>
-        </Space>
+        </div>
       </Layout.Header>
-      <Layout.Content style={{ padding: 24 }}>
-        <div
-          style={{
-            background: '#fff',
-            borderRadius: 8,
-            padding: 24,
-            maxWidth: 960,
-            margin: '0 auto',
-          }}
-        >
+      <Layout.Content className="app-content">
+        <div className="app-content-inner">
           <Outlet />
         </div>
       </Layout.Content>

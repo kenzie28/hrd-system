@@ -60,9 +60,11 @@ export interface KaryawanImportResult {
   ok: boolean
   total_rows: number
   created: number
+  updated: number
   errors: KaryawanImportError[]
   received_headers: string[]
   required_columns: string[]
+  optional_columns: string[]
 }
 
 export interface Lokasi {

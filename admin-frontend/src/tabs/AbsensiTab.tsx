@@ -89,7 +89,7 @@ export function AbsensiTab() {
       <Space wrap>
         <Select
           placeholder="Pilih karyawan"
-          style={{ minWidth: 220 }}
+          style={{ minWidth: 180, maxWidth: '100%' }}
           options={karyawanOptions}
           value={karyawanId}
           onChange={(value) => setKaryawanId(value ?? undefined)}
@@ -113,6 +113,7 @@ export function AbsensiTab() {
           loading={isLoading}
           dataSource={absensi}
           pagination={{ pageSize: 20, showSizeChanger: false }}
+          scroll={{ x: 'max-content' }}
           columns={[
             { title: 'Tanggal', dataIndex: 'tanggal', sorter: (a, b) => a.tanggal.localeCompare(b.tanggal) },
             { title: 'Lokasi', dataIndex: 'lokasi_nama' },
@@ -168,7 +169,7 @@ export function AbsensiTab() {
           <Form.Item name="jam_masuk" label="Jam Masuk" rules={[{ required: true, message: 'Wajib diisi' }]}>
             <TimePicker format="HH:mm" style={{ width: '100%' }} />
           </Form.Item>
-          <Space>
+          <Space wrap>
             <Form.Item name="durasi_jam" label="Durasi (jam)" rules={[{ required: true, message: 'Wajib' }]}>
               <InputNumber min={0} max={24} />
             </Form.Item>

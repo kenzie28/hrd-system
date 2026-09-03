@@ -11,7 +11,7 @@ import {
   Upload,
 } from 'antd'
 import type { UploadFile, UploadProps } from 'antd'
-import { useKaryawanImport } from '../api/hooks'
+import { useKaryawanUpdateImport } from '../api/hooks'
 import type { KaryawanImportResult } from '../api/types'
 
 function hasHeaderErrors(result: KaryawanImportResult) {
@@ -34,10 +34,10 @@ function ImportResultPanel({ result }: { result: KaryawanImportResult }) {
       <Alert
         type="success"
         showIcon
-        message="Import berhasil"
+        message="Update berhasil"
         description={
           <>
-            Total baris: {result.total_rows}, karyawan baru: {result.created}
+            Total baris: {result.total_rows}, diperbarui: {result.updated}
           </>
         }
       />
@@ -49,13 +49,13 @@ function ImportResultPanel({ result }: { result: KaryawanImportResult }) {
       <Alert
         type="error"
         showIcon
-        message="Import gagal"
+        message="Update gagal"
         description={
           <Space direction="vertical" size="small" style={{ width: '100%' }}>
             <Typography.Text>{failureSummary(result)}</Typography.Text>
             {result.total_rows > 0 && (
               <Typography.Text type="secondary">
-                Total baris diproses: {result.total_rows}. Tidak ada baris yang disimpan.
+                Total baris diproses: {result.total_rows}. Tidak ada baris yang diubah.
               </Typography.Text>
             )}
           </Space>
@@ -71,6 +71,22 @@ function ImportResultPanel({ result }: { result: KaryawanImportResult }) {
           description={
             <Space size={[4, 4]} wrap>
               {result.required_columns.map((col) => (
+                <Tag key={col}>{col}</Tag>
+              ))}
+            </Space>
+          }
+        />
+      )}
+
+      {result.optional_columns.length > 0 && hasHeaderErrors(result) && (
+        <Alert
+          style={{ marginTop: 16 }}
+          type="warning"
+          showIcon
+          message="Kolom opsional (sertakan hanya field yang ingin diubah)"
+          description={
+            <Space size={[4, 4]} wrap>
+              {result.optional_columns.map((col) => (
                 <Tag key={col}>{col}</Tag>
               ))}
             </Space>
@@ -117,14 +133,7 @@ function ImportResultPanel({ result }: { result: KaryawanImportResult }) {
   )
 }
 
-const EXAMPLE_HEADERS = [
-  'karyawan_id',
-  'nama',
-  'level',
-  'jabatan',
-  'wilayah',
-  'lokasi_kerja',
-] as const
+const EXAMPLE_HEADERS = ['karyawan_id', 'jabatan', 'cuti_tahunan'] as const
 
 const EXAMPLE_ROWS = [
   {
@@ -134,22 +143,17 @@ const EXAMPLE_ROWS = [
   },
   {
     row: 2,
-    values: ['0000010', 'Andi Wijaya', '1', 'SPG', 'CP', '23'],
+    values: ['0000003', 'Director', '14'],
     isHeader: false,
   },
   {
     row: 3,
-    values: ['0000011', 'Budi Santoso', '2', 'Staff', 'BEI', '26'],
-    isHeader: false,
-  },
-  {
-    row: 4,
-    values: ['0000012', 'Sri Wahyuni', '5', 'Supervisor', '', '99'],
+    values: ['0000010', 'SPG', '12'],
     isHeader: false,
   },
 ] as const
 
-const COL_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
+const COL_LETTERS = ['A', 'B', 'C']
 
 const sheetCell: CSSProperties = {
   border: '1px solid #d0d7de',
@@ -182,7 +186,7 @@ function ContohSheet() {
   return (
     <div style={{ marginBottom: 16, overflowX: 'auto' }}>
       <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
-        Contoh format (delimiter koma atau titik koma)
+        Contoh format (hanya kolom yang disertakan yang diubah)
       </Typography.Text>
       <table
         style={{
@@ -229,11 +233,11 @@ function ContohSheet() {
   )
 }
 
-export function ImportKaryawanTab() {
+export function UpdateKaryawanTab() {
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [result, setResult] = useState<KaryawanImportResult | null>(null)
-  const karyawanImport = useKaryawanImport()
+  const karyawanUpdateImport = useKaryawanUpdateImport()
   const { message } = AntApp.useApp()
 
   const uploadProps: UploadProps = {
@@ -260,31 +264,32 @@ export function ImportKaryawanTab() {
     if (!selectedFile) return
 
     setResult(null)
-    const data = await karyawanImport.mutateAsync({ file: selectedFile })
+    const data = await karyawanUpdateImport.mutateAsync({ file: selectedFile })
     setResult(data)
     if (data.ok) {
-      message.success(`Import berhasil: ${data.created} karyawan baru ditambahkan.`)
+      message.success(`Update berhasil: ${data.updated} karyawan diperbarui.`)
     }
   }
 
   return (
     <div>
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        Tab ini <Typography.Text strong>menambah karyawan baru</Typography.Text>. Unggah
-        file CSV dengan kolom wajib{' '}
-        <Typography.Text code>karyawan_id</Typography.Text>,{' '}
-        <Typography.Text code>nama</Typography.Text>, dan{' '}
-        <Typography.Text code>level</Typography.Text> (1–8). Kolom opsional:{' '}
+        Tab ini <Typography.Text strong>memperbarui karyawan yang sudah ada</Typography.Text>.
+        Kolom <Typography.Text code>karyawan_id</Typography.Text> wajib dan harus sudah
+        terdaftar. Kolom lain bersifat opsional — jika sebuah kolom ada di CSV, field
+        itu diubah sesuai nilai pada setiap baris. Kolom opsional:{' '}
+        <Typography.Text code>nama</Typography.Text>,{' '}
+        <Typography.Text code>level</Typography.Text>,{' '}
         <Typography.Text code>jabatan</Typography.Text>,{' '}
         <Typography.Text code>wilayah</Typography.Text>,{' '}
-        <Typography.Text code>lokasi_kerja</Typography.Text> (ID lokasi yang sudah ada).{' '}
-        <Typography.Text code>karyawan_id</Typography.Text> yang sudah terdaftar akan
-        ditolak — untuk mengubah data yang sudah ada, gunakan tab Update Karyawan (CSV).
+        <Typography.Text code>lokasi_kerja</Typography.Text>,{' '}
+        <Typography.Text code>cuti_tahunan</Typography.Text>. Untuk menambah karyawan
+        baru, gunakan tab Tambah Karyawan (CSV).
       </Typography.Paragraph>
 
       <ContohSheet />
 
-      <Upload.Dragger {...uploadProps} disabled={karyawanImport.isPending}>
+      <Upload.Dragger {...uploadProps} disabled={karyawanUpdateImport.isPending}>
         <p className="ant-upload-drag-icon">
           <InboxOutlined />
         </p>
@@ -297,7 +302,7 @@ export function ImportKaryawanTab() {
           icon={<UploadOutlined />}
           onClick={handleUpload}
           disabled={!selectedFile}
-          loading={karyawanImport.isPending}
+          loading={karyawanUpdateImport.isPending}
         >
           Unggah
         </Button>

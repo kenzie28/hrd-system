@@ -13,7 +13,7 @@ export default function GajiPage() {
       <Typography.Paragraph type="secondary">
         Pilih bulan untuk melihat rincian gaji Anda.
       </Typography.Paragraph>
-      <Space>
+      <Space wrap>
         <DatePicker
           picker="month"
           value={bulan}

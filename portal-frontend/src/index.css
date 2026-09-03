@@ -1,7 +1,25 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: #f5f5f5;
+  -webkit-text-size-adjust: 100%;
+}
+
+#root {
+  min-height: 100%;
+  max-width: 100%;
 }
 
 .portal-centered {
@@ -9,5 +27,303 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 24px 16px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 360px;
+}
+
+.app-shell {
+  min-height: 100vh;
+  max-width: 100%;
+}
+
+.app-header,
+.app-header.ant-layout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: auto !important;
+  min-height: 56px;
+  line-height: 1.3 !important;
+  padding: 8px 24px !important;
+  padding-left: max(24px, env(safe-area-inset-left)) !important;
+  padding-right: max(24px, env(safe-area-inset-right)) !important;
+}
+
+.app-header-left,
+.app-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-header-left {
+  flex-shrink: 0;
+}
+
+.app-header-right {
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.app-header-title {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.app-header-title-short {
+  display: none;
+}
+
+.app-header-user {
+  color: #fff;
+  min-width: 0;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.app-header-btn,
+.app-header-btn.ant-btn {
+  color: #fff !important;
+  flex-shrink: 0;
+}
+
+.app-content,
+.app-content.ant-layout-content {
   padding: 24px;
+  max-width: 100%;
+}
+
+.app-content-inner {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+  overflow-x: auto;
+}
+
+.home-welcome {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.home-modules {
+  padding-top: 8px;
+}
+
+.home-module-card .ant-card-body {
+  padding: 16px;
+}
+
+.home-module-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+}
+
+.home-module-icon {
+  flex-shrink: 0;
+  font-size: 32px;
+  line-height: 1;
+}
+
+.home-module-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.home-module-text .ant-typography {
+  white-space: normal;
+}
+
+.home-module-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.home-module-title-row .ant-typography {
+  margin: 0 !important;
+  min-width: 0;
+}
+
+.home-module-badge {
+  flex-shrink: 0;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: #ff4d4f;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.gaji-row,
+.gaji-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.gaji-total {
+  padding: 8px 0;
+}
+
+.gaji-row-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.gaji-row-value {
+  flex-shrink: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.page-title {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 768px) {
+  .app-header,
+  .app-header.ant-layout-header {
+    padding: 8px 12px !important;
+    padding-left: max(12px, env(safe-area-inset-left)) !important;
+    padding-right: max(12px, env(safe-area-inset-right)) !important;
+  }
+
+  .app-header-title {
+    font-size: 15px;
+  }
+
+  .app-header-title-full {
+    display: none;
+  }
+
+  .app-header-title-short {
+    display: inline;
+  }
+
+  .app-header-user {
+    max-width: none;
+    flex: 1;
+    font-size: 13px;
+  }
+
+  .app-header-btn-label {
+    display: none;
+  }
+
+  .app-header-btn,
+  .app-header-btn.ant-btn {
+    padding-inline: 8px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .app-content,
+  .app-content.ant-layout-content {
+    padding: 12px;
+  }
+
+  .app-content-inner {
+    padding: 16px;
+  }
+
+  .portal-centered {
+    padding: 16px 12px;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 576px) {
+  .app-header-user-id {
+    display: none;
+  }
+
+  .app-content-inner {
+    padding: 12px;
+  }
+
+  .home-welcome.ant-typography {
+    font-size: 1.25rem !important;
+    line-height: 1.35 !important;
+    margin-bottom: 12px !important;
+  }
+
+  .home-module-icon {
+    font-size: 24px;
+  }
+
+  .home-module-body {
+    gap: 12px;
+  }
+
+  h3.ant-typography {
+    font-size: 1.25rem;
+    line-height: 1.35;
+  }
+
+  .ant-picker,
+  .ant-select,
+  .ant-input-number {
+    max-width: 100% !important;
+  }
+
+  .ant-picker-range {
+    width: 100%;
+  }
+
+  .ant-picker-dropdown .ant-picker-panels {
+    flex-direction: column !important;
+  }
+
+  .ant-modal {
+    max-width: calc(100vw - 16px) !important;
+    margin: 8px auto;
+  }
+
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-input-affix-wrapper input,
+  .ant-select-selector,
+  .ant-picker,
+  .ant-picker-input > input,
+  .ant-input-number,
+  .ant-input-number-input,
+  textarea.ant-input {
+    font-size: 16px !important;
+  }
+
+  .ant-picker-calendar .ant-picker-calendar-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .ant-picker-calendar .ant-picker-cell-inner {
+    min-width: 0;
+    font-size: 12px;
+  }
 }

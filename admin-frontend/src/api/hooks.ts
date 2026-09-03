@@ -83,9 +83,11 @@ function normalizeKaryawanImportResult(
     ok: Boolean(data.ok),
     total_rows: data.total_rows ?? 0,
     created: data.created ?? 0,
+    updated: data.updated ?? 0,
     errors,
     received_headers: Array.isArray(data.received_headers) ? data.received_headers : [],
     required_columns: Array.isArray(data.required_columns) ? data.required_columns : [],
+    optional_columns: Array.isArray(data.optional_columns) ? data.optional_columns : [],
   }
 }
 
@@ -134,16 +136,21 @@ function parseKaryawanImportError(err: unknown): KaryawanImportResult {
 }
 
 export function useKaryawanImport() {
+  return useKaryawanCsvImport('/admin/karyawan/import/')
+}
+
+export function useKaryawanUpdateImport() {
+  return useKaryawanCsvImport('/admin/karyawan/import-update/')
+}
+
+function useKaryawanCsvImport(path: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ file }: { file: File }) => {
       const formData = new FormData()
       formData.append('file', file)
       try {
-        const response = await api.post<KaryawanImportResult>(
-          '/admin/karyawan/import/',
-          formData,
-        )
+        const response = await api.post<KaryawanImportResult>(path, formData)
         return normalizeKaryawanImportResult(response.data)
       } catch (err) {
         return parseKaryawanImportError(err)

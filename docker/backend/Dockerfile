@@ -19,6 +19,7 @@ RUN test -f lokasi/migrations/0001_initial.py \
  && test -f absensi/migrations/0001_initial.py \
  && test -f shift/migrations/0001_initial.py \
  && test -f cuti/migrations/0001_initial.py \
+ && test -f kalender_bersama/migrations/0001_initial.py \
  && test -f gaji/migrations/0001_initial.py \
  && test -f lembur/migrations/0001_initial.py \
  && test -f liburan/migrations/0001_initial.py \

@@ -9,6 +9,7 @@ import GajiBreakdownPage from './pages/GajiBreakdownPage'
 import CutiPage from './pages/CutiPage'
 import LemburPage from './pages/LemburPage'
 import AbsensiPage from './pages/AbsensiPage'
+import KalenderBersamaPage from './pages/KalenderBersamaPage'
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/cuti" element={<CutiPage />} />
         <Route path="/lembur" element={<LemburPage />} />
         <Route path="/absensi" element={<AbsensiPage />} />
+        <Route path="/kalender-bersama" element={<KalenderBersamaPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

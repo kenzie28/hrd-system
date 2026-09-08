@@ -7,9 +7,10 @@ export const LEVEL_APPROVER_MAP: Record<number, number[]> = {
   2: [5, 6, 7],
   3: [5, 6, 7],
   4: [5, 6, 7],
-  5: [7],
-  6: [7],
+  5: [6, 7],
+  6: [7, 8],
   7: [8],
+  8: [8],
 }
 
 // Employees at this level or above can approve requests (Persetujuan tab).

@@ -56,7 +56,13 @@ export default function PortalLayout() {
         </div>
       </Layout.Header>
       <Layout.Content className="app-content">
-        <div className="app-content-inner">
+        <div
+          className={
+            location.pathname.startsWith('/kalender-bersama')
+              ? 'app-content-inner app-content-inner-wide'
+              : 'app-content-inner'
+          }
+        >
           <Outlet />
         </div>
       </Layout.Content>

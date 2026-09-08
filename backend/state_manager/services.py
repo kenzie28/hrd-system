@@ -20,6 +20,7 @@ from rest_framework.authtoken.models import Token
 from absensi.models import Absensi
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from gaji.models import GajiTemp
+from kalender_bersama.models import Langganan, NotifikasiDismiss
 from karyawan.models import Karyawan
 from karyawan.signals import ensure_portal_login
 from lembur.models import PermohonanLembur, StatusPermohonanLembur
@@ -37,8 +38,10 @@ from .constants import (
     TABLE_CUTI,
     TABLE_GAJI,
     TABLE_KARYAWAN,
+    TABLE_LANGGANAN,
     TABLE_LIBURAN,
     TABLE_LOKASI,
+    TABLE_NOTIFIKASI_DISMISS,
     TABLE_ORDER,
     TABLE_PERMOHONAN_CUTI,
     TABLE_PERMOHONAN_LEMBUR,
@@ -187,6 +190,20 @@ def export_state_csv() -> str:
         )
     _write_table(writer, TABLE_KARYAWAN, TABLE_COLUMNS[TABLE_KARYAWAN], karyawan_rows)
 
+    langganan_rows = []
+    for obj in Langganan.objects.order_by('id'):
+        langganan_rows.append(
+            [
+                _cell(obj.id),
+                _cell(obj.subscriber_id),
+                _cell(obj.target_id),
+                _cell(obj.created_at),
+            ]
+        )
+    _write_table(
+        writer, TABLE_LANGGANAN, TABLE_COLUMNS[TABLE_LANGGANAN], langganan_rows
+    )
+
     shift_rows = []
     for obj in Shift.objects.order_by('id'):
         shift_rows.append(
@@ -240,6 +257,23 @@ def export_state_csv() -> str:
         TABLE_PERMOHONAN_CUTI,
         TABLE_COLUMNS[TABLE_PERMOHONAN_CUTI],
         permohonan_cuti_rows,
+    )
+
+    notifikasi_dismiss_rows = []
+    for obj in NotifikasiDismiss.objects.order_by('id'):
+        notifikasi_dismiss_rows.append(
+            [
+                _cell(obj.id),
+                _cell(obj.subscriber_id),
+                _cell(obj.permohonan_id),
+                _cell(obj.dismissed_at),
+            ]
+        )
+    _write_table(
+        writer,
+        TABLE_NOTIFIKASI_DISMISS,
+        TABLE_COLUMNS[TABLE_NOTIFIKASI_DISMISS],
+        notifikasi_dismiss_rows,
     )
 
     cuti_rows = [
@@ -658,6 +692,48 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
             }
         )
 
+    langganan_ids: set[int] = set()
+    langganan_keys: set[tuple] = set()
+    for row in tables.get(TABLE_LANGGANAN, []):
+        line = _line_of(row)
+        pk = _parse_int(_opt(row, 'id'), line, 'langganan.id', errors)
+        subscriber_id = _req(row, 'subscriber_id', errors, TABLE_LANGGANAN)
+        target_id = _req(row, 'target_id', errors, TABLE_LANGGANAN)
+        created_at = _parse_datetime(
+            _opt(row, 'created_at'), line, 'created_at', errors, required=False
+        )
+        if None in (pk, subscriber_id, target_id):
+            continue
+        if pk in langganan_ids:
+            errors.append(StateError(line, f'langganan.id duplikat: {pk}.'))
+            continue
+        if subscriber_id not in karyawan_ids:
+            errors.append(StateError(line, f'subscriber_id tidak ada: {subscriber_id}.'))
+            continue
+        if target_id not in karyawan_ids:
+            errors.append(StateError(line, f'target_id tidak ada: {target_id}.'))
+            continue
+        if subscriber_id == target_id:
+            errors.append(StateError(line, 'langganan tidak boleh ke diri sendiri.'))
+            continue
+        key = (subscriber_id, target_id)
+        if key in langganan_keys:
+            errors.append(
+                StateError(line, f'langganan duplikat: {subscriber_id} → {target_id}.')
+            )
+            continue
+        langganan_ids.add(pk)
+        langganan_keys.add(key)
+        typed[TABLE_LANGGANAN].append(
+            {
+                'id': pk,
+                'subscriber_id': subscriber_id,
+                'target_id': target_id,
+                'created_at': created_at,
+                '_line': line,
+            }
+        )
+
     hari_values = {choice.value for choice in HariKerja}
     shift_ids: set[int] = set()
     for row in tables.get(TABLE_SHIFT, []):
@@ -785,6 +861,55 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
                 'status': status,
                 'supervisor_id': supervisor_id,
                 'hrd_approver_id': hrd_approver_id,
+                '_line': line,
+            }
+        )
+
+    notifikasi_dismiss_ids: set[int] = set()
+    notifikasi_dismiss_keys: set[tuple] = set()
+    for row in tables.get(TABLE_NOTIFIKASI_DISMISS, []):
+        line = _line_of(row)
+        pk = _parse_int(_opt(row, 'id'), line, 'notifikasi_dismiss.id', errors)
+        subscriber_id = _req(row, 'subscriber_id', errors, TABLE_NOTIFIKASI_DISMISS)
+        permohonan_id = _parse_int(
+            _opt(row, 'permohonan_id'), line, 'permohonan_id', errors
+        )
+        dismissed_at = _parse_datetime(
+            _opt(row, 'dismissed_at'), line, 'dismissed_at', errors, required=False
+        )
+        if None in (pk, subscriber_id, permohonan_id):
+            continue
+        if pk in notifikasi_dismiss_ids:
+            errors.append(StateError(line, f'notifikasi_dismiss.id duplikat: {pk}.'))
+            continue
+        if subscriber_id not in karyawan_ids:
+            errors.append(StateError(line, f'subscriber_id tidak ada: {subscriber_id}.'))
+            continue
+        if permohonan_id not in permohonan_cuti_ids:
+            errors.append(
+                StateError(
+                    line,
+                    f'permohonan_id tidak ada di permohonan_cuti: {permohonan_id}.',
+                )
+            )
+            continue
+        key = (subscriber_id, permohonan_id)
+        if key in notifikasi_dismiss_keys:
+            errors.append(
+                StateError(
+                    line,
+                    f'notifikasi_dismiss duplikat: {subscriber_id} / {permohonan_id}.',
+                )
+            )
+            continue
+        notifikasi_dismiss_ids.add(pk)
+        notifikasi_dismiss_keys.add(key)
+        typed[TABLE_NOTIFIKASI_DISMISS].append(
+            {
+                'id': pk,
+                'subscriber_id': subscriber_id,
+                'permohonan_id': permohonan_id,
+                'dismissed_at': dismissed_at,
                 '_line': line,
             }
         )
@@ -954,6 +1079,8 @@ def _wipe_hrd_state() -> list[int]:
     )
     GajiTemp.objects.all().delete()
     PermohonanLembur.objects.all().delete()
+    NotifikasiDismiss.objects.all().delete()
+    Langganan.objects.all().delete()
     Cuti.objects.all().delete()
     PermohonanCuti.objects.all().delete()
     Absensi.objects.all().delete()
@@ -997,6 +1124,17 @@ def _insert_state(typed: dict[str, list[dict]]) -> None:
             cuti_tahunan=row['cuti_tahunan'],
         )
 
+    for row in typed[TABLE_LANGGANAN]:
+        obj = Langganan(
+            id=row['id'],
+            subscriber_id=row['subscriber_id'],
+            target_id=row['target_id'],
+        )
+        obj.save()
+        if row.get('created_at') is not None:
+            obj.created_at = row['created_at']
+            obj.save(update_fields=['created_at'])
+
     for row in typed[TABLE_SHIFT]:
         Shift.objects.create(
             id=row['id'],
@@ -1031,6 +1169,17 @@ def _insert_state(typed: dict[str, list[dict]]) -> None:
             supervisor_id=row['supervisor_id'],
             hrd_approver_id=row['hrd_approver_id'],
         )
+
+    for row in typed[TABLE_NOTIFIKASI_DISMISS]:
+        obj = NotifikasiDismiss(
+            id=row['id'],
+            subscriber_id=row['subscriber_id'],
+            permohonan_id=row['permohonan_id'],
+        )
+        obj.save()
+        if row.get('dismissed_at') is not None:
+            obj.dismissed_at = row['dismissed_at']
+            obj.save(update_fields=['dismissed_at'])
 
     for row in typed[TABLE_CUTI]:
         Cuti.objects.create(

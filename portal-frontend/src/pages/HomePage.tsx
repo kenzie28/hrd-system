@@ -2,11 +2,13 @@ import {
   CalendarOutlined,
   ClockCircleOutlined,
   SolutionOutlined,
+  TeamOutlined,
   WalletOutlined,
 } from '@ant-design/icons'
 import { Card, Col, Row, Typography } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { useCutiApprovals } from '../api/cuti'
+import { useNotifikasi } from '../api/kalenderBersama'
 import { useLemburApprovals } from '../api/lembur'
 import { useAuth } from '../auth/AuthContext'
 import { MIN_SUPERVISOR_LEVEL } from '../constants'
@@ -26,6 +28,7 @@ export default function HomePage() {
   const isSupervisor = (karyawan?.level ?? 0) >= MIN_SUPERVISOR_LEVEL
   const { data: cutiApprovals } = useCutiApprovals(isSupervisor)
   const { data: lemburApprovals } = useLemburApprovals(isSupervisor)
+  const { data: notifikasi } = useNotifikasi()
 
   const modules: ModuleCard[] = [
     {
@@ -62,6 +65,14 @@ export default function HomePage() {
       icon: <SolutionOutlined className="home-module-icon" />,
       path: '/absensi',
     },
+    {
+      key: 'kalender-bersama',
+      title: 'Kalender Bersama',
+      description: 'Lihat cuti rekan yang Anda ikuti.',
+      icon: <TeamOutlined className="home-module-icon" />,
+      path: '/kalender-bersama',
+      pendingCount: notifikasi?.length ?? 0,
+    },
   ]
 
   return (
@@ -85,7 +96,7 @@ export default function HomePage() {
                     {(module.pendingCount ?? 0) > 0 && (
                       <span
                         className="home-module-badge"
-                        aria-label={`${module.pendingCount} menunggu persetujuan`}
+                        aria-label={`${module.pendingCount} perlu perhatian`}
                       >
                         {module.pendingCount! > 99 ? '99+' : module.pendingCount}
                       </span>

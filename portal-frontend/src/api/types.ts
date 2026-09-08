@@ -155,3 +155,40 @@ export interface Absensi {
   jam_keluar: string
   keluar_hari_offset: number
 }
+
+export interface Langganan {
+  id: number
+  karyawan_id: string
+  nama: string
+  jabatan: string
+  created_at: string
+}
+
+export interface KaryawanSearchHit {
+  karyawan_id: string
+  nama: string
+  jabatan: string
+  sudah_di_grup: boolean
+}
+
+export interface CutiNotifikasi {
+  id: number
+  karyawan_id: string
+  karyawan_nama: string
+  tipe: CutiTipe
+  tipe_display: string
+  tanggal_mulai: string
+  tanggal_selesai: string
+}
+
+export interface KalenderHari {
+  id: number
+  tanggal: string
+  karyawan_id: string
+  karyawan_nama: string
+  tipe: CutiTipe
+  tipe_display: string
+  permohonan_id: number
+  tanggal_mulai: string
+  tanggal_selesai: string
+}

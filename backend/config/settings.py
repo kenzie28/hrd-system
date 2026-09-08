@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'rekap_kehadiran',
     'karyawan',
     'cuti',
+    'kalender_bersama',
     'lembur',
     'gaji',
     'liburan',

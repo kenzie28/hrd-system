@@ -114,6 +114,80 @@ body {
   overflow-x: auto;
 }
 
+.app-content-inner-wide {
+  max-width: 1200px;
+}
+
+.kb-group-results {
+  margin-top: 16px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.kb-group-heading {
+  margin: 24px 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.kb-calendars {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+.kb-cal-title {
+  text-align: center;
+  margin: 8px 0 12px !important;
+  text-transform: capitalize;
+}
+
+.kb-cal-cell {
+  min-height: 64px;
+  padding: 2px;
+}
+
+.kb-cal-daynum {
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.kb-cal-outside {
+  color: #bfbfbf;
+  padding: 2px;
+}
+
+.kb-cal-chip,
+.kb-cal-more {
+  font-size: 11px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #e6f4ff;
+  color: #1677ff;
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-top: 2px;
+}
+
+.kb-cal-more {
+  background: #f5f5f5;
+  color: #595959;
+}
+
+.kb-cal-tooltip-range {
+  opacity: 0.85;
+  font-size: 12px;
+}
+
+@media (min-width: 768px) {
+  .kb-calendars {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .home-welcome {
   overflow-wrap: anywhere;
   word-break: break-word;

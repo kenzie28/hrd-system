@@ -6,10 +6,12 @@ PASSWORD_HEADER = 'HTTP_X_STATE_MANAGER_PASSWORD'
 TABLE_LOKASI = 'lokasi'
 TABLE_AUTH_USER = 'auth_user'
 TABLE_KARYAWAN = 'karyawan'
+TABLE_LANGGANAN = 'langganan'
 TABLE_SHIFT = 'shift'
 TABLE_LIBURAN = 'liburan'
 TABLE_ABSENSI = 'absensi'
 TABLE_PERMOHONAN_CUTI = 'permohonan_cuti'
+TABLE_NOTIFIKASI_DISMISS = 'notifikasi_dismiss'
 TABLE_CUTI = 'cuti'
 TABLE_PERMOHONAN_LEMBUR = 'permohonan_lembur'
 TABLE_GAJI = 'gaji'
@@ -38,6 +40,12 @@ TABLE_COLUMNS = {
         'must_change_password',
         'cuti_tahunan',
     ),
+    TABLE_LANGGANAN: (
+        'id',
+        'subscriber_id',
+        'target_id',
+        'created_at',
+    ),
     TABLE_SHIFT: ('id', 'lokasi_kerja_id', 'hari', 'jam_masuk', 'jam_keluar'),
     TABLE_LIBURAN: ('id', 'nama', 'tanggal'),
     TABLE_ABSENSI: (
@@ -58,6 +66,12 @@ TABLE_COLUMNS = {
         'status',
         'supervisor_id',
         'hrd_approver_id',
+    ),
+    TABLE_NOTIFIKASI_DISMISS: (
+        'id',
+        'subscriber_id',
+        'permohonan_id',
+        'dismissed_at',
     ),
     TABLE_CUTI: ('id', 'permohonan_id', 'tanggal'),
     TABLE_PERMOHONAN_LEMBUR: (

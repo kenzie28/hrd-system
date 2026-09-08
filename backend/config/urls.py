@@ -10,6 +10,14 @@ from lokasi.views import LokasiViewSet
 from lokasi.admin_views import AdminLokasiImportView, AdminLokasiViewSet
 from cuti.admin_views import AdminCutiViewSet
 from cuti.views import CutiViewSet, PortalCutiViewSet
+from kalender_bersama.views import (
+    KalenderView,
+    KaryawanSearchView,
+    LanggananDestroyView,
+    LanggananListCreateView,
+    NotifikasiDismissView,
+    NotifikasiListView,
+)
 from lembur.admin_views import AdminLemburViewSet
 from lembur.views import PortalLemburViewSet
 from gaji.admin_views import AdminGajiImportView, AdminGajiViewSet
@@ -64,6 +72,36 @@ portal_urlpatterns = [
         name='portal-change-password',
     ),
     path('portal/gaji/', PortalGajiView.as_view(), name='portal-gaji'),
+    path(
+        'portal/kalender-bersama/langganan/',
+        LanggananListCreateView.as_view(),
+        name='portal-kalender-bersama-langganan',
+    ),
+    path(
+        'portal/kalender-bersama/langganan/<str:karyawan_id>/',
+        LanggananDestroyView.as_view(),
+        name='portal-kalender-bersama-langganan-detail',
+    ),
+    path(
+        'portal/kalender-bersama/karyawan/',
+        KaryawanSearchView.as_view(),
+        name='portal-kalender-bersama-karyawan',
+    ),
+    path(
+        'portal/kalender-bersama/notifikasi/',
+        NotifikasiListView.as_view(),
+        name='portal-kalender-bersama-notifikasi',
+    ),
+    path(
+        'portal/kalender-bersama/notifikasi/<int:pk>/dismiss/',
+        NotifikasiDismissView.as_view(),
+        name='portal-kalender-bersama-notifikasi-dismiss',
+    ),
+    path(
+        'portal/kalender-bersama/kalender/',
+        KalenderView.as_view(),
+        name='portal-kalender-bersama-kalender',
+    ),
     path('portal/', include(portal_router.urls)),
 ]
 

@@ -10,6 +10,7 @@ from rest_framework.test import APIClient
 from absensi.models import Absensi
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from gaji.models import GajiTemp
+from kalender_bersama.models import Langganan, NotifikasiDismiss
 from karyawan.models import Karyawan
 from lembur.models import PermohonanLembur, StatusPermohonanLembur
 from liburan.models import Liburan
@@ -81,6 +82,10 @@ class StateManagerApiTests(TestCase):
             hrd_approver=self.admin,
         )
         Cuti.objects.create(permohonan=self.approved_cuti, tanggal=date(2026, 2, 10))
+        Langganan.objects.create(subscriber=self.admin, target=self.worker)
+        NotifikasiDismiss.objects.create(
+            subscriber=self.admin, permohonan=self.approved_cuti
+        )
         PermohonanLembur.objects.create(
             karyawan=self.worker,
             alasan='Closing bulan',
@@ -129,6 +134,8 @@ class StateManagerApiTests(TestCase):
         self.assertIn('MENUNGGU_HRD', body)
         self.assertIn('Closing bulan', body)
         self.assertIn('__table__,cuti', body)
+        self.assertIn('__table__,langganan', body)
+        self.assertIn('__table__,notifikasi_dismiss', body)
         self.assertNotIn('djangoadmin', body)
 
     def test_round_trip_restore(self):
@@ -167,6 +174,16 @@ class StateManagerApiTests(TestCase):
         )
         self.assertTrue(
             Cuti.objects.filter(tanggal=date(2026, 2, 10)).exists()
+        )
+        self.assertTrue(
+            Langganan.objects.filter(
+                subscriber_id='0000003', target_id='1000001'
+            ).exists()
+        )
+        self.assertTrue(
+            NotifikasiDismiss.objects.filter(
+                subscriber_id='0000003', permohonan=self.approved_cuti
+            ).exists()
         )
         admin = Karyawan.objects.get(pk='0000003')
         self.assertEqual(admin.user.password, original_hash)
@@ -223,3 +240,5 @@ class StateManagerApiTests(TestCase):
         self.assertEqual(payload['counts']['karyawan'], 2)
         self.assertEqual(payload['counts']['permohonan_cuti'], 2)
         self.assertEqual(payload['counts']['permohonan_lembur'], 1)
+        self.assertEqual(payload['counts']['langganan'], 1)
+        self.assertEqual(payload['counts']['notifikasi_dismiss'], 1)

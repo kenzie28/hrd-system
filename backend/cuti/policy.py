@@ -10,6 +10,8 @@ Rules:
 """
 from datetime import date
 
+from django.utils import timezone
+
 from .models import StatusPermohonanCuti
 
 LEVEL_APPROVER_MAP = {
@@ -38,7 +40,7 @@ def cancellation_cutoff(today=None):
     Approved leave with ``tanggal_mulai`` on or after this date can still be
     cancelled. Example: on 8 Sep 2026 the cutoff is 1 Aug 2026.
     """
-    today = today or date.today()
+    today = today or timezone.localdate()
     if today.month == 1:
         return date(today.year - 1, 12, 1)
     return date(today.year, today.month - 1, 1)

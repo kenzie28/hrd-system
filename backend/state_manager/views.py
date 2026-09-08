@@ -35,7 +35,7 @@ class AdminStateExportView(APIView):
             return _forbidden()
 
         csv_text = export_state_csv()
-        filename = timezone.now().strftime('hrd-state-%Y%m%d-%H%M%S.csv')
+        filename = timezone.localtime().strftime('hrd-state-%Y%m%d-%H%M%S.csv')
         response = HttpResponse(csv_text, content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response

@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
@@ -60,7 +61,7 @@ class PortalCutiCancellationTests(TestCase):
         self.supervisor_client = _token_client(self.supervisor)
         self.hrd_client = _token_client(self.hrd)
 
-        self.today = date.today()
+        self.today = timezone.localdate()
         self.start = self.today + timedelta(days=7)
         self.end = self.start + timedelta(days=1)
 

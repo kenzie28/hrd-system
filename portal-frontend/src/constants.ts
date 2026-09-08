@@ -40,6 +40,8 @@ export const CUTI_STATUS_COLORS: Record<CutiStatus, string> = {
   DITOLAK: 'red',
   DIBATALKAN: 'default',
   APPROVED: 'green',
+  MENUNGGU_PEMBATALAN_SUPERVISOR: 'orange',
+  MENUNGGU_PEMBATALAN_HRD: 'blue',
 }
 
 export const LEMBUR_STATUS_COLORS: Record<LemburStatus, string> = {

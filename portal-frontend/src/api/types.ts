@@ -27,6 +27,8 @@ export type CutiStatus =
   | 'DITOLAK'
   | 'DIBATALKAN'
   | 'APPROVED'
+  | 'MENUNGGU_PEMBATALAN_SUPERVISOR'
+  | 'MENUNGGU_PEMBATALAN_HRD'
 
 export type LemburStatus =
   | 'MENUNGGU_SUPERVISOR'
@@ -57,6 +59,7 @@ export interface PermohonanCuti {
   supervisor_nama: string | null
   hrd_approver: string | null
   hrd_approver_nama: string | null
+  can_batal: boolean
 }
 
 export interface CreatePermohonanCutiPayload {

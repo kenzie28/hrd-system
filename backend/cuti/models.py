@@ -23,9 +23,17 @@ class StatusPermohonanCuti(models.TextChoices):
     DITOLAK = 'DITOLAK', 'Request Ditolak'
     DIBATALKAN = 'DIBATALKAN', 'Dibatalkan'
     APPROVED = 'APPROVED', 'Approved'
+    MENUNGGU_PEMBATALAN_SUPERVISOR = (
+        'MENUNGGU_PEMBATALAN_SUPERVISOR',
+        'Menunggu Pembatalan Supervisor',
+    )
+    MENUNGGU_PEMBATALAN_HRD = (
+        'MENUNGGU_PEMBATALAN_HRD',
+        'Menunggu Pembatalan HRD',
+    )
 
 
-# States from which the workflow can still progress or be cancelled.
+# States from which a not-yet-approved request can still progress or be cancelled instantly.
 ACTIVE_STATUSES = {
     StatusPermohonanCuti.MENUNGGU_SUPERVISOR,
     StatusPermohonanCuti.MENUNGGU_HRD,

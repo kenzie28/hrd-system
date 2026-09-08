@@ -8,7 +8,7 @@ from karyawan.models import Karyawan
 from karyawan.portal_views import _karyawan_for
 
 from .models import Cuti, PermohonanCuti, StatusPermohonanCuti, ACTIVE_STATUSES
-from .policy import eligible_supervisor_levels
+from .policy import can_request_cancellation, eligible_supervisor_levels
 from .serializers import (
     CutiSerializer,
     PermohonanCutiCreateSerializer,
@@ -92,14 +92,18 @@ class PortalCutiViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
         permohonan = self.get_object()
-        if permohonan.status not in ACTIVE_STATUSES:
-            return Response(
-                {'detail': 'Permohonan ini tidak dapat dibatalkan.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        permohonan.status = StatusPermohonanCuti.DIBATALKAN
-        permohonan.save(update_fields=['status'])
-        return Response(PermohonanCutiSerializer(permohonan).data)
+        if permohonan.status in ACTIVE_STATUSES:
+            permohonan.status = StatusPermohonanCuti.DIBATALKAN
+            permohonan.save(update_fields=['status'])
+            return Response(PermohonanCutiSerializer(permohonan).data)
+        if can_request_cancellation(permohonan):
+            permohonan.status = StatusPermohonanCuti.MENUNGGU_PEMBATALAN_SUPERVISOR
+            permohonan.save(update_fields=['status'])
+            return Response(PermohonanCutiSerializer(permohonan).data)
+        return Response(
+            {'detail': 'Permohonan ini tidak dapat dibatalkan.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     @action(detail=False, methods=['get'])
     def supervisors(self, request):
@@ -124,7 +128,10 @@ class PortalCutiViewSet(viewsets.ModelViewSet):
         qs = (
             PermohonanCuti.objects.filter(
                 supervisor=karyawan,
-                status=StatusPermohonanCuti.MENUNGGU_SUPERVISOR,
+                status__in=[
+                    StatusPermohonanCuti.MENUNGGU_SUPERVISOR,
+                    StatusPermohonanCuti.MENUNGGU_PEMBATALAN_SUPERVISOR,
+                ],
             )
             .select_related('karyawan', 'supervisor', 'hrd_approver')
         )
@@ -147,14 +154,18 @@ class PortalCutiViewSet(viewsets.ModelViewSet):
                 {'detail': 'Permohonan tidak ditemukan.'},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        if permohonan.status != StatusPermohonanCuti.MENUNGGU_SUPERVISOR:
-            return Response(
-                {'detail': 'Permohonan tidak menunggu persetujuan supervisor.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        permohonan.status = StatusPermohonanCuti.MENUNGGU_HRD
-        permohonan.save(update_fields=['status'])
-        return Response(PermohonanCutiSerializer(permohonan).data)
+        if permohonan.status == StatusPermohonanCuti.MENUNGGU_SUPERVISOR:
+            permohonan.status = StatusPermohonanCuti.MENUNGGU_HRD
+            permohonan.save(update_fields=['status'])
+            return Response(PermohonanCutiSerializer(permohonan).data)
+        if permohonan.status == StatusPermohonanCuti.MENUNGGU_PEMBATALAN_SUPERVISOR:
+            permohonan.status = StatusPermohonanCuti.MENUNGGU_PEMBATALAN_HRD
+            permohonan.save(update_fields=['status'])
+            return Response(PermohonanCutiSerializer(permohonan).data)
+        return Response(
+            {'detail': 'Permohonan tidak menunggu persetujuan supervisor.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     @action(detail=True, methods=['post'], url_path='reject')
     def reject(self, request, pk=None):
@@ -164,11 +175,15 @@ class PortalCutiViewSet(viewsets.ModelViewSet):
                 {'detail': 'Permohonan tidak ditemukan.'},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        if permohonan.status != StatusPermohonanCuti.MENUNGGU_SUPERVISOR:
-            return Response(
-                {'detail': 'Permohonan tidak menunggu persetujuan supervisor.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        permohonan.status = StatusPermohonanCuti.DITOLAK
-        permohonan.save(update_fields=['status'])
-        return Response(PermohonanCutiSerializer(permohonan).data)
+        if permohonan.status == StatusPermohonanCuti.MENUNGGU_SUPERVISOR:
+            permohonan.status = StatusPermohonanCuti.DITOLAK
+            permohonan.save(update_fields=['status'])
+            return Response(PermohonanCutiSerializer(permohonan).data)
+        if permohonan.status == StatusPermohonanCuti.MENUNGGU_PEMBATALAN_SUPERVISOR:
+            permohonan.status = StatusPermohonanCuti.APPROVED
+            permohonan.save(update_fields=['status'])
+            return Response(PermohonanCutiSerializer(permohonan).data)
+        return Response(
+            {'detail': 'Permohonan tidak menunggu persetujuan supervisor.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )

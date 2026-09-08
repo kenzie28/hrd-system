@@ -12,6 +12,7 @@ import LiburanPage from './pages/LiburanPage'
 import LoginPage from './pages/LoginPage'
 import LokasiPage from './pages/LokasiPage'
 import ShiftPage from './pages/ShiftPage'
+import StateManagerPage from './pages/StateManagerPage'
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/karyawan" element={<KaryawanPage />} />
         <Route path="/lokasi" element={<LokasiPage />} />
         <Route path="/gaji" element={<GajiPage />} />
+        <Route path="/state-manager" element={<StateManagerPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

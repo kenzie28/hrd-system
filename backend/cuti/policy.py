@@ -8,6 +8,9 @@ Rules:
     - Level 5-6 may request level 7.
     - Level 7 may request level 8.
 """
+from datetime import date
+
+from .models import StatusPermohonanCuti
 
 LEVEL_APPROVER_MAP = {
     1: [5, 6, 7],
@@ -27,3 +30,23 @@ MIN_SUPERVISOR_LEVEL = 5
 def eligible_supervisor_levels(level):
     """Return the list of levels a requester of ``level`` may pick as supervisor."""
     return LEVEL_APPROVER_MAP.get(level, [])
+
+
+def cancellation_cutoff(today=None):
+    """First day of the previous calendar month.
+
+    Approved leave with ``tanggal_mulai`` on or after this date can still be
+    cancelled. Example: on 8 Sep 2026 the cutoff is 1 Aug 2026.
+    """
+    today = today or date.today()
+    if today.month == 1:
+        return date(today.year - 1, 12, 1)
+    return date(today.year, today.month - 1, 1)
+
+
+def can_request_cancellation(permohonan, today=None):
+    """True when the employee may start post-approval Batal Cuti."""
+    return (
+        permohonan.status == StatusPermohonanCuti.APPROVED
+        and permohonan.tanggal_mulai >= cancellation_cutoff(today)
+    )

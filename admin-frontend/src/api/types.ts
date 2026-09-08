@@ -199,6 +199,8 @@ export type CutiStatus =
   | 'DITOLAK'
   | 'DIBATALKAN'
   | 'APPROVED'
+  | 'MENUNGGU_PEMBATALAN_SUPERVISOR'
+  | 'MENUNGGU_PEMBATALAN_HRD'
 
 export interface PermohonanCuti {
   id: number
@@ -216,6 +218,7 @@ export interface PermohonanCuti {
   supervisor_nama: string | null
   hrd_approver: string | null
   hrd_approver_nama: string | null
+  can_batal: boolean
 }
 
 export type LemburStatus =
@@ -291,4 +294,15 @@ export interface GajiImportResult {
   errors: GajiImportError[]
   received_headers: string[]
   required_columns: string[]
+}
+
+export interface StateImportError {
+  row: number
+  message: string
+}
+
+export interface StateImportResult {
+  ok: boolean
+  counts: Record<string, number>
+  errors: StateImportError[]
 }

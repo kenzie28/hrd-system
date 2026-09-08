@@ -505,6 +505,36 @@ else
     fail "POST /api/admin/karyawan/import-update/ skipped (no admin token)"
 fi
 
+# State Manager: password gate + CSV snapshot through the nginx proxy.
+if [ -n "${ADMIN_TOKEN}" ]; then
+    curl_status GET "${ADMIN_URL}/api/admin/state/export/" \
+        -H "Authorization: Token ${ADMIN_TOKEN}"
+    if [ "${HTTP_CODE}" = "403" ] && echo "${CURL_BODY}" | grep -q 'Kata sandi State Manager'; then
+        pass "GET /api/admin/state/export/ without password → 403"
+    else
+        fail "GET /api/admin/state/export/ without password → HTTP ${HTTP_CODE} body=${CURL_BODY}"
+    fi
+
+    curl_status GET "${ADMIN_URL}/api/admin/state/export/?password=bears" \
+        -H "Authorization: Token ${ADMIN_TOKEN}"
+    if [ "${HTTP_CODE}" = "200" ] && echo "${CURL_BODY}" | grep -q '#hrd-system-state,v1'; then
+        pass "GET /api/admin/state/export/?password=bears → CSV snapshot"
+    else
+        fail "GET /api/admin/state/export/ with password → HTTP ${HTTP_CODE} body=${CURL_BODY:0:200}"
+    fi
+
+    curl_status POST "${ADMIN_URL}/api/admin/state/import/" \
+        -H "Authorization: Token ${ADMIN_TOKEN}" \
+        -F "password=bears"
+    if [ "${HTTP_CODE}" = "400" ] && echo "${CURL_BODY}" | grep -q 'File CSV wajib diunggah'; then
+        pass "POST /api/admin/state/import/ without file → 400"
+    else
+        fail "POST /api/admin/state/import/ without file → HTTP ${HTTP_CODE} body=${CURL_BODY}"
+    fi
+else
+    fail "State Manager export/import skipped (no admin token)"
+fi
+
 # Django admin page on the backend port (no API key required).
 curl_status GET "${BACKEND_URL}/django-admin/login/"
 if [ "${HTTP_CODE}" = "200" ] && echo "${CURL_BODY}" | grep -qi 'Django'; then

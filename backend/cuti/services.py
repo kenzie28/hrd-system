@@ -35,3 +35,32 @@ def approve_by_hrd(permohonan: PermohonanCuti, hrd_approver) -> int:
         karyawan.save(update_fields=['cuti_tahunan'])
 
     return len(rows)
+
+
+def _jumlah_hari(permohonan: PermohonanCuti) -> int:
+    return (permohonan.tanggal_selesai - permohonan.tanggal_mulai).days + 1
+
+
+@transaction.atomic
+def approve_cancellation_by_hrd(permohonan: PermohonanCuti) -> int:
+    """Finalize post-approval cancellation: drop day rows and restore quota.
+
+    Returns the number of Cuti (day) rows removed. ``cuti_tahunan`` is restored
+    only for Cuti Tahunan, using the day-row count (falling back to the
+    inclusive date range if rows were already gone).
+    """
+    day_count = permohonan.hari_cuti.count()
+    if day_count == 0:
+        day_count = _jumlah_hari(permohonan)
+
+    permohonan.hari_cuti.all().delete()
+
+    if permohonan.tipe == TipeCuti.TAHUNAN:
+        karyawan = permohonan.karyawan
+        karyawan.cuti_tahunan += day_count
+        karyawan.save(update_fields=['cuti_tahunan'])
+
+    permohonan.status = StatusPermohonanCuti.DIBATALKAN
+    permohonan.save(update_fields=['status'])
+
+    return day_count

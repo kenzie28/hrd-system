@@ -1,6 +1,7 @@
 import {
   CalendarOutlined,
   ClockCircleOutlined,
+  DatabaseOutlined,
   EnvironmentOutlined,
   FlagOutlined,
   ScheduleOutlined,
@@ -91,6 +92,13 @@ export default function HomePage() {
       description: 'Modul gaji (segera hadir).',
       icon: <WalletOutlined className="home-module-icon" />,
       path: '/gaji',
+    },
+    {
+      key: 'state-manager',
+      title: 'State Manager',
+      description: 'Unduh atau pulihkan seluruh data HRD dari file CSV.',
+      icon: <DatabaseOutlined className="home-module-icon" />,
+      path: '/state-manager',
     },
   ]
 

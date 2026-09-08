@@ -9,6 +9,7 @@ import type {
   GajiImportResult,
   GajiTemp,
   Karyawan,
+  StateImportResult,
   KaryawanImportResult,
   KaryawanWrite,
   Liburan,
@@ -871,5 +872,103 @@ export function useResetPassword() {
   return useMutation({
     mutationFn: (karyawanId: string) =>
       api.post(`/admin/karyawan/${karyawanId}/reset-password/`).then((r) => r.data),
+  })
+}
+
+const STATE_PASSWORD_HEADER = 'X-State-Manager-Password'
+
+function filenameFromDisposition(header: string | undefined): string | null {
+  if (!header) return null
+  const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(header)
+  if (utfMatch?.[1]) {
+    try {
+      return decodeURIComponent(utfMatch[1])
+    } catch {
+      return utfMatch[1]
+    }
+  }
+  const plainMatch = /filename="?([^";]+)"?/i.exec(header)
+  return plainMatch?.[1] ?? null
+}
+
+async function messageFromAxiosError(err: unknown): Promise<string> {
+  if (!axios.isAxiosError(err)) {
+    return 'Terjadi kesalahan.'
+  }
+  const data = err.response?.data
+  if (typeof Blob !== 'undefined' && data instanceof Blob) {
+    const text = await data.text()
+    try {
+      const json = JSON.parse(text) as { detail?: unknown }
+      if (typeof json.detail === 'string' && json.detail) return json.detail
+    } catch {
+      if (text.trim()) return text
+    }
+  } else if (typeof data === 'object' && data !== null) {
+    const record = data as { detail?: unknown }
+    if (typeof record.detail === 'string' && record.detail) return record.detail
+  }
+  if (err.response?.status === 403) {
+    return 'Kata sandi State Manager tidak valid.'
+  }
+  if (err.message) return err.message
+  return 'Terjadi kesalahan.'
+}
+
+function emptyStateImportResult(message: string): StateImportResult {
+  return { ok: false, counts: {}, errors: [{ row: 0, message }] }
+}
+
+function normalizeStateImportResult(data: Partial<StateImportResult>): StateImportResult {
+  const errors = Array.isArray(data.errors)
+    ? data.errors.map((e) => ({
+        row: typeof e?.row === 'number' ? e.row : 0,
+        message: String(e?.message ?? 'Error tidak diketahui.'),
+      }))
+    : []
+  return {
+    ok: Boolean(data.ok) && errors.length === 0,
+    counts: data.counts && typeof data.counts === 'object' ? data.counts : {},
+    errors,
+  }
+}
+
+export function useStateExport() {
+  return useMutation({
+    mutationFn: async ({ password }: { password: string }) => {
+      const response = await api.get<Blob>('/admin/state/export/', {
+        params: { password },
+        headers: { [STATE_PASSWORD_HEADER]: password },
+        responseType: 'blob',
+      })
+      const filename =
+        filenameFromDisposition(response.headers['content-disposition']) ??
+        'hrd-state.csv'
+      return { blob: response.data, filename }
+    },
+  })
+}
+
+export function useStateImport() {
+  return useMutation({
+    mutationFn: async ({ file, password }: { file: File; password: string }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('password', password)
+      try {
+        const response = await api.post<StateImportResult>('/admin/state/import/', formData, {
+          headers: { [STATE_PASSWORD_HEADER]: password },
+        })
+        return normalizeStateImportResult(response.data)
+      } catch (err) {
+        if (axios.isAxiosError(err)) {
+          const data = err.response?.data
+          if (data && typeof data === 'object' && 'errors' in data) {
+            return normalizeStateImportResult(data as StateImportResult)
+          }
+        }
+        return emptyStateImportResult(await messageFromAxiosError(err))
+      }
+    },
   })
 }

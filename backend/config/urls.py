@@ -31,6 +31,7 @@ from karyawan.portal_views import (
 from karyawan.views import KaryawanViewSet
 from liburan.admin_views import AdminLiburanImportView, AdminLiburanViewSet
 from liburan.views import LiburanViewSet
+from state_manager.views import AdminStateExportView, AdminStateImportView
 
 
 router = DefaultRouter()
@@ -114,6 +115,16 @@ admin_api_urlpatterns = [
         'admin/shift/import/',
         AdminShiftImportView.as_view(),
         name='admin-shift-import',
+    ),
+    path(
+        'admin/state/export/',
+        AdminStateExportView.as_view(),
+        name='admin-state-export',
+    ),
+    path(
+        'admin/state/import/',
+        AdminStateImportView.as_view(),
+        name='admin-state-import',
     ),
     path('admin/', include(admin_router.urls)),
 ]

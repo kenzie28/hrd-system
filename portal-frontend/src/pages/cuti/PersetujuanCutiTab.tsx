@@ -7,25 +7,37 @@ import {
 import type { PermohonanCuti } from '../../api/types'
 import { CUTI_STATUS_COLORS } from '../../constants'
 
+function isPembatalan(row: PermohonanCuti) {
+  return row.status === 'MENUNGGU_PEMBATALAN_SUPERVISOR'
+}
+
 export default function PersetujuanCutiTab() {
   const { data, isLoading } = useCutiApprovals(true)
   const { message } = AntApp.useApp()
   const approve = useApproveCuti()
   const reject = useRejectCuti()
 
-  const onApprove = async (id: number) => {
+  const onApprove = async (row: PermohonanCuti) => {
     try {
-      await approve.mutateAsync(id)
-      message.success('Permohonan diteruskan ke HRD.')
+      await approve.mutateAsync(row.id)
+      message.success(
+        isPembatalan(row)
+          ? 'Pembatalan diteruskan ke HRD.'
+          : 'Permohonan diteruskan ke HRD.',
+      )
     } catch {
       message.error('Gagal menyetujui permohonan.')
     }
   }
 
-  const onReject = async (id: number) => {
+  const onReject = async (row: PermohonanCuti) => {
     try {
-      await reject.mutateAsync(id)
-      message.success('Permohonan ditolak.')
+      await reject.mutateAsync(row.id)
+      message.success(
+        isPembatalan(row)
+          ? 'Pembatalan ditolak. Cuti tetap berlaku.'
+          : 'Permohonan ditolak.',
+      )
     } catch {
       message.error('Gagal menolak permohonan.')
     }
@@ -59,29 +71,36 @@ export default function PersetujuanCutiTab() {
         },
         {
           title: 'Aksi',
-          width: 180,
-          render: (_, r) => (
-            <Space>
-              <Button
-                type="primary"
-                size="small"
-                loading={approve.isPending}
-                onClick={() => onApprove(r.id)}
-              >
-                Setujui
-              </Button>
-              <Popconfirm
-                title="Tolak permohonan ini?"
-                okText="Ya"
-                cancelText="Tidak"
-                onConfirm={() => onReject(r.id)}
-              >
-                <Button danger size="small" loading={reject.isPending}>
-                  Tolak
+          width: 220,
+          render: (_, r) => {
+            const pembatalan = isPembatalan(r)
+            return (
+              <Space>
+                <Button
+                  type="primary"
+                  size="small"
+                  loading={approve.isPending}
+                  onClick={() => onApprove(r)}
+                >
+                  {pembatalan ? 'Setujui pembatalan' : 'Setujui'}
                 </Button>
-              </Popconfirm>
-            </Space>
-          ),
+                <Popconfirm
+                  title={
+                    pembatalan
+                      ? 'Tolak pembatalan? Cuti tetap berlaku.'
+                      : 'Tolak permohonan ini?'
+                  }
+                  okText="Ya"
+                  cancelText="Tidak"
+                  onConfirm={() => onReject(r)}
+                >
+                  <Button danger size="small" loading={reject.isPending}>
+                    {pembatalan ? 'Tolak pembatalan' : 'Tolak'}
+                  </Button>
+                </Popconfirm>
+              </Space>
+            )
+          },
         },
       ]}
     />

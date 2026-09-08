@@ -8,7 +8,7 @@ from karyawan.portal_views import _karyawan_for
 
 from .models import PermohonanCuti, StatusPermohonanCuti
 from .serializers import PermohonanCutiSerializer
-from .services import approve_by_hrd
+from .services import approve_by_hrd, approve_cancellation_by_hrd
 
 
 class AdminCutiViewSet(viewsets.ReadOnlyModelViewSet):
@@ -26,7 +26,12 @@ class AdminCutiViewSet(viewsets.ReadOnlyModelViewSet):
         if status_param:
             qs = qs.filter(status=status_param)
         else:
-            qs = qs.filter(status=StatusPermohonanCuti.MENUNGGU_HRD)
+            qs = qs.filter(
+                status__in=[
+                    StatusPermohonanCuti.MENUNGGU_HRD,
+                    StatusPermohonanCuti.MENUNGGU_PEMBATALAN_HRD,
+                ]
+            )
         return qs
 
     @action(detail=True, methods=['post'])
@@ -37,16 +42,21 @@ class AdminCutiViewSet(viewsets.ReadOnlyModelViewSet):
                 {'detail': 'Permohonan tidak ditemukan.'},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        if permohonan.status != StatusPermohonanCuti.MENUNGGU_HRD:
-            return Response(
-                {'detail': 'Permohonan tidak menunggu persetujuan HRD.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        hrd = _karyawan_for(request.user)
-        created = approve_by_hrd(permohonan, hrd)
-        data = PermohonanCutiSerializer(permohonan).data
-        data['hari_dibuat'] = created
-        return Response(data)
+        if permohonan.status == StatusPermohonanCuti.MENUNGGU_HRD:
+            hrd = _karyawan_for(request.user)
+            created = approve_by_hrd(permohonan, hrd)
+            data = PermohonanCutiSerializer(permohonan).data
+            data['hari_dibuat'] = created
+            return Response(data)
+        if permohonan.status == StatusPermohonanCuti.MENUNGGU_PEMBATALAN_HRD:
+            restored = approve_cancellation_by_hrd(permohonan)
+            data = PermohonanCutiSerializer(permohonan).data
+            data['hari_dihapus'] = restored
+            return Response(data)
+        return Response(
+            {'detail': 'Permohonan tidak menunggu persetujuan HRD.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
@@ -56,11 +66,15 @@ class AdminCutiViewSet(viewsets.ReadOnlyModelViewSet):
                 {'detail': 'Permohonan tidak ditemukan.'},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        if permohonan.status != StatusPermohonanCuti.MENUNGGU_HRD:
-            return Response(
-                {'detail': 'Permohonan tidak menunggu persetujuan HRD.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        permohonan.status = StatusPermohonanCuti.DITOLAK
-        permohonan.save(update_fields=['status'])
-        return Response(PermohonanCutiSerializer(permohonan).data)
+        if permohonan.status == StatusPermohonanCuti.MENUNGGU_HRD:
+            permohonan.status = StatusPermohonanCuti.DITOLAK
+            permohonan.save(update_fields=['status'])
+            return Response(PermohonanCutiSerializer(permohonan).data)
+        if permohonan.status == StatusPermohonanCuti.MENUNGGU_PEMBATALAN_HRD:
+            permohonan.status = StatusPermohonanCuti.APPROVED
+            permohonan.save(update_fields=['status'])
+            return Response(PermohonanCutiSerializer(permohonan).data)
+        return Response(
+            {'detail': 'Permohonan tidak menunggu persetujuan HRD.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )

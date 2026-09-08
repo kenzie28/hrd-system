@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'lembur',
     'gaji',
     'liburan',
+    'state_manager',
 ]
 
 MIDDLEWARE = [
@@ -168,7 +169,10 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_HEADERS = list(default_headers) + ['x-api-key']
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-api-key',
+    'x-state-manager-password',
+]
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [],

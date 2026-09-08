@@ -3,7 +3,7 @@ from rest_framework import serializers
 from karyawan.models import Karyawan
 
 from .models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
-from .policy import eligible_supervisor_levels
+from .policy import can_request_cancellation, eligible_supervisor_levels
 
 
 class CutiSerializer(serializers.ModelSerializer):
@@ -51,6 +51,7 @@ class PermohonanCutiSerializer(serializers.ModelSerializer):
         source='hrd_approver.nama', read_only=True, default=None
     )
     jumlah_hari = serializers.SerializerMethodField()
+    can_batal = serializers.SerializerMethodField()
 
     class Meta:
         model = PermohonanCuti
@@ -61,10 +62,14 @@ class PermohonanCutiSerializer(serializers.ModelSerializer):
             'status', 'status_display',
             'supervisor', 'supervisor_nama',
             'hrd_approver', 'hrd_approver_nama',
+            'can_batal',
         ]
 
     def get_jumlah_hari(self, obj):
         return (obj.tanggal_selesai - obj.tanggal_mulai).days + 1
+
+    def get_can_batal(self, obj):
+        return can_request_cancellation(obj)
 
 
 class PermohonanCutiCreateSerializer(serializers.ModelSerializer):

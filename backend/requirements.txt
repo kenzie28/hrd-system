@@ -3,3 +3,4 @@ djangorestframework>=3.17
 django-cors-headers>=4.9
 gunicorn>=23.0
 pymysql>=1.1
+tzdata>=2025.1

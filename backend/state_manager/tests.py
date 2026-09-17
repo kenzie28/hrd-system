@@ -242,3 +242,43 @@ class StateManagerApiTests(TestCase):
         self.assertEqual(payload['counts']['permohonan_lembur'], 1)
         self.assertEqual(payload['counts']['langganan'], 1)
         self.assertEqual(payload['counts']['notifikasi_dismiss'], 1)
+
+    def test_reset_requires_password_and_does_not_write(self):
+        response = self.client.post(
+            '/api/admin/state/reset/',
+            {'password': 'wrong'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Karyawan.objects.count(), 2)
+        self.assertTrue(PermohonanCuti.objects.exists())
+        self.assertTrue(User.objects.filter(username='djangoadmin').exists())
+
+    def test_reset_clears_state_and_preserves_seed_admin_login(self):
+        response = self.client.post(
+            '/api/admin/state/reset/',
+            {'password': STATE_MANAGER_PASSWORD},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        admin = Karyawan.objects.get()
+        self.assertEqual(admin.karyawan_id, '0000003')
+        self.assertEqual(admin.nama, 'Kenzie Mihardja')
+        self.assertIsNone(admin.lokasi_kerja_id)
+        self.assertEqual(admin.user.password, self.admin_password_hash)
+        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(User.objects.get().pk, admin.user_id)
+        self.assertTrue(Token.objects.filter(key=self.token.key).exists())
+
+        self.assertFalse(Lokasi.objects.exists())
+        self.assertFalse(Shift.objects.exists())
+        self.assertFalse(Liburan.objects.exists())
+        self.assertFalse(Absensi.objects.exists())
+        self.assertFalse(PermohonanCuti.objects.exists())
+        self.assertFalse(Cuti.objects.exists())
+        self.assertFalse(PermohonanLembur.objects.exists())
+        self.assertFalse(GajiTemp.objects.exists())
+        self.assertFalse(Langganan.objects.exists())
+        self.assertFalse(NotifikasiDismiss.objects.exists())

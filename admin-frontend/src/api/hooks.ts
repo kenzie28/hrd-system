@@ -972,3 +972,16 @@ export function useStateImport() {
     },
   })
 }
+
+export function useStateReset() {
+  return useMutation({
+    mutationFn: async ({ password }: { password: string }) => {
+      const response = await api.post<{ detail: string }>(
+        '/admin/state/reset/',
+        { password },
+        { headers: { [STATE_PASSWORD_HEADER]: password } },
+      )
+      return response.data
+    },
+  })
+}

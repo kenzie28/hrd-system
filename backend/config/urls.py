@@ -39,7 +39,11 @@ from karyawan.portal_views import (
 from karyawan.views import KaryawanViewSet
 from liburan.admin_views import AdminLiburanImportView, AdminLiburanViewSet
 from liburan.views import LiburanViewSet
-from state_manager.views import AdminStateExportView, AdminStateImportView
+from state_manager.views import (
+    AdminStateExportView,
+    AdminStateImportView,
+    AdminStateResetView,
+)
 
 
 router = DefaultRouter()
@@ -163,6 +167,11 @@ admin_api_urlpatterns = [
         'admin/state/import/',
         AdminStateImportView.as_view(),
         name='admin-state-import',
+    ),
+    path(
+        'admin/state/reset/',
+        AdminStateResetView.as_view(),
+        name='admin-state-reset',
     ),
     path('admin/', include(admin_router.urls)),
 ]

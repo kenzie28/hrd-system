@@ -48,6 +48,8 @@ from .constants import (
     TABLE_SHIFT,
 )
 
+RESET_ADMIN_KARYAWAN_ID = '0000003'
+
 
 @dataclass
 class StateError:
@@ -1092,6 +1094,39 @@ def _wipe_hrd_state() -> list[int]:
         User.objects.filter(pk__in=linked_user_ids).delete()
     Lokasi.objects.all().delete()
     return linked_user_ids
+
+
+def reset_hrd_state() -> None:
+    """Delete all HRD data except the designated seed admin and linked login."""
+    with transaction.atomic():
+        admin = (
+            Karyawan.objects.select_for_update()
+            .select_related('user')
+            .filter(karyawan_id=RESET_ADMIN_KARYAWAN_ID)
+            .first()
+        )
+        if admin is None or admin.user_id is None:
+            raise ValueError(
+                'Admin 0000003 tidak ditemukan atau tidak memiliki akun login.'
+            )
+
+        GajiTemp.objects.all().delete()
+        PermohonanLembur.objects.all().delete()
+        NotifikasiDismiss.objects.all().delete()
+        Langganan.objects.all().delete()
+        Cuti.objects.all().delete()
+        PermohonanCuti.objects.all().delete()
+        Absensi.objects.all().delete()
+        Shift.objects.all().delete()
+        Liburan.objects.all().delete()
+
+        Karyawan.objects.exclude(pk=admin.pk).delete()
+        admin.lokasi_kerja = None
+        admin.save(update_fields=['lokasi_kerja'])
+        Lokasi.objects.all().delete()
+
+        Token.objects.exclude(user_id=admin.user_id).delete()
+        User.objects.exclude(pk=admin.user_id).delete()
 
 
 def _insert_state(typed: dict[str, list[dict]]) -> None:

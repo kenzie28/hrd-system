@@ -15,6 +15,7 @@ from .services import (
     extract_password,
     import_state_csv,
     password_matches,
+    reset_hrd_state,
     serialize_import_result,
 )
 
@@ -82,3 +83,30 @@ class AdminStateImportView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return Response(serialize_import_result(result), status=status.HTTP_200_OK)
+
+
+class AdminStateResetView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed]
+
+    def post(self, request):
+        if not password_matches(extract_password(request)):
+            return _forbidden()
+
+        try:
+            reset_hrd_state()
+        except ValueError as exc:
+            return Response(
+                {'detail': str(exc)},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response(
+            {
+                'detail': (
+                    'Database berhasil direset. Hanya admin 0000003 '
+                    'Kenzie Mihardja yang dipertahankan.'
+                )
+            },
+            status=status.HTTP_200_OK,
+        )

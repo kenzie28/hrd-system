@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import {
   DatabaseOutlined,
+  DeleteOutlined,
   DownloadOutlined,
   InboxOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   App as AntApp,
   Alert,
@@ -21,7 +23,7 @@ import {
 import type { UploadFile, UploadProps } from 'antd'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
-import { useStateExport, useStateImport } from '../api/hooks'
+import { useStateExport, useStateImport, useStateReset } from '../api/hooks'
 import type { StateImportResult } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 
@@ -118,6 +120,7 @@ function ImportResultPanel({ result }: { result: StateImportResult }) {
 
 export default function StateManagerPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { logout } = useAuth()
   const { message, modal } = AntApp.useApp()
   const [unlocked, setUnlocked] = useState(() => readStoredPassword() === MODULE_PASSWORD)
@@ -129,6 +132,7 @@ export default function StateManagerPage() {
 
   const stateExport = useStateExport()
   const stateImport = useStateImport()
+  const stateReset = useStateReset()
 
   useEffect(() => {
     if (!unlocked) {
@@ -214,6 +218,31 @@ export default function StateManagerPage() {
     })
   }
 
+  const runReset = async () => {
+    const password = readStoredPassword()
+    try {
+      await stateReset.mutateAsync({ password })
+      queryClient.clear()
+      message.success('Database berhasil direset.')
+      navigate('/', { replace: true })
+    } catch (err) {
+      message.error(await errorDetail(err))
+      throw err
+    }
+  }
+
+  const handleReset = () => {
+    modal.confirm({
+      title: 'Reset seluruh database HRD?',
+      content:
+        'Semua data akan dihapus permanen. Hanya admin 0000003 Kenzie Mihardja dan akun loginnya yang dipertahankan.',
+      okText: 'Reset database',
+      okType: 'danger',
+      cancelText: 'Batal',
+      onOk: runReset,
+    })
+  }
+
   return (
     <div>
       <Typography.Title level={3}>State Manager</Typography.Title>
@@ -273,6 +302,29 @@ export default function StateManagerPage() {
                 Pulihkan state
               </Button>
               {result && !result.ok && <ImportResultPanel result={result} />}
+            </Space>
+          </Card>
+
+          <Card>
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Typography.Title level={5} style={{ margin: 0 }}>
+                Reset database
+              </Typography.Title>
+              <Alert
+                type="error"
+                showIcon
+                message="Tindakan ini menghapus seluruh data secara permanen."
+                description="Hanya admin 0000003 Kenzie Mihardja dan akun loginnya yang akan dipertahankan."
+              />
+              <Button
+                danger
+                type="primary"
+                icon={<DeleteOutlined />}
+                onClick={handleReset}
+                loading={stateReset.isPending}
+              >
+                Reset database
+              </Button>
             </Space>
           </Card>
         </Space>

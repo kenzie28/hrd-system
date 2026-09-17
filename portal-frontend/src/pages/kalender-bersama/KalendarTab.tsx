@@ -53,12 +53,11 @@ function MonthCalendar({
         cellRender={(current, info) => {
           if (info.type !== 'date') return info.originNode
           if (!current.isSame(month, 'month')) {
-            return <div className="kb-cal-outside">{current.date()}</div>
+            return null
           }
           const items = byDate.get(current.format('YYYY-MM-DD')) ?? []
           const body = (
             <div className="kb-cal-cell">
-              <div className="kb-cal-daynum">{current.date()}</div>
               {items.slice(0, 3).map((item) => (
                 <div key={item.id} className="kb-cal-chip">
                   {item.karyawan_nama}

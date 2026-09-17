@@ -6,7 +6,11 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
-from cuti.policy import can_request_cancellation, cancellation_cutoff
+from cuti.policy import (
+    can_request_cancellation,
+    cancellation_cutoff,
+    tahunan_range_errors,
+)
 from karyawan.models import Karyawan
 from lokasi.models import Lokasi
 
@@ -24,6 +28,38 @@ class CancellationCutoffTests(TestCase):
 
     def test_january_cutoff_is_december_first(self):
         self.assertEqual(cancellation_cutoff(date(2026, 1, 15)), date(2025, 12, 1))
+
+
+class TahunanRangePolicyTests(TestCase):
+    def test_six_days_rejected(self):
+        today = date(2026, 9, 8)
+        start = today + timedelta(days=28)
+        errors = tahunan_range_errors(start, start + timedelta(days=5), today=today)
+        self.assertIn('tanggal_selesai', errors)
+
+    def test_five_days_ok_with_28_days_notice(self):
+        today = date(2026, 9, 8)
+        start = today + timedelta(days=28)
+        errors = tahunan_range_errors(start, start + timedelta(days=4), today=today)
+        self.assertEqual(errors, {})
+
+    def test_four_days_rejected_without_28_days_notice(self):
+        today = date(2026, 9, 8)
+        start = today + timedelta(days=27)
+        errors = tahunan_range_errors(start, start + timedelta(days=3), today=today)
+        self.assertIn('tanggal_mulai', errors)
+
+    def test_three_days_needs_no_advance_notice(self):
+        today = date(2026, 9, 8)
+        start = today + timedelta(days=1)
+        errors = tahunan_range_errors(start, start + timedelta(days=2), today=today)
+        self.assertEqual(errors, {})
+
+    def test_four_days_ok_on_exactly_28th_day(self):
+        today = date(2026, 9, 8)
+        start = today + timedelta(days=28)
+        errors = tahunan_range_errors(start, start + timedelta(days=3), today=today)
+        self.assertEqual(errors, {})
 
 
 class PortalCutiCancellationTests(TestCase):
@@ -199,3 +235,70 @@ class PortalCutiCancellationTests(TestCase):
         listed = self.worker_client.get('/api/portal/cuti/')
         row = next(item for item in listed.data if item['id'] == permohonan.pk)
         self.assertTrue(row['can_batal'])
+
+
+class PortalCutiTahunanRulesTests(TestCase):
+    def setUp(self):
+        self.lokasi = Lokasi.objects.create(id='99', nama='Headquarters')
+        self.supervisor = Karyawan.objects.create(
+            karyawan_id='1000005',
+            nama='Supervisor Lima',
+            lokasi_kerja=self.lokasi,
+            jabatan='Supervisor',
+            level=5,
+            cuti_tahunan=12,
+        )
+        self.worker = Karyawan.objects.create(
+            karyawan_id='1000001',
+            nama='Budi Santoso',
+            lokasi_kerja=self.lokasi,
+            jabatan='Staff',
+            level=1,
+            cuti_tahunan=12,
+        )
+        self.worker.refresh_from_db()
+        self.client = _token_client(self.worker)
+        self.today = timezone.localdate()
+
+    def _post(self, tipe, start, end):
+        return self.client.post(
+            '/api/portal/cuti/',
+            {
+                'tipe': tipe,
+                'alasan': 'Liburan',
+                'tanggal_mulai': start.isoformat(),
+                'tanggal_selesai': end.isoformat(),
+                'supervisor': self.supervisor.pk,
+            },
+            format='json',
+        )
+
+    def test_rejects_more_than_five_consecutive_days(self):
+        start = self.today + timedelta(days=28)
+        response = self._post(TipeCuti.TAHUNAN, start, start + timedelta(days=5))
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('tanggal_selesai', response.data)
+
+    def test_rejects_four_days_without_28_days_notice(self):
+        start = self.today + timedelta(days=27)
+        response = self._post(TipeCuti.TAHUNAN, start, start + timedelta(days=3))
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('tanggal_mulai', response.data)
+
+    def test_accepts_five_days_with_28_days_notice(self):
+        start = self.today + timedelta(days=28)
+        response = self._post(TipeCuti.TAHUNAN, start, start + timedelta(days=4))
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data['jumlah_hari'], 5)
+
+    def test_accepts_three_days_without_advance_notice(self):
+        start = self.today + timedelta(days=1)
+        response = self._post(TipeCuti.TAHUNAN, start, start + timedelta(days=2))
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data['jumlah_hari'], 3)
+
+    def test_other_types_are_not_limited_to_five_days(self):
+        start = self.today + timedelta(days=1)
+        response = self._post(TipeCuti.IZIN_OFF, start, start + timedelta(days=5))
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data['jumlah_hari'], 6)

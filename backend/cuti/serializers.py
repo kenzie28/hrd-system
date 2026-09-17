@@ -3,7 +3,11 @@ from rest_framework import serializers
 from karyawan.models import Karyawan
 
 from .models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
-from .policy import can_request_cancellation, eligible_supervisor_levels
+from .policy import (
+    can_request_cancellation,
+    eligible_supervisor_levels,
+    tahunan_range_errors,
+)
 
 
 class CutiSerializer(serializers.ModelSerializer):
@@ -91,6 +95,11 @@ class PermohonanCutiCreateSerializer(serializers.ModelSerializer):
 
         if attrs.get('tipe') == TipeCuti.TAHUNAN:
             jumlah_hari = (attrs['tanggal_selesai'] - attrs['tanggal_mulai']).days + 1
+            range_errors = tahunan_range_errors(
+                attrs['tanggal_mulai'], attrs['tanggal_selesai']
+            )
+            if range_errors:
+                raise serializers.ValidationError(range_errors)
             if requester.cuti_tahunan <= 0:
                 raise serializers.ValidationError(
                     {'tipe': 'Jatah cuti tahunan Anda sudah habis.'}

@@ -16,6 +16,11 @@ export const LEVEL_APPROVER_MAP: Record<number, number[]> = {
 // Employees at this level or above can approve requests (Persetujuan tab).
 export const MIN_SUPERVISOR_LEVEL = 5
 
+// Mirror of backend cuti/policy.py Cuti Tahunan duration rules.
+export const MAX_CONSECUTIVE_CUTI_TAHUNAN_DAYS = 5
+export const CUTI_TAHUNAN_ADVANCE_NOTICE_DAYS = 28
+export const CUTI_TAHUNAN_ADVANCE_NOTICE_MIN_DAYS = 4
+
 export const eligibleSupervisorLevels = (level: number): number[] =>
   LEVEL_APPROVER_MAP[level] ?? []
 

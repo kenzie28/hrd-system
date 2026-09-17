@@ -9,11 +9,17 @@ import {
   Spin,
 } from 'antd'
 import type { Dayjs } from 'dayjs'
+import dayjs from 'dayjs'
 import { useMemo } from 'react'
 import { useCreateCuti, useSupervisorOptions } from '../../api/cuti'
 import type { CreatePermohonanCutiPayload, CutiTipe } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
-import { CUTI_TIPE_OPTIONS } from '../../constants'
+import {
+  CUTI_TAHUNAN_ADVANCE_NOTICE_DAYS,
+  CUTI_TAHUNAN_ADVANCE_NOTICE_MIN_DAYS,
+  CUTI_TIPE_OPTIONS,
+  MAX_CONSECUTIVE_CUTI_TAHUNAN_DAYS,
+} from '../../constants'
 
 interface FormValues {
   tipe: CutiTipe
@@ -98,6 +104,25 @@ export default function AjukanCutiTab() {
             validator: (_, value?: [Dayjs, Dayjs]) => {
               if (!value || tipe !== 'CUTI_TAHUNAN') return Promise.resolve()
               const jumlahHari = value[1].diff(value[0], 'day') + 1
+              if (jumlahHari > MAX_CONSECUTIVE_CUTI_TAHUNAN_DAYS) {
+                return Promise.reject(
+                  new Error(
+                    `Cuti tahunan maksimal ${MAX_CONSECUTIVE_CUTI_TAHUNAN_DAYS} hari berturut-turut.`,
+                  ),
+                )
+              }
+              if (jumlahHari >= CUTI_TAHUNAN_ADVANCE_NOTICE_MIN_DAYS) {
+                const earliest = dayjs()
+                  .startOf('day')
+                  .add(CUTI_TAHUNAN_ADVANCE_NOTICE_DAYS, 'day')
+                if (value[0].startOf('day').isBefore(earliest, 'day')) {
+                  return Promise.reject(
+                    new Error(
+                      `Pengajuan cuti tahunan 4 atau 5 hari harus dilakukan minimal ${CUTI_TAHUNAN_ADVANCE_NOTICE_DAYS} hari sebelumnya.`,
+                    ),
+                  )
+                }
+              }
               if (jumlahHari > sisaCutiTahunan) {
                 return Promise.reject(
                   new Error(
@@ -109,9 +134,24 @@ export default function AjukanCutiTab() {
             },
           },
         ]}
-        extra="Pilih tanggal yang sama di awal dan akhir untuk request cuti satu hari."
+        extra={
+          tipe === 'CUTI_TAHUNAN'
+            ? `Cuti Tahunan maksimal ${MAX_CONSECUTIVE_CUTI_TAHUNAN_DAYS} hari berturut-turut. Pengajuan 4 atau 5 hari harus diajukan minimal ${CUTI_TAHUNAN_ADVANCE_NOTICE_DAYS} hari sebelumnya.`
+            : 'Pilih tanggal yang sama di awal dan akhir untuk request cuti satu hari.'
+        }
       >
-        <DatePicker.RangePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+        <DatePicker.RangePicker
+          style={{ width: '100%' }}
+          format="YYYY-MM-DD"
+          disabledDate={(current, info) => {
+            if (tipe !== 'CUTI_TAHUNAN' || !info?.from) return false
+            const maxOffset = MAX_CONSECUTIVE_CUTI_TAHUNAN_DAYS - 1
+            return (
+              current.isBefore(info.from.subtract(maxOffset, 'day'), 'day') ||
+              current.isAfter(info.from.add(maxOffset, 'day'), 'day')
+            )
+          }}
+        />
       </Form.Item>
       <Form.Item
         name="supervisor"

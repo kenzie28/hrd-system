@@ -13,6 +13,7 @@ import {
 import type { UploadFile, UploadProps } from 'antd'
 import { useKaryawanUpdateImport } from '../api/hooks'
 import type { KaryawanImportResult } from '../api/types'
+import { ImportErrorCsvDownload } from '../components/ImportErrorCsvDownload'
 
 function hasHeaderErrors(result: KaryawanImportResult) {
   return result.errors.some((e) => e.row === 0)
@@ -112,22 +113,25 @@ function ImportResultPanel({ result }: { result: KaryawanImportResult }) {
       )}
 
       {result.errors.length > 0 && (
-        <Table
-          style={{ marginTop: 16 }}
-          rowKey={(r) => `${r.row}-${r.message}`}
-          size="small"
-          pagination={{ pageSize: 20 }}
-          dataSource={result.errors}
-          columns={[
-            {
-              title: 'Baris',
-              dataIndex: 'row',
-              width: 90,
-              render: (row: number) => (row === 0 ? 'Header' : row),
-            },
-            { title: 'Pesan error', dataIndex: 'message' },
-          ]}
-        />
+        <>
+          <ImportErrorCsvDownload errors={result.errors} />
+          <Table
+            style={{ marginTop: 16 }}
+            rowKey={(r) => `${r.row}-${r.message}`}
+            size="small"
+            pagination={{ pageSize: 20 }}
+            dataSource={result.errors}
+            columns={[
+              {
+                title: 'Baris',
+                dataIndex: 'row',
+                width: 90,
+                render: (row: number) => (row === 0 ? 'Header' : row),
+              },
+              { title: 'Pesan error', dataIndex: 'message' },
+            ]}
+          />
+        </>
       )}
     </>
   )

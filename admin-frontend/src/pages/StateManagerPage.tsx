@@ -26,6 +26,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStateExport, useStateImport, useStateReset } from '../api/hooks'
 import type { StateImportResult } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
+import { ImportErrorCsvDownload } from '../components/ImportErrorCsvDownload'
 
 const MODULE_PASSWORD = 'bears'
 const PASSWORD_STORAGE_KEY = 'hrd_state_manager_password'
@@ -98,6 +99,7 @@ function ImportResultPanel({ result }: { result: StateImportResult }) {
         message="Pemulihan gagal"
         description="Tidak ada data yang diubah. Perbaiki file CSV lalu unggah lagi."
       />
+      <ImportErrorCsvDownload errors={result.errors} />
       <Table
         style={{ marginTop: 16 }}
         rowKey={(r) => `${r.row}-${r.message}`}

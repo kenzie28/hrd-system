@@ -46,6 +46,9 @@ htmlcov/
 .tox/
 .nox/
 
+# Local Data Extraction Scripts
+local_scripts/
+
 # Node / frontend
 node_modules/
 npm-debug.log*

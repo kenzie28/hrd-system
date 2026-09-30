@@ -5,6 +5,7 @@ import type {
   Absensi,
   AbsensiConflictGroup,
   AbsensiImportResult,
+  RekapAbsensi,
   Cuti,
   GajiImportResult,
   GajiTemp,
@@ -688,6 +689,25 @@ export function useAbsensiConflictMutations() {
     onSuccess: invalidate,
   })
   return { resolve, remove }
+}
+
+export function useRekapAbsensi(bulan: string) {
+  return useQuery({
+    queryKey: ['rekap-absensi', bulan],
+    queryFn: async () =>
+      (await api.get<RekapAbsensi[]>('/absensi/rekap/', { params: { bulan } })).data,
+  })
+}
+
+export function useProsesAbsensi() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (bulan: string) =>
+      (await api.post<RekapAbsensi[]>('/absensi/proses/', { bulan })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rekap-absensi'] })
+    },
+  })
 }
 
 // ---- Cuti (read-only) ----

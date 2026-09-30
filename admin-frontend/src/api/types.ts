@@ -145,6 +145,26 @@ export interface AbsensiImportResult {
   required_columns: string[]
 }
 
+export interface CatatanRekapAbsensi {
+  id: number
+  tanggal: string | null
+  pesan: string
+}
+
+export interface RekapAbsensi {
+  id: number
+  month: string
+  karyawan_id: string
+  karyawan_nama: string
+  hari_hadir: number
+  hari_telat: number
+  hari_alpa: number
+  hari_keluar_cepat: number
+  total_menit_telat: number
+  total_menit_lembur: number
+  catatan: CatatanRekapAbsensi[]
+}
+
 export type CutiTipe =
   | 'IZIN_OFF'
   | 'IZIN_TELAT'

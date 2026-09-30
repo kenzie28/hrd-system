@@ -4,6 +4,8 @@ import { useAbsensiConflicts } from '../api/hooks'
 import { AbsensiKonflikTab } from '../tabs/AbsensiKonflikTab'
 import { AbsensiTab } from '../tabs/AbsensiTab'
 import { ImportAbsensiTab } from '../tabs/ImportAbsensiTab'
+import { ProsesAbsensiTab } from '../tabs/ProsesAbsensiTab'
+import { RekapAbsensiTab } from '../tabs/RekapAbsensiTab'
 
 export default function AbsensiPage() {
   const { data: conflicts } = useAbsensiConflicts()
@@ -20,6 +22,8 @@ export default function AbsensiPage() {
       ),
       children: <AbsensiKonflikTab />,
     },
+    { key: 'proses', label: 'Proses Absensi', children: <ProsesAbsensiTab /> },
+    { key: 'rekap', label: 'Rekap Absensi', children: <RekapAbsensiTab /> },
     { key: 'import', label: 'Import CSV', children: <ImportAbsensiTab /> },
   ]
 

@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from karyawan.models import Karyawan
 
-from .models import Absensi
+from .models import Absensi, CatatanRekapAbsensi, RekapAbsensi
 
 
 class AbsensiSerializer(serializers.ModelSerializer):
@@ -23,6 +23,34 @@ class AbsensiSerializer(serializers.ModelSerializer):
         # Uniqueness is enforced in the DB; create is idempotent in the view
         # (get_or_create) and must not fail validation on exact duplicates.
         validators = []
+
+
+class CatatanRekapAbsensiSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CatatanRekapAbsensi
+        fields = ['id', 'tanggal', 'pesan']
+
+
+class RekapAbsensiSerializer(serializers.ModelSerializer):
+    karyawan_id = serializers.CharField(read_only=True)
+    karyawan_nama = serializers.CharField(source='karyawan.nama', read_only=True)
+    catatan = CatatanRekapAbsensiSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = RekapAbsensi
+        fields = [
+            'id',
+            'month',
+            'karyawan_id',
+            'karyawan_nama',
+            'hari_hadir',
+            'hari_telat',
+            'hari_alpa',
+            'hari_keluar_cepat',
+            'total_menit_telat',
+            'total_menit_lembur',
+            'catatan',
+        ]
 
 
 class AbsensiConflictGroupSerializer(serializers.Serializer):

@@ -1,3 +1,4 @@
+from datetime import datetime
 from itertools import groupby
 
 from rest_framework import status, viewsets
@@ -8,8 +9,24 @@ from rest_framework.response import Response
 
 from karyawan.portal_views import _karyawan_for
 
-from .models import Absensi
-from .serializers import AbsensiConflictGroupSerializer, AbsensiSerializer
+from .models import Absensi, RekapAbsensi
+from .proses import proses_absensi_bulan
+from .serializers import (
+    AbsensiConflictGroupSerializer,
+    AbsensiSerializer,
+    RekapAbsensiSerializer,
+)
+
+
+def _parse_bulan(value):
+    """Return the first day of ``YYYY-MM``, or None when the value is invalid."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.strptime(value.strip(), '%Y-%m')
+    except ValueError:
+        return None
+    return parsed.date().replace(day=1)
 
 
 def _apply_common_filters(queryset, params):
@@ -97,6 +114,34 @@ class AbsensiViewSet(viewsets.ModelViewSet):
             karyawan=absensi.karyawan, tanggal=absensi.tanggal
         ).exclude(pk=absensi.pk).delete()
         return Response(AbsensiSerializer(absensi).data)
+
+    @action(detail=False, methods=['post'], url_path='proses')
+    def proses(self, request):
+        """Process every employee's attendance for one month and store RekapAbsensi."""
+        month_start = _parse_bulan(request.data.get('bulan'))
+        if month_start is None:
+            return Response(
+                {'bulan': 'Parameter bulan harus format YYYY-MM.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        rekap = proses_absensi_bulan(month_start)
+        return Response(RekapAbsensiSerializer(rekap, many=True).data)
+
+    @action(detail=False, methods=['get'], url_path='rekap')
+    def rekap(self, request):
+        """List stored RekapAbsensi for ``?bulan=YYYY-MM``."""
+        month_start = _parse_bulan(request.query_params.get('bulan'))
+        if month_start is None:
+            return Response(
+                {'bulan': 'Parameter bulan harus format YYYY-MM.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        qs = (
+            RekapAbsensi.objects.filter(month=month_start)
+            .select_related('karyawan')
+            .prefetch_related('catatan')
+        )
+        return Response(RekapAbsensiSerializer(qs, many=True).data)
 
 
 class PortalAbsensiViewSet(viewsets.ReadOnlyModelViewSet):

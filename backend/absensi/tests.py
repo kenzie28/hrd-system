@@ -361,14 +361,19 @@ class ProsesKehadiranTests(TestCase):
         self.assertEqual(rekap.hari_hadir, 1)
         self.assertEqual(rekap.total_menit_telat, 30)
 
-    def test_one_row_per_punch_and_no_alpa_that_day(self):
+    def test_one_kehadiran_per_shift_day_uses_best_punch(self):
         _punch(self.karyawan, self.other, self.focus, '07:00', '08:00')
-        _punch(self.karyawan, self.other, self.focus, '08:05', '17:00')
+        kept = _punch(self.karyawan, self.other, self.focus, '08:05', '17:00')
         proses_kehadiran(self.today)
         rows = self._on(self.focus)
-        self.assertEqual(len(rows), 2)
-        self.assertTrue(all(row.status == StatusKehadiran.HADIR for row in rows))
-        self.assertEqual({row.menit_telat for row in rows}, {0, 5})
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].status, StatusKehadiran.HADIR)
+        self.assertEqual(rows[0].absensi_id, kept.pk)
+        self.assertEqual(rows[0].menit_telat, 5)
+        self.assertEqual(
+            Kehadiran.objects.filter(karyawan=self.karyawan).count(),
+            len(self.scheduled),
+        )
 
     def test_alpa_when_shift_and_no_punch(self):
         counts = proses_kehadiran(self.today)
@@ -398,6 +403,7 @@ class ProsesKehadiranTests(TestCase):
         proses_kehadiran(self.today)
         row = self._on(self.focus)[0]
         self.assertEqual(row.status, StatusKehadiran.HADIR)
+        self.assertIsNotNone(row.absensi_id)
         self.assertEqual(row.menit_telat, 0)
         self.assertEqual(row.cepat_keluar, 0)
         self.assertIsNotNone(row.cuti_id)
@@ -419,11 +425,6 @@ class ProsesKehadiranTests(TestCase):
         again = proses_kehadiran(self.today)
         row.refresh_from_db()
         self.assertEqual(again['hadir'], 0)
-        self.assertEqual(row.lembur, 0)
-
-        Kehadiran.objects.filter(absensi__isnull=False).delete()
-        proses_kehadiran(self.today)
-        row = self._on(self.focus)[0]
         self.assertEqual(row.lembur, 45)
         self.assertEqual(row.permohonan_lembur_id, pending.pk)
 
@@ -456,7 +457,22 @@ class ProsesKehadiranTests(TestCase):
         rows = self._on(self.focus)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].status, StatusKehadiran.HADIR)
+        self.assertIsNotNone(rows[0].absensi_id)
+        self.assertIsNone(rows[0].cuti_id)
         self.assertEqual(rows[0].menit_telat, 0)
+
+    def test_cuti_without_punch_has_no_absensi(self):
+        cuti = _cuti(self.karyawan, TipeCuti.TAHUNAN, self.focus)
+        _punch(self.karyawan, self.home, self.scheduled[1], '08:00', '17:00')
+        proses_kehadiran(self.today)
+        leave = self._on(self.focus)[0]
+        worked = self._on(self.scheduled[1])[0]
+        self.assertEqual(leave.status, StatusKehadiran.CUTI)
+        self.assertIsNone(leave.absensi_id)
+        self.assertEqual(leave.cuti_id, cuti.pk)
+        self.assertEqual(worked.status, StatusKehadiran.HADIR)
+        self.assertIsNotNone(worked.absensi_id)
+        self.assertIsNone(worked.cuti_id)
 
 
 class ProsesKehadiranApiTests(TestCase):

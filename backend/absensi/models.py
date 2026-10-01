@@ -74,7 +74,10 @@ class StatusKehadiran(models.TextChoices):
 
 
 class Kehadiran(models.Model):
-    """One processed attendance result: a punch, a full-day leave, or an absence."""
+    """One scheduled day: the home shift, plus the punch and/or leave that apply.
+
+    A full-day leave has no Absensi and points at Cuti instead.
+    """
 
     karyawan = models.ForeignKey(
         'karyawan.Karyawan', on_delete=models.CASCADE, related_name='kehadiran'
@@ -115,8 +118,7 @@ class Kehadiran(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['karyawan', 'tanggal'],
-                condition=models.Q(absensi__isnull=True),
-                name='kehadiran_one_placeholder_per_day',
+                name='kehadiran_unique_karyawan_tanggal',
             ),
         ]
 

@@ -105,7 +105,11 @@ class Kehadiran(models.Model):
         related_name='kehadiran',
     )
     shift = models.ForeignKey(
-        'shift.Shift', on_delete=models.PROTECT, related_name='kehadiran'
+        'shift.Shift',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='kehadiran',
     )
     menit_telat = models.PositiveIntegerField(default=0)
     cepat_keluar = models.PositiveIntegerField(default=0)

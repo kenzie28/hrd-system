@@ -44,7 +44,9 @@ export default function AbsensiPage() {
           {
             title: 'Shift',
             render: (_, row) =>
-              `${fmtTime(row.shift_jam_masuk)}–${fmtTime(row.shift_jam_keluar)}`,
+              row.shift_jam_masuk && row.shift_jam_keluar
+                ? `${fmtTime(row.shift_jam_masuk)}–${fmtTime(row.shift_jam_keluar)}`
+                : '—',
           },
           { title: 'Menit Telat', dataIndex: 'menit_telat' },
           { title: 'Cepat Keluar', dataIndex: 'cepat_keluar' },

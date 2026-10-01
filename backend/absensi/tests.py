@@ -381,7 +381,18 @@ class ProsesKehadiranTests(TestCase):
         row = self._on(self.focus)[0]
         self.assertEqual(row.status, StatusKehadiran.ALPA)
         self.assertIsNone(row.absensi_id)
-        self.assertEqual(row.shift.lokasi_kerja_id, '81')
+        self.assertIsNone(row.shift_id)
+
+    def test_weekday_without_shift_is_not_alpa(self):
+        day_off = _days_in_month(6)[0]
+        _punch(self.karyawan, self.home, day_off, '08:00', '17:00')
+        proses_kehadiran(self.today)
+        self.assertFalse(Kehadiran.objects.filter(tanggal=day_off).exists())
+        self.assertTrue(
+            Kehadiran.objects.filter(
+                karyawan=self.karyawan, status=StatusKehadiran.ALPA
+            ).exists()
+        )
 
     def test_full_day_cuti_and_liburan(self):
         _cuti(self.karyawan, TipeCuti.SAKIT, self.focus)

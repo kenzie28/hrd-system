@@ -98,11 +98,13 @@ def _compose_day(
             'lembur': 0,
             'status': StatusKehadiran.CUTI,
         }
+    # A shift exists for this weekday, but there is no punch: absence, with no
+    # shift row attached. Weekdays with no home-location shift are not visited.
     return {
         'absensi_id': None,
         'cuti_id': None,
         'permohonan_lembur_id': None,
-        'shift_id': _earliest_shift(shifts).pk,
+        'shift_id': None,
         'menit_telat': 0,
         'cepat_keluar': 0,
         'lembur': 0,

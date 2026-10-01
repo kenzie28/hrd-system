@@ -150,8 +150,8 @@ export interface Kehadiran {
   karyawan_id: string
   status: 'HADIR' | 'CUTI' | 'ALPA'
   status_display: string
-  shift_jam_masuk: string
-  shift_jam_keluar: string
+  shift_jam_masuk: string | null
+  shift_jam_keluar: string | null
   menit_telat: number
   cepat_keluar: number
   lembur: number

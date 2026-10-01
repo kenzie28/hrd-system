@@ -57,8 +57,14 @@ class KehadiranSerializer(serializers.ModelSerializer):
     karyawan_id = serializers.CharField(read_only=True)
     karyawan_nama = serializers.CharField(source='karyawan.nama', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    shift_jam_masuk = serializers.TimeField(source='shift.jam_masuk', read_only=True)
-    shift_jam_keluar = serializers.TimeField(source='shift.jam_keluar', read_only=True)
+    shift_jam_masuk = serializers.SerializerMethodField()
+    shift_jam_keluar = serializers.SerializerMethodField()
+
+    def get_shift_jam_masuk(self, obj):
+        return obj.shift.jam_masuk.isoformat() if obj.shift_id else None
+
+    def get_shift_jam_keluar(self, obj):
+        return obj.shift.jam_keluar.isoformat() if obj.shift_id else None
 
     class Meta:
         model = Kehadiran

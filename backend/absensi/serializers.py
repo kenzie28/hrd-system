@@ -59,6 +59,7 @@ class KehadiranSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     shift_jam_masuk = serializers.SerializerMethodField()
     shift_jam_keluar = serializers.SerializerMethodField()
+    absensi = AbsensiSerializer(read_only=True, allow_null=True)
 
     def get_shift_jam_masuk(self, obj):
         return obj.shift.jam_masuk.isoformat() if obj.shift_id else None
@@ -80,6 +81,7 @@ class KehadiranSerializer(serializers.ModelSerializer):
             'menit_telat',
             'cepat_keluar',
             'lembur',
+            'absensi',
         ]
 
 

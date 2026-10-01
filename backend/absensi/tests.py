@@ -513,6 +513,10 @@ class ProsesKehadiranApiTests(TestCase):
         self.assertEqual(match['status_display'], 'Hadir')
         self.assertEqual(match['menit_telat'], 10)
         self.assertEqual(match['shift_jam_masuk'], '08:00:00')
+        self.assertEqual(match['absensi']['jam_masuk'], '08:10:00')
+        self.assertEqual(match['absensi']['lokasi_nama'], 'Toko 81')
+        alpa = next(row for row in listed.data if row['status'] == 'ALPA')
+        self.assertIsNone(alpa['absensi'])
 
     def test_hapus_kehadiran_for_month(self):
         focus = _days_in_month(1)[0]

@@ -155,6 +155,7 @@ export interface Kehadiran {
   menit_telat: number
   cepat_keluar: number
   lembur: number
+  absensi: Absensi | null
 }
 
 export interface Absensi {

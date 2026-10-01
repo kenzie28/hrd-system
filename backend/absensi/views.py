@@ -205,7 +205,7 @@ class PortalKehadiranViewSet(viewsets.ReadOnlyModelViewSet):
 
         qs = (
             Kehadiran.objects.filter(karyawan=karyawan)
-            .select_related('shift', 'karyawan')
+            .select_related('shift', 'karyawan', 'absensi', 'absensi__lokasi', 'absensi__karyawan')
             .order_by('tanggal', 'id')
         )
         bulan = self.request.query_params.get('bulan')

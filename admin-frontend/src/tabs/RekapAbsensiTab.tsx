@@ -41,7 +41,10 @@ export function RekapAbsensiTab() {
           ),
         }}
         columns={[
-          { title: 'Karyawan', dataIndex: 'karyawan_nama' },
+          {
+            title: 'Karyawan',
+            render: (_, record) => `${record.karyawan_nama} (${record.karyawan_id})`,
+          },
           { title: 'Hadir', dataIndex: 'hari_hadir', width: 80 },
           { title: 'Telat', dataIndex: 'hari_telat', width: 80 },
           { title: 'Alpa', dataIndex: 'hari_alpa', width: 80 },

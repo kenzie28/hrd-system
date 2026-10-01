@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Absensi, CatatanRekapAbsensi, RekapAbsensi
+from .models import Absensi, CatatanRekapAbsensi, Kehadiran, RekapAbsensi
 
 
 @admin.register(Absensi)
@@ -29,3 +29,18 @@ class RekapAbsensiAdmin(admin.ModelAdmin):
     ]
     list_filter = ['month']
     inlines = [CatatanRekapAbsensiInline]
+
+
+@admin.register(Kehadiran)
+class KehadiranAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'tanggal',
+        'karyawan',
+        'status',
+        'shift',
+        'menit_telat',
+        'cepat_keluar',
+        'lembur',
+    ]
+    list_filter = ['status', 'tanggal']

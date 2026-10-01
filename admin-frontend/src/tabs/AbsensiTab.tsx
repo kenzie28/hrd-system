@@ -44,7 +44,7 @@ export function AbsensiTab() {
   const [form] = Form.useForm<EditFormValues>()
 
   const karyawanOptions = useMemo(
-    () => (karyawan ?? []).map((k) => ({ label: k.nama, value: k.karyawan_id })),
+    () => (karyawan ?? []).map((k) => ({ label: `${k.nama} (${k.karyawan_id})`, value: k.karyawan_id })),
     [karyawan],
   )
 
@@ -89,7 +89,7 @@ export function AbsensiTab() {
       <Space wrap>
         <Select
           placeholder="Pilih karyawan"
-          style={{ minWidth: 180, maxWidth: '100%' }}
+          style={{ minWidth: 280, maxWidth: '100%' }}
           options={karyawanOptions}
           value={karyawanId}
           onChange={(value) => setKaryawanId(value ?? undefined)}
@@ -155,7 +155,11 @@ export function AbsensiTab() {
       )}
 
       <Modal
-        title={editing ? `Edit Absensi — ${editing.karyawan_nama}, ${editing.tanggal}` : 'Edit Absensi'}
+        title={
+          editing
+            ? `Edit Absensi — ${editing.karyawan_nama} (${editing.karyawan_id}), ${editing.tanggal}`
+            : 'Edit Absensi'
+        }
         open={editing != null}
         onOk={handleSubmit}
         confirmLoading={update.isPending}

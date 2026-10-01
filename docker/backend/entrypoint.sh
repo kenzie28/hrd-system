@@ -74,6 +74,21 @@ print(("Created" if created else "Updated") + f" superuser '{username}'.")
 PY
 fi
 
+echo "==> Starting cron (proses_kehadiran daily at 00:00 Asia/Jakarta)..."
+python <<'PY'
+import os
+from pathlib import Path
+
+prefixes = ("DB_", "DJANGO_", "API_KEY")
+lines = []
+for key, value in os.environ.items():
+    if key == "TZ" or key.startswith(prefixes):
+        escaped = value.replace("'", "'\"'\"'")
+        lines.append(f"export {key}='{escaped}'")
+Path("/etc/cron.env").write_text("\n".join(lines) + "\n")
+PY
+/usr/sbin/cron
+
 echo "==> Starting gunicorn on 0.0.0.0:8000..."
 exec gunicorn config.wsgi:application \
     --bind 0.0.0.0:8000 \

@@ -3,7 +3,11 @@ from datetime import date, datetime, time, timedelta
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from absensi.models import Absensi, RekapAbsensi
+from django.contrib.auth.models import User
+from rest_framework.authtoken.models import Token
+
+from absensi.kehadiran import proses_kehadiran
+from absensi.models import Absensi, Kehadiran, RekapAbsensi, StatusKehadiran
 from absensi.proses import proses_absensi_bulan
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from karyawan.models import Karyawan
@@ -322,3 +326,163 @@ class ProsesAbsensiApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         missing = self.client.get('/api/absensi/rekap/')
         self.assertEqual(missing.status_code, 400)
+
+
+class ProsesKehadiranTests(TestCase):
+    def setUp(self):
+        self.home = Lokasi.objects.create(id='81', nama='Toko 81')
+        self.other = Lokasi.objects.create(id='99', nama='Toko 99')
+        self.karyawan = _karyawan('1000001', 'Budi', self.home)
+        self.workday = 1
+        self.scheduled = _days_in_month(self.workday)
+        self.focus = self.scheduled[0]
+        self.today = date(2026, 10, 1)
+        _shift(self.home, self.workday, '08:00', '17:00')
+        _shift(self.other, self.workday, '09:00', '18:00')
+
+    def _on(self, day):
+        return list(
+            Kehadiran.objects.filter(karyawan=self.karyawan, tanggal=day).order_by('id')
+        )
+
+    def test_cross_location_lateness_uses_home_shift(self):
+        _punch(self.karyawan, self.other, self.focus, '08:30', '17:00')
+        counts = proses_kehadiran(self.today)
+        row = self._on(self.focus)[0]
+        self.assertEqual(counts['hadir'], 1)
+        self.assertEqual(counts['alpa'], len(self.scheduled) - 1)
+        self.assertEqual(row.status, StatusKehadiran.HADIR)
+        self.assertEqual(row.menit_telat, 30)
+        self.assertEqual(row.cepat_keluar, 0)
+        self.assertEqual(row.lembur, 0)
+        self.assertEqual(row.shift.lokasi_kerja_id, '81')
+        self.assertEqual(row.absensi.lokasi_id, '99')
+        rekap = RekapAbsensi.objects.get(karyawan=self.karyawan, month=date(2026, 9, 1))
+        self.assertEqual(rekap.hari_hadir, 1)
+        self.assertEqual(rekap.total_menit_telat, 30)
+
+    def test_one_row_per_punch_and_no_alpa_that_day(self):
+        _punch(self.karyawan, self.other, self.focus, '07:00', '08:00')
+        _punch(self.karyawan, self.other, self.focus, '08:05', '17:00')
+        proses_kehadiran(self.today)
+        rows = self._on(self.focus)
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(row.status == StatusKehadiran.HADIR for row in rows))
+        self.assertEqual({row.menit_telat for row in rows}, {0, 5})
+
+    def test_alpa_when_shift_and_no_punch(self):
+        counts = proses_kehadiran(self.today)
+        self.assertEqual(counts['alpa'], len(self.scheduled))
+        row = self._on(self.focus)[0]
+        self.assertEqual(row.status, StatusKehadiran.ALPA)
+        self.assertIsNone(row.absensi_id)
+        self.assertEqual(row.shift.lokasi_kerja_id, '81')
+
+    def test_full_day_cuti_and_liburan(self):
+        _cuti(self.karyawan, TipeCuti.SAKIT, self.focus)
+        holiday = self.scheduled[1]
+        Liburan.objects.create(nama='Libur Toko', tanggal=holiday)
+        counts = proses_kehadiran(self.today)
+        row = self._on(self.focus)[0]
+        self.assertEqual(row.status, StatusKehadiran.CUTI)
+        self.assertIsNotNone(row.cuti_id)
+        self.assertIsNone(row.absensi_id)
+        self.assertEqual(self._on(holiday), [])
+        self.assertEqual(counts['cuti'], 1)
+        self.assertEqual(counts['alpa'], len(self.scheduled) - 2)
+
+    def test_izin_telat_and_pulang_cepat_zero_minutes(self):
+        _punch(self.karyawan, self.home, self.focus, '08:20', '16:40')
+        _cuti(self.karyawan, TipeCuti.IZIN_TELAT, self.focus)
+        _cuti(self.karyawan, TipeCuti.IZIN_PULANG_CEPAT, self.focus)
+        proses_kehadiran(self.today)
+        row = self._on(self.focus)[0]
+        self.assertEqual(row.status, StatusKehadiran.HADIR)
+        self.assertEqual(row.menit_telat, 0)
+        self.assertEqual(row.cepat_keluar, 0)
+        self.assertIsNotNone(row.cuti_id)
+
+    def test_lembur_only_when_already_approved(self):
+        _punch(self.karyawan, self.home, self.focus, '08:00', '17:45')
+        pending = PermohonanLembur.objects.create(
+            karyawan=self.karyawan,
+            tanggal=self.focus,
+            status=StatusPermohonanLembur.MENUNGGU_HRD,
+        )
+        proses_kehadiran(self.today)
+        row = self._on(self.focus)[0]
+        self.assertEqual(row.lembur, 0)
+        self.assertIsNone(row.permohonan_lembur_id)
+
+        pending.status = StatusPermohonanLembur.APPROVED
+        pending.save(update_fields=['status'])
+        again = proses_kehadiran(self.today)
+        row.refresh_from_db()
+        self.assertEqual(again['hadir'], 0)
+        self.assertEqual(row.lembur, 0)
+
+        Kehadiran.objects.filter(absensi__isnull=False).delete()
+        proses_kehadiran(self.today)
+        row = self._on(self.focus)[0]
+        self.assertEqual(row.lembur, 45)
+        self.assertEqual(row.permohonan_lembur_id, pending.pk)
+
+    def test_skip_already_processed(self):
+        _punch(self.karyawan, self.home, self.focus, '08:00', '17:00')
+        first = proses_kehadiran(self.today)
+        second = proses_kehadiran(self.today)
+        self.assertEqual(first['hadir'], 1)
+        self.assertEqual(second['hadir'], 0)
+        self.assertEqual(second['alpa'], 0)
+        self.assertEqual(
+            Kehadiran.objects.filter(
+                karyawan=self.karyawan, status=StatusKehadiran.HADIR
+            ).count(),
+            1,
+        )
+
+    def test_does_not_process_today(self):
+        today = self.scheduled[1]
+        _punch(self.karyawan, self.home, today, '08:00', '17:00')
+        proses_kehadiran(today)
+        self.assertFalse(Kehadiran.objects.filter(tanggal=today).exists())
+        self.assertEqual(self._on(self.focus)[0].status, StatusKehadiran.ALPA)
+
+    def test_later_punch_replaces_alpa(self):
+        proses_kehadiran(self.today)
+        self.assertEqual(self._on(self.focus)[0].status, StatusKehadiran.ALPA)
+        _punch(self.karyawan, self.other, self.focus, '08:00', '17:00')
+        proses_kehadiran(self.today)
+        rows = self._on(self.focus)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].status, StatusKehadiran.HADIR)
+        self.assertEqual(rows[0].menit_telat, 0)
+
+
+class ProsesKehadiranApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.home = Lokasi.objects.create(id='81', nama='Toko 81')
+        self.karyawan = _karyawan('1000001', 'Budi', self.home)
+        _shift(self.home, 1, '08:00', '17:00')
+        user = User.objects.create_user(username='budi', password='x')
+        self.karyawan.user = user
+        self.karyawan.save(update_fields=['user'])
+        token = Token.objects.create(user=user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    def test_manual_proses_and_portal_list(self):
+        focus = _days_in_month(1)[0]
+        _punch(self.karyawan, self.home, focus, '08:10', '17:00')
+        created = self.client.post('/api/absensi/proses-kehadiran/')
+        self.assertEqual(created.status_code, 200)
+        self.assertGreaterEqual(created.data['hadir'], 1)
+        self.assertIn('alpa', created.data)
+
+        listed = self.client.get('/api/portal/kehadiran/', {'bulan': '2026-09'})
+        self.assertEqual(listed.status_code, 200)
+        match = next(row for row in listed.data if row['tanggal'] == focus.isoformat())
+        self.assertEqual(match['status'], 'HADIR')
+        self.assertEqual(match['status_display'], 'Hadir')
+        self.assertEqual(match['menit_telat'], 10)
+        self.assertEqual(match['shift_jam_masuk'], '08:00:00')

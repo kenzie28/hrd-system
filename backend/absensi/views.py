@@ -9,11 +9,13 @@ from rest_framework.response import Response
 
 from karyawan.portal_views import _karyawan_for
 
-from .models import Absensi, RekapAbsensi
+from .kehadiran import proses_kehadiran
+from .models import Absensi, Kehadiran, RekapAbsensi
 from .proses import proses_absensi_bulan
 from .serializers import (
     AbsensiConflictGroupSerializer,
     AbsensiSerializer,
+    KehadiranSerializer,
     RekapAbsensiSerializer,
 )
 
@@ -127,6 +129,11 @@ class AbsensiViewSet(viewsets.ModelViewSet):
         rekap = proses_absensi_bulan(month_start)
         return Response(RekapAbsensiSerializer(rekap, many=True).data)
 
+    @action(detail=False, methods=['post'], url_path='proses-kehadiran')
+    def proses_kehadiran_action(self, request):
+        """Process every past unprocessed day into Kehadiran. Same job as midnight."""
+        return Response(proses_kehadiran())
+
     @action(detail=False, methods=['get'], url_path='rekap')
     def rekap(self, request):
         """List stored RekapAbsensi for ``?bulan=YYYY-MM``."""
@@ -163,5 +170,32 @@ class PortalAbsensiViewSet(viewsets.ReadOnlyModelViewSet):
                 year, month = map(int, bulan.split('-'))
             except ValueError:
                 return Absensi.objects.none()
+            qs = qs.filter(tanggal__year=year, tanggal__month=month)
+        return qs
+
+
+class PortalKehadiranViewSet(viewsets.ReadOnlyModelViewSet):
+    """Employee-facing read-only view of their processed Kehadiran."""
+
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = KehadiranSerializer
+
+    def get_queryset(self):
+        karyawan = _karyawan_for(self.request.user)
+        if karyawan is None:
+            return Kehadiran.objects.none()
+
+        qs = (
+            Kehadiran.objects.filter(karyawan=karyawan)
+            .select_related('shift', 'karyawan')
+            .order_by('tanggal', 'id')
+        )
+        bulan = self.request.query_params.get('bulan')
+        if bulan:
+            try:
+                year, month = map(int, bulan.split('-'))
+            except ValueError:
+                return Kehadiran.objects.none()
             qs = qs.filter(tanggal__year=year, tanggal__month=month)
         return qs

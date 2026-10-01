@@ -1,88 +1,36 @@
-import { useMemo, useState } from 'react'
-import { App, Button, DatePicker, Empty, Space, Table, Typography } from 'antd'
-import dayjs, { Dayjs } from 'dayjs'
-import { useProsesAbsensi } from '../api/hooks'
-import type { RekapAbsensi } from '../api/types'
-
-interface IssueRow {
-  key: string
-  karyawan_nama: string
-  tanggal: string | null
-  pesan: string
-}
+import { useState } from 'react'
+import { App, Button, Space, Typography } from 'antd'
+import { useProsesKehadiran } from '../api/hooks'
+import type { ProsesKehadiranResult } from '../api/types'
 
 export function ProsesAbsensiTab() {
   const { message } = App.useApp()
-  const [month, setMonth] = useState<Dayjs>(() => dayjs())
-  const [result, setResult] = useState<RekapAbsensi[] | null>(null)
-  const proses = useProsesAbsensi()
-
-  const issues = useMemo<IssueRow[]>(() => {
-    if (!result) return []
-    return result.flatMap((row) =>
-      row.catatan.map((note) => ({
-        key: `${row.id}-${note.id}`,
-        karyawan_nama: row.karyawan_nama,
-        tanggal: note.tanggal,
-        pesan: note.pesan,
-      })),
-    )
-  }, [result])
+  const [result, setResult] = useState<ProsesKehadiranResult | null>(null)
+  const proses = useProsesKehadiran()
 
   const onProses = async () => {
     try {
-      const data = await proses.mutateAsync(month.format('YYYY-MM'))
+      const data = await proses.mutateAsync()
       setResult(data)
-      message.success(`Absensi ${month.format('YYYY-MM')} diproses.`)
+      message.success('Kehadiran diproses.')
     } catch {
-      message.error('Gagal memproses absensi.')
+      message.error('Gagal memproses kehadiran.')
     }
   }
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-      <Space wrap>
-        <DatePicker
-          picker="month"
-          value={month}
-          onChange={(value) => value && setMonth(value)}
-          allowClear={false}
-        />
-        <Button type="primary" loading={proses.isPending} onClick={onProses}>
-          Proses
-        </Button>
-      </Space>
-
+      <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+        Memproses absensi sebelum hari ini menjadi kehadiran (hadir, cuti, dan alpa).
+        Proses yang sama berjalan otomatis setiap hari pukul 00:00.
+      </Typography.Paragraph>
+      <Button type="primary" loading={proses.isPending} onClick={onProses}>
+        Proses
+      </Button>
       {result && (
-        <>
-          <Typography.Text>
-            Diproses {result.length} karyawan untuk {month.format('YYYY-MM')}.{' '}
-            {issues.length === 0
-              ? 'Tidak ada catatan.'
-              : `${issues.length} catatan.`}
-          </Typography.Text>
-          {issues.length === 0 ? (
-            <Empty description="Tidak ada keterlambatan, alpa, atau catatan lain." />
-          ) : (
-            <Table<IssueRow>
-              rowKey="key"
-              size="small"
-              dataSource={issues}
-              pagination={{ pageSize: 20, showSizeChanger: false }}
-              scroll={{ x: 'max-content' }}
-              columns={[
-                { title: 'Karyawan', dataIndex: 'karyawan_nama' },
-                {
-                  title: 'Tanggal',
-                  dataIndex: 'tanggal',
-                  width: 120,
-                  render: (value: string | null) => value ?? '—',
-                },
-                { title: 'Pesan', dataIndex: 'pesan' },
-              ]}
-            />
-          )}
-        </>
+        <Typography.Text>
+          Hadir {result.hadir}, Cuti {result.cuti}, Alpa {result.alpa}.
+        </Typography.Text>
       )}
     </Space>
   )

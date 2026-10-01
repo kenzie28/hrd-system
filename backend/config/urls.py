@@ -3,7 +3,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from absensi.admin_views import AdminAbsensiImportView
-from absensi.views import AbsensiViewSet, PortalAbsensiViewSet
+from absensi.views import AbsensiViewSet, PortalAbsensiViewSet, PortalKehadiranViewSet
 from shift.admin_views import AdminShiftImportView
 from shift.views import ShiftViewSet
 from lokasi.views import LokasiViewSet
@@ -58,6 +58,7 @@ portal_router = DefaultRouter()
 portal_router.register('cuti', PortalCutiViewSet, basename='portal-cuti')
 portal_router.register('lembur', PortalLemburViewSet, basename='portal-lembur')
 portal_router.register('absensi', PortalAbsensiViewSet, basename='portal-absensi')
+portal_router.register('kehadiran', PortalKehadiranViewSet, basename='portal-kehadiran')
 
 admin_router = DefaultRouter()
 admin_router.register('cuti', AdminCutiViewSet, basename='admin-cuti')

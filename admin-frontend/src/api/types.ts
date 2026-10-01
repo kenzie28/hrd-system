@@ -151,6 +151,12 @@ export interface CatatanRekapAbsensi {
   pesan: string
 }
 
+export interface ProsesKehadiranResult {
+  hadir: number
+  cuti: number
+  alpa: number
+}
+
 export interface RekapAbsensi {
   id: number
   month: string

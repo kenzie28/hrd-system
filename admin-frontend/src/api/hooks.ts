@@ -5,6 +5,7 @@ import type {
   Absensi,
   AbsensiConflictGroup,
   AbsensiImportResult,
+  ProsesKehadiranResult,
   RekapAbsensi,
   Cuti,
   GajiImportResult,
@@ -699,11 +700,11 @@ export function useRekapAbsensi(bulan: string) {
   })
 }
 
-export function useProsesAbsensi() {
+export function useProsesKehadiran() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (bulan: string) =>
-      (await api.post<RekapAbsensi[]>('/absensi/proses/', { bulan })).data,
+    mutationFn: async () =>
+      (await api.post<ProsesKehadiranResult>('/absensi/proses-kehadiran/')).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['rekap-absensi'] })
     },

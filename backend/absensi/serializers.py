@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from karyawan.models import Karyawan
 
-from .models import Absensi, CatatanRekapAbsensi, RekapAbsensi
+from .models import Absensi, CatatanRekapAbsensi, Kehadiran, RekapAbsensi
 
 
 class AbsensiSerializer(serializers.ModelSerializer):
@@ -50,6 +50,30 @@ class RekapAbsensiSerializer(serializers.ModelSerializer):
             'total_menit_telat',
             'total_menit_lembur',
             'catatan',
+        ]
+
+
+class KehadiranSerializer(serializers.ModelSerializer):
+    karyawan_id = serializers.CharField(read_only=True)
+    karyawan_nama = serializers.CharField(source='karyawan.nama', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    shift_jam_masuk = serializers.TimeField(source='shift.jam_masuk', read_only=True)
+    shift_jam_keluar = serializers.TimeField(source='shift.jam_keluar', read_only=True)
+
+    class Meta:
+        model = Kehadiran
+        fields = [
+            'id',
+            'tanggal',
+            'karyawan_id',
+            'karyawan_nama',
+            'status',
+            'status_display',
+            'shift_jam_masuk',
+            'shift_jam_keluar',
+            'menit_telat',
+            'cepat_keluar',
+            'lembur',
         ]
 
 

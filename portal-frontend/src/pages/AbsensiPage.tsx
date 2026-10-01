@@ -1,19 +1,21 @@
 import { useState } from 'react'
 import { DatePicker, Table, Typography } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
-import { useMyAbsensi } from '../api/absensi'
-import type { Absensi } from '../api/types'
+import { useMyAbsensi, useMyKehadiran } from '../api/absensi'
+import type { Absensi, Kehadiran } from '../api/types'
 import { fmtTime } from '../constants'
 
 export default function AbsensiPage() {
   const [bulan, setBulan] = useState<Dayjs>(() => dayjs())
-  const { data, isLoading } = useMyAbsensi(bulan.format('YYYY-MM'))
+  const month = bulan.format('YYYY-MM')
+  const { data: kehadiran, isLoading: kehadiranLoading } = useMyKehadiran(month)
+  const { data, isLoading } = useMyAbsensi(month)
 
   return (
     <div>
       <Typography.Title level={3}>Absensi</Typography.Title>
       <Typography.Paragraph type="secondary">
-        Riwayat absensi Anda pada bulan yang dipilih.
+        Kehadiran yang sudah diproses, lalu riwayat absensi mentah, untuk bulan yang dipilih.
       </Typography.Paragraph>
       <DatePicker
         picker="month"
@@ -22,6 +24,34 @@ export default function AbsensiPage() {
         onChange={(value) => value && setBulan(value)}
         style={{ marginBottom: 16 }}
       />
+      <Typography.Title level={5}>Kehadiran</Typography.Title>
+      <Table<Kehadiran>
+        rowKey="id"
+        loading={kehadiranLoading}
+        dataSource={kehadiran ?? []}
+        pagination={{ pageSize: 20, showSizeChanger: false }}
+        scroll={{ x: true }}
+        style={{ marginBottom: 24 }}
+        locale={{ emptyText: 'Belum ada kehadiran pada bulan ini.' }}
+        columns={[
+          {
+            title: 'Tanggal',
+            dataIndex: 'tanggal',
+            sorter: (a, b) => a.tanggal.localeCompare(b.tanggal),
+            defaultSortOrder: 'ascend',
+          },
+          { title: 'Status', dataIndex: 'status_display' },
+          {
+            title: 'Shift',
+            render: (_, row) =>
+              `${fmtTime(row.shift_jam_masuk)}–${fmtTime(row.shift_jam_keluar)}`,
+          },
+          { title: 'Menit Telat', dataIndex: 'menit_telat' },
+          { title: 'Cepat Keluar', dataIndex: 'cepat_keluar' },
+          { title: 'Menit Lembur', dataIndex: 'lembur' },
+        ]}
+      />
+      <Typography.Title level={5}>Absensi</Typography.Title>
       <Table<Absensi>
         rowKey="id"
         loading={isLoading}

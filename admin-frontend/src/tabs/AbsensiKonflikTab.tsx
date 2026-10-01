@@ -38,7 +38,7 @@ export function AbsensiKonflikTab() {
         <Card
           key={`${group.karyawan_id}-${group.tanggal}`}
           size="small"
-          title={`${group.karyawan_nama} — ${group.tanggal}`}
+          title={`${group.karyawan_nama} (${group.karyawan_id}) — ${group.tanggal}`}
         >
           <Table<Absensi>
             rowKey="id"

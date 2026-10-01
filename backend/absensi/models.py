@@ -67,6 +67,63 @@ class RekapAbsensi(models.Model):
         return f'{self.karyawan} — {self.month:%Y-%m}'
 
 
+class StatusKehadiran(models.TextChoices):
+    HADIR = 'HADIR', 'Hadir'
+    CUTI = 'CUTI', 'Cuti'
+    ALPA = 'ALPA', 'Alpa'
+
+
+class Kehadiran(models.Model):
+    """One processed attendance result: a punch, a full-day leave, or an absence."""
+
+    karyawan = models.ForeignKey(
+        'karyawan.Karyawan', on_delete=models.CASCADE, related_name='kehadiran'
+    )
+    tanggal = models.DateField()
+    absensi = models.OneToOneField(
+        'Absensi',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='kehadiran',
+    )
+    cuti = models.ForeignKey(
+        'cuti.Cuti',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='kehadiran',
+    )
+    permohonan_lembur = models.ForeignKey(
+        'lembur.PermohonanLembur',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='kehadiran',
+    )
+    shift = models.ForeignKey(
+        'shift.Shift', on_delete=models.PROTECT, related_name='kehadiran'
+    )
+    menit_telat = models.PositiveIntegerField(default=0)
+    cepat_keluar = models.PositiveIntegerField(default=0)
+    lembur = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=8, choices=StatusKehadiran.choices)
+
+    class Meta:
+        verbose_name_plural = 'Kehadiran'
+        ordering = ['-tanggal', 'karyawan__nama', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['karyawan', 'tanggal'],
+                condition=models.Q(absensi__isnull=True),
+                name='kehadiran_one_placeholder_per_day',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.karyawan} — {self.tanggal} ({self.get_status_display()})'
+
+
 class CatatanRekapAbsensi(models.Model):
     """One Indonesian note about a day (or the month) in a RekapAbsensi."""
 

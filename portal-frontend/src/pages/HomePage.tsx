@@ -61,7 +61,7 @@ export default function HomePage() {
     {
       key: 'absensi',
       title: 'Absensi',
-      description: 'Lihat riwayat absensi Anda per bulan.',
+      description: 'Lihat kehadiran dan riwayat absensi Anda per bulan.',
       icon: <SolutionOutlined className="home-module-icon" />,
       path: '/absensi',
     },

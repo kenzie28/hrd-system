@@ -7,7 +7,12 @@ FROM python:3.12-slim
 WORKDIR /app/backend
 
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+ && DEBIAN_FRONTEND=noninteractive apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cron tzdata \
+ && rm -rf /var/lib/apt/lists/* \
+ && ln -snf /usr/share/zoneinfo/Asia/Jakarta /etc/localtime \
+ && echo Asia/Jakarta > /etc/timezone
 
 COPY backend/ .
 
@@ -26,7 +31,9 @@ RUN test -f lokasi/migrations/0001_initial.py \
  || (echo "ERROR: Django migration files missing from image. Commit backend/*/migrations/*.py and rebuild." >&2; exit 1)
 
 COPY docker/backend/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY docker/backend/crontab /etc/cron.d/proses-kehadiran
+RUN chmod +x /entrypoint.sh \
+ && chmod 0644 /etc/cron.d/proses-kehadiran
 
 EXPOSE 8000
 

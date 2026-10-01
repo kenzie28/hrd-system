@@ -144,6 +144,19 @@ export interface GajiResponse {
   gaji: GajiDetail | null
 }
 
+export interface Kehadiran {
+  id: number
+  tanggal: string
+  karyawan_id: string
+  status: 'HADIR' | 'CUTI' | 'ALPA'
+  status_display: string
+  shift_jam_masuk: string
+  shift_jam_keluar: string
+  menit_telat: number
+  cepat_keluar: number
+  lembur: number
+}
+
 export interface Absensi {
   id: number
   karyawan_id: string

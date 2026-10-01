@@ -1,0 +1,6 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TZ=Asia/Jakarta
+CRON_TZ=Asia/Jakarta
+
+0 0 * * * root . /etc/cron.env && cd /app/backend && python manage.py proses_kehadiran >> /var/log/proses-kehadiran.log 2>&1

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { App, Button, Empty, Form, Modal, Popconfirm, Select, Space, Table } from 'antd'
+import axios from 'axios'
 import { PlusOutlined } from '@ant-design/icons'
 import dayjs, { Dayjs } from 'dayjs'
 import { useLokasi, useShiftMutations, useShifts } from '../api/hooks'
@@ -120,9 +121,23 @@ export function ShiftTab() {
                   </Button>
                   <Popconfirm
                     title="Hapus shift ini?"
+                    okText="Hapus"
+                    cancelText="Batal"
+                    okButtonProps={{ danger: true }}
                     onConfirm={async () => {
-                      await remove.mutateAsync(shift.id)
-                      message.success('Shift dihapus')
+                      try {
+                        await remove.mutateAsync(shift.id)
+                        message.success('Shift dihapus')
+                      } catch (err) {
+                        const detail = axios.isAxiosError(err)
+                          ? err.response?.data?.detail
+                          : undefined
+                        message.error(
+                          typeof detail === 'string' && detail.trim()
+                            ? detail
+                            : 'Gagal menghapus shift.',
+                        )
+                      }
                     }}
                   >
                     <Button size="small" danger>

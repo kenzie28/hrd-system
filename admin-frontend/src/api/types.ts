@@ -157,6 +157,11 @@ export interface ProsesKehadiranResult {
   alpa: number
 }
 
+export interface HapusKehadiranResult {
+  deleted: number
+  bulan: string
+}
+
 export interface RekapAbsensi {
   id: number
   month: string

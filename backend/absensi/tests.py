@@ -502,3 +502,32 @@ class ProsesKehadiranApiTests(TestCase):
         self.assertEqual(match['status_display'], 'Hadir')
         self.assertEqual(match['menit_telat'], 10)
         self.assertEqual(match['shift_jam_masuk'], '08:00:00')
+
+    def test_hapus_kehadiran_for_month(self):
+        focus = _days_in_month(1)[0]
+        _punch(self.karyawan, self.home, focus, '08:00', '17:00')
+        self.client.post('/api/absensi/proses-kehadiran/')
+        self.assertGreater(
+            Kehadiran.objects.filter(tanggal__year=2026, tanggal__month=9).count(),
+            0,
+        )
+
+        removed = self.client.post(
+            '/api/absensi/hapus-kehadiran/',
+            {'bulan': '2026-09'},
+            format='json',
+        )
+        self.assertEqual(removed.status_code, 200)
+        self.assertGreater(removed.data['deleted'], 0)
+        self.assertEqual(removed.data['bulan'], '2026-09')
+        self.assertFalse(
+            Kehadiran.objects.filter(tanggal__year=2026, tanggal__month=9).exists()
+        )
+        self.assertTrue(Absensi.objects.filter(karyawan=self.karyawan).exists())
+
+        missing = self.client.post(
+            '/api/absensi/hapus-kehadiran/',
+            {'bulan': 'September'},
+            format='json',
+        )
+        self.assertEqual(missing.status_code, 400)

@@ -134,6 +134,23 @@ class AbsensiViewSet(viewsets.ModelViewSet):
         """Process every past unprocessed day into Kehadiran. Same job as midnight."""
         return Response(proses_kehadiran())
 
+    @action(detail=False, methods=['post'], url_path='hapus-kehadiran')
+    def hapus_kehadiran(self, request):
+        """Delete processed Kehadiran for ``bulan`` (YYYY-MM). Raw Absensi stays."""
+        month_start = _parse_bulan(request.data.get('bulan'))
+        if month_start is None:
+            return Response(
+                {'bulan': 'Parameter bulan harus format YYYY-MM.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        qs = Kehadiran.objects.filter(
+            tanggal__year=month_start.year,
+            tanggal__month=month_start.month,
+        )
+        deleted = qs.count()
+        qs.delete()
+        return Response({'deleted': deleted, 'bulan': month_start.strftime('%Y-%m')})
+
     @action(detail=False, methods=['get'], url_path='rekap')
     def rekap(self, request):
         """List stored RekapAbsensi for ``?bulan=YYYY-MM``."""

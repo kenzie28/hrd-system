@@ -40,8 +40,10 @@ from karyawan.views import KaryawanViewSet
 from liburan.admin_views import AdminLiburanImportView, AdminLiburanViewSet
 from liburan.views import LiburanViewSet
 from state_manager.views import (
+    AdminStateClearView,
     AdminStateExportView,
     AdminStateImportView,
+    AdminStateModelsView,
     AdminStateResetView,
 )
 
@@ -173,6 +175,16 @@ admin_api_urlpatterns = [
         'admin/state/reset/',
         AdminStateResetView.as_view(),
         name='admin-state-reset',
+    ),
+    path(
+        'admin/state/models/',
+        AdminStateModelsView.as_view(),
+        name='admin-state-models',
+    ),
+    path(
+        'admin/state/clear/',
+        AdminStateClearView.as_view(),
+        name='admin-state-clear',
     ),
     path('admin/', include(admin_router.urls)),
 ]

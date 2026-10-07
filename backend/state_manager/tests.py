@@ -7,7 +7,7 @@ from django.test import TestCase
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-from absensi.models import Absensi
+from absensi.models import Absensi, Kehadiran, RekapAbsensi, StatusKehadiran
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from gaji.models import GajiTemp
 from kalender_bersama.models import Langganan, NotifikasiDismiss
@@ -282,3 +282,195 @@ class StateManagerApiTests(TestCase):
         self.assertFalse(GajiTemp.objects.exists())
         self.assertFalse(Langganan.objects.exists())
         self.assertFalse(NotifikasiDismiss.objects.exists())
+
+    def _clear(self, tables, password=STATE_MANAGER_PASSWORD):
+        return self.client.post(
+            '/api/admin/state/clear/',
+            {'tables': tables, 'password': password},
+            format='json',
+            HTTP_X_STATE_MANAGER_PASSWORD=password,
+        )
+
+    def test_models_list_requires_password(self):
+        response = self.client.get('/api/admin/state/models/')
+        self.assertEqual(response.status_code, 403)
+
+        response = self.client.get(
+            '/api/admin/state/models/',
+            HTTP_X_STATE_MANAGER_PASSWORD=STATE_MANAGER_PASSWORD,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        ids = [row['id'] for row in response.json()['models']]
+        self.assertIn('absensi', ids)
+        self.assertIn('gaji', ids)
+        self.assertIn('kehadiran', ids)
+        self.assertIn('rekap_absensi', ids)
+        self.assertTrue(all(row['label'] for row in response.json()['models']))
+
+    def test_clear_requires_password_and_does_not_write(self):
+        response = self._clear(['liburan'], password='wrong')
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Liburan.objects.exists())
+        self.assertEqual(Karyawan.objects.count(), 2)
+
+    def test_clear_rejects_unknown_or_empty_selection(self):
+        unknown = self._clear(['bukan_model'])
+        self.assertEqual(unknown.status_code, 400)
+        self.assertIn('tidak dikenal', unknown.json()['detail'])
+        self.assertTrue(Liburan.objects.exists())
+
+        empty = self._clear([])
+        self.assertEqual(empty.status_code, 400)
+        self.assertTrue(GajiTemp.objects.exists())
+
+    def test_clear_selected_models_only(self):
+        punch = Absensi.objects.get()
+        Kehadiran.objects.create(
+            karyawan=self.worker,
+            tanggal=punch.tanggal,
+            absensi=punch,
+            status=StatusKehadiran.HADIR,
+        )
+        Kehadiran.objects.create(
+            karyawan=self.admin,
+            tanggal=date(2026, 3, 3),
+            status=StatusKehadiran.ALPA,
+        )
+        RekapAbsensi.objects.create(
+            month=date(2026, 3, 1),
+            karyawan=self.worker,
+            hari_hadir=1,
+        )
+
+        response = self._clear(['absensi', 'liburan'])
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()['deleted']['absensi'], 1)
+        self.assertEqual(response.json()['deleted']['liburan'], 1)
+        self.assertNotIn('gaji', response.json()['deleted'])
+
+        self.assertFalse(Absensi.objects.exists())
+        self.assertFalse(Liburan.objects.exists())
+        self.assertFalse(Kehadiran.objects.filter(absensi__isnull=False).exists())
+        self.assertTrue(
+            Kehadiran.objects.filter(
+                karyawan=self.admin, status=StatusKehadiran.ALPA
+            ).exists()
+        )
+        self.assertTrue(RekapAbsensi.objects.exists())
+        self.assertEqual(Karyawan.objects.count(), 2)
+        self.assertTrue(Shift.objects.exists())
+        self.assertTrue(GajiTemp.objects.exists())
+        self.assertTrue(PermohonanCuti.objects.exists())
+        self.assertTrue(Cuti.objects.exists())
+        self.assertTrue(PermohonanLembur.objects.exists())
+        self.assertTrue(Langganan.objects.exists())
+        self.assertTrue(User.objects.filter(username='djangoadmin').exists())
+
+    def test_clear_rekap_and_kehadiran_without_absensi(self):
+        punch = Absensi.objects.get()
+        Kehadiran.objects.create(
+            karyawan=self.worker,
+            tanggal=punch.tanggal,
+            absensi=punch,
+            status=StatusKehadiran.HADIR,
+        )
+        rekap = RekapAbsensi.objects.create(
+            month=date(2026, 3, 1),
+            karyawan=self.worker,
+            hari_hadir=1,
+        )
+        rekap.catatan.create(tanggal=punch.tanggal, pesan='Telat')
+
+        response = self._clear(['kehadiran', 'rekap_absensi'])
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertFalse(Kehadiran.objects.exists())
+        self.assertFalse(RekapAbsensi.objects.exists())
+        self.assertTrue(Absensi.objects.filter(pk=punch.pk).exists())
+        self.assertTrue(GajiTemp.objects.exists())
+
+    def test_clear_karyawan_refuses_when_dependents_remain(self):
+        response = self._clear(['karyawan'])
+        self.assertEqual(response.status_code, 400, response.content)
+        detail = response.json()['detail']
+        self.assertIn('Gaji', detail)
+        self.assertIn('Akun login', detail)
+        self.assertIn('Permohonan cuti', detail)
+        self.assertEqual(Karyawan.objects.count(), 2)
+        self.assertTrue(GajiTemp.objects.exists())
+        self.assertTrue(self.worker.user_id)
+
+    def test_clear_karyawan_keeps_seed_admin_and_other_models(self):
+        response = self._clear(
+            [
+                'karyawan',
+                'auth_user',
+                'absensi',
+                'gaji',
+                'langganan',
+                'notifikasi_dismiss',
+                'permohonan_cuti',
+                'cuti',
+                'permohonan_lembur',
+            ]
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+        admin = Karyawan.objects.get()
+        self.assertEqual(admin.karyawan_id, '0000003')
+        self.assertEqual(admin.lokasi_kerja_id, '99')
+        self.assertEqual(admin.user.password, self.admin_password_hash)
+        self.assertTrue(Token.objects.filter(key=self.token.key).exists())
+        self.assertTrue(User.objects.filter(username='djangoadmin').exists())
+        self.assertEqual(User.objects.exclude(pk=admin.user_id).count(), 1)
+
+        self.assertTrue(Lokasi.objects.filter(id='99').exists())
+        self.assertTrue(Shift.objects.exists())
+        self.assertTrue(Liburan.objects.exists())
+        self.assertFalse(Absensi.objects.exists())
+        self.assertFalse(GajiTemp.objects.exists())
+        self.assertFalse(PermohonanCuti.objects.exists())
+        self.assertFalse(Cuti.objects.exists())
+        self.assertFalse(PermohonanLembur.objects.exists())
+        self.assertFalse(Langganan.objects.exists())
+        self.assertFalse(NotifikasiDismiss.objects.exists())
+
+    def test_clear_lokasi_requires_shift_and_absensi(self):
+        refused = self._clear(['lokasi'])
+        self.assertEqual(refused.status_code, 400, refused.content)
+        self.assertIn('Shift', refused.json()['detail'])
+        self.assertIn('Absensi', refused.json()['detail'])
+        self.assertTrue(Lokasi.objects.filter(id='99').exists())
+
+        response = self._clear(['lokasi', 'shift', 'absensi'])
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertFalse(Lokasi.objects.exists())
+        self.assertFalse(Shift.objects.exists())
+        self.assertFalse(Absensi.objects.exists())
+        self.assertEqual(Karyawan.objects.count(), 2)
+        self.assertIsNone(Karyawan.objects.get(pk='1000001').lokasi_kerja_id)
+        self.assertTrue(GajiTemp.objects.exists())
+        self.assertTrue(Liburan.objects.exists())
+
+    def test_clear_permohonan_cuti_requires_days_and_dismissals(self):
+        response = self._clear(['permohonan_cuti'])
+        self.assertEqual(response.status_code, 400, response.content)
+        detail = response.json()['detail']
+        self.assertIn('Hari cuti', detail)
+        self.assertIn('Notifikasi ditutup', detail)
+        self.assertTrue(PermohonanCuti.objects.exists())
+        self.assertTrue(Cuti.objects.exists())
+
+    def test_clear_auth_user_unlinks_logins_except_admin(self):
+        worker_user_id = self.worker.user_id
+        response = self._clear(['auth_user'])
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()['deleted']['auth_user'], 1)
+        self.assertFalse(User.objects.filter(pk=worker_user_id).exists())
+        self.worker.refresh_from_db()
+        self.assertIsNone(self.worker.user_id)
+        self.assertEqual(self.worker.nama, 'Budi Santoso')
+        admin = Karyawan.objects.get(pk='0000003')
+        self.assertEqual(admin.user.password, self.admin_password_hash)
+        self.assertTrue(Token.objects.filter(key=self.token.key).exists())
+        self.assertTrue(User.objects.filter(username='djangoadmin').exists())
+        self.assertTrue(GajiTemp.objects.exists())

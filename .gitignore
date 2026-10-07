@@ -74,6 +74,10 @@ dist-ssr/
 *.sln
 *.sw?
 
+# CSV Files
+*.csv
+*.xlsx
+
 # OS files
 .DS_Store
 Thumbs.db

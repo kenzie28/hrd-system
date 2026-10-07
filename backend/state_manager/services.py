@@ -12,12 +12,14 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.models import User
 from django.db import transaction
+from django.db.models import Q
+from django.db.models.deletion import ProtectedError
 from django.db.models.signals import post_save
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework.authtoken.models import Token
 
-from absensi.models import Absensi
+from absensi.models import Absensi, Kehadiran, RekapAbsensi
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from gaji.models import GajiTemp
 from kalender_bersama.models import Langganan, NotifikasiDismiss
@@ -29,6 +31,9 @@ from lokasi.models import Lokasi
 from shift.models import HariKerja, Shift
 
 from .constants import (
+    CLEAR_ORDER,
+    CLEARABLE_LABELS,
+    CLEARABLE_MODELS,
     STATE_FORMAT_MARKER,
     STATE_FORMAT_VERSION,
     STATE_MANAGER_PASSWORD,
@@ -37,6 +42,7 @@ from .constants import (
     TABLE_COLUMNS,
     TABLE_CUTI,
     TABLE_GAJI,
+    TABLE_KEHADIRAN,
     TABLE_KARYAWAN,
     TABLE_LANGGANAN,
     TABLE_LIBURAN,
@@ -45,6 +51,7 @@ from .constants import (
     TABLE_ORDER,
     TABLE_PERMOHONAN_CUTI,
     TABLE_PERMOHONAN_LEMBUR,
+    TABLE_REKAP_ABSENSI,
     TABLE_SHIFT,
 )
 
@@ -1127,6 +1134,193 @@ def reset_hrd_state() -> None:
 
         Token.objects.exclude(user_id=admin.user_id).delete()
         User.objects.exclude(pk=admin.user_id).delete()
+
+
+def list_clearable_models() -> list[dict[str, str]]:
+    """Models the State Manager can wipe without touching the others."""
+    return [{'id': model_id, 'label': label} for model_id, label in CLEARABLE_MODELS]
+
+
+def _non_admin_fk(field: str) -> Q:
+    """Match rows whose karyawan FK ``field`` points at someone other than the seed admin.
+
+    When the seed admin row is absent, every non-null FK matches.
+    """
+    populated = Q(**{f'{field}__isnull': False})
+    if not Karyawan.objects.filter(pk=RESET_ADMIN_KARYAWAN_ID).exists():
+        return populated
+    return populated & ~Q(**{field: RESET_ADMIN_KARYAWAN_ID})
+
+
+def _missing_clear_dependencies(selected: set[str]) -> list[str]:
+    """State tables that must be cleared together with ``selected``.
+
+    A table is required when deleting the selection would CASCADE-delete it or
+    when a PROTECT relation would reject the delete. Kehadiran and rekap are
+    not required: karyawan delete only cascades rows of the removed employees,
+    and absensi delete only cascades kehadiran rows that point at those punches.
+    """
+    needed: set[str] = set()
+
+    if TABLE_LOKASI in selected:
+        if Shift.objects.exists():
+            needed.add(TABLE_SHIFT)
+        if Absensi.objects.exists():
+            needed.add(TABLE_ABSENSI)
+
+    permohonan_blocked = False
+    if TABLE_KARYAWAN in selected:
+        if Absensi.objects.filter(_non_admin_fk('karyawan_id')).exists():
+            needed.add(TABLE_ABSENSI)
+        if GajiTemp.objects.filter(_non_admin_fk('karyawan_id')).exists():
+            needed.add(TABLE_GAJI)
+        if Langganan.objects.filter(
+            _non_admin_fk('subscriber_id') | _non_admin_fk('target_id')
+        ).exists():
+            needed.add(TABLE_LANGGANAN)
+        if NotifikasiDismiss.objects.filter(_non_admin_fk('subscriber_id')).exists():
+            needed.add(TABLE_NOTIFIKASI_DISMISS)
+        permohonan_blocked = PermohonanCuti.objects.filter(
+            _non_admin_fk('karyawan_id')
+            | _non_admin_fk('supervisor_id')
+            | _non_admin_fk('hrd_approver_id')
+        ).exists()
+        if permohonan_blocked:
+            needed.add(TABLE_PERMOHONAN_CUTI)
+        if PermohonanLembur.objects.filter(
+            _non_admin_fk('karyawan_id')
+            | _non_admin_fk('supervisor_id')
+            | _non_admin_fk('hrd_approver_id')
+        ).exists():
+            needed.add(TABLE_PERMOHONAN_LEMBUR)
+        if User.objects.filter(karyawan__isnull=False).exclude(
+            karyawan__karyawan_id=RESET_ADMIN_KARYAWAN_ID
+        ).exists():
+            needed.add(TABLE_AUTH_USER)
+
+    if TABLE_PERMOHONAN_CUTI in selected or permohonan_blocked:
+        if Cuti.objects.exists():
+            needed.add(TABLE_CUTI)
+        if NotifikasiDismiss.objects.exists():
+            needed.add(TABLE_NOTIFIKASI_DISMISS)
+
+    missing = [model_id for model_id, _label in CLEARABLE_MODELS if model_id in needed]
+    return [model_id for model_id in missing if model_id not in selected]
+
+
+def _auth_user_ids_to_delete() -> list[int]:
+    """Portal logins except the seed admin. Unlinked Django users are kept."""
+    return list(
+        User.objects.filter(karyawan__isnull=False)
+        .exclude(karyawan__karyawan_id=RESET_ADMIN_KARYAWAN_ID)
+        .values_list('pk', flat=True)
+    )
+
+
+def _delete_table(name: str, auth_user_ids: list[int]) -> int:
+    if name == TABLE_REKAP_ABSENSI:
+        count = RekapAbsensi.objects.count()
+        RekapAbsensi.objects.all().delete()
+        return count
+    if name == TABLE_KEHADIRAN:
+        count = Kehadiran.objects.count()
+        Kehadiran.objects.all().delete()
+        return count
+    if name == TABLE_GAJI:
+        count = GajiTemp.objects.count()
+        GajiTemp.objects.all().delete()
+        return count
+    if name == TABLE_PERMOHONAN_LEMBUR:
+        count = PermohonanLembur.objects.count()
+        PermohonanLembur.objects.all().delete()
+        return count
+    if name == TABLE_NOTIFIKASI_DISMISS:
+        count = NotifikasiDismiss.objects.count()
+        NotifikasiDismiss.objects.all().delete()
+        return count
+    if name == TABLE_LANGGANAN:
+        count = Langganan.objects.count()
+        Langganan.objects.all().delete()
+        return count
+    if name == TABLE_CUTI:
+        count = Cuti.objects.count()
+        Cuti.objects.all().delete()
+        return count
+    if name == TABLE_PERMOHONAN_CUTI:
+        count = PermohonanCuti.objects.count()
+        PermohonanCuti.objects.all().delete()
+        return count
+    if name == TABLE_ABSENSI:
+        count = Absensi.objects.count()
+        Absensi.objects.all().delete()
+        return count
+    if name == TABLE_SHIFT:
+        count = Shift.objects.count()
+        Shift.objects.all().delete()
+        return count
+    if name == TABLE_LIBURAN:
+        count = Liburan.objects.count()
+        Liburan.objects.all().delete()
+        return count
+    if name == TABLE_KARYAWAN:
+        qs = Karyawan.objects.exclude(pk=RESET_ADMIN_KARYAWAN_ID)
+        count = qs.count()
+        qs.delete()
+        return count
+    if name == TABLE_AUTH_USER:
+        if not auth_user_ids:
+            return 0
+        Token.objects.filter(user_id__in=auth_user_ids).delete()
+        deleted, _detail = User.objects.filter(pk__in=auth_user_ids).delete()
+        return len(auth_user_ids) if deleted else 0
+    if name == TABLE_LOKASI:
+        count = Lokasi.objects.count()
+        Lokasi.objects.all().delete()
+        return count
+    raise ValueError(f'Model tidak dikenal: {name}.')
+
+
+def clear_state_tables(table_names) -> dict[str, int]:
+    """Delete every row in the named models and leave every other model in place.
+
+    The seed admin (0000003) and that admin's login are never deleted.
+    Request fails, and nothing is written, when another selected model's rows
+    would be cascade-deleted or would block the delete through PROTECT.
+    """
+    if isinstance(table_names, str) or not isinstance(table_names, (list, tuple)):
+        raise ValueError('Daftar model tidak valid.')
+    if not table_names:
+        raise ValueError('Pilih minimal satu model.')
+    if not all(isinstance(name, str) and name.strip() for name in table_names):
+        raise ValueError('Daftar model tidak valid.')
+
+    unknown = [name for name in table_names if name not in CLEARABLE_LABELS]
+    if unknown:
+        raise ValueError(f'Model tidak dikenal: {", ".join(unknown)}.')
+
+    selected = set(table_names)
+    try:
+        with transaction.atomic():
+            missing = _missing_clear_dependencies(selected)
+            if missing:
+                labels = ', '.join(CLEARABLE_LABELS[name] for name in missing)
+                raise ValueError(
+                    'Model berikut masih mereferensi data yang dipilih dan harus ikut dihapus: '
+                    f'{labels}.'
+                )
+            auth_user_ids = (
+                _auth_user_ids_to_delete() if TABLE_AUTH_USER in selected else []
+            )
+            deleted: dict[str, int] = {}
+            for name in CLEAR_ORDER:
+                if name not in selected:
+                    continue
+                deleted[name] = _delete_table(name, auth_user_ids)
+    except ProtectedError as exc:
+        raise ValueError(
+            'Penghapusan tertahan oleh data yang masih mereferensi model terpilih.'
+        ) from exc
+    return deleted
 
 
 def _insert_state(typed: dict[str, list[dict]]) -> None:

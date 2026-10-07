@@ -1,15 +1,31 @@
 import { useState } from 'react'
-import { DatePicker, Descriptions, Modal, Table, Typography } from 'antd'
+import { ExclamationCircleFilled } from '@ant-design/icons'
+import { DatePicker, Descriptions, Modal, Table, Tooltip, Typography } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useMyKehadiran } from '../api/absensi'
 import type { Kehadiran } from '../api/types'
 import { fmtTime } from '../constants'
+
+function attendanceIssue(row: Kehadiran): 'Telat' | 'Alpa' | null {
+  if (row.status === 'ALPA') return 'Alpa'
+  if (row.menit_telat > 0) return 'Telat'
+  return null
+}
+
+function IssueMark({ issue }: { issue: 'Telat' | 'Alpa' }) {
+  return (
+    <Tooltip title={issue}>
+      <ExclamationCircleFilled aria-label={issue} style={{ color: '#ff4d4f', fontSize: 14 }} />
+    </Tooltip>
+  )
+}
 
 export default function AbsensiPage() {
   const [bulan, setBulan] = useState<Dayjs>(() => dayjs())
   const [selected, setSelected] = useState<Kehadiran | null>(null)
   const month = bulan.format('YYYY-MM')
   const { data: kehadiran, isLoading } = useMyKehadiran(month)
+  const selectedIssue = selected ? attendanceIssue(selected) : null
 
   return (
     <div>
@@ -46,7 +62,18 @@ export default function AbsensiPage() {
             sorter: (a, b) => a.tanggal.localeCompare(b.tanggal),
             defaultSortOrder: 'ascend',
           },
-          { title: 'Status', dataIndex: 'status_display' },
+          {
+            title: 'Status',
+            render: (_, row) => {
+              const issue = attendanceIssue(row)
+              return (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {row.status_display}
+                  {issue ? <IssueMark issue={issue} /> : null}
+                </span>
+              )
+            },
+          },
           {
             title: 'Shift',
             render: (_, row) =>
@@ -60,7 +87,16 @@ export default function AbsensiPage() {
         ]}
       />
       <Modal
-        title={selected ? `Absensi ${selected.tanggal}` : 'Absensi'}
+        title={
+          selected ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              {`Absensi ${selected.tanggal}`}
+              {selectedIssue ? <IssueMark issue={selectedIssue} /> : null}
+            </span>
+          ) : (
+            'Absensi'
+          )
+        }
         open={selected != null}
         onCancel={() => setSelected(null)}
         footer={null}

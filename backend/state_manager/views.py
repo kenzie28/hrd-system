@@ -11,9 +11,11 @@ from karyawan.permissions import IsAdminAllowed
 from .services import (
     StateError,
     StateImportResult,
+    clear_state_tables,
     export_state_csv,
     extract_password,
     import_state_csv,
+    list_clearable_models,
     password_matches,
     reset_hrd_state,
     serialize_import_result,
@@ -110,3 +112,32 @@ class AdminStateResetView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class AdminStateModelsView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed]
+
+    def get(self, request):
+        if not password_matches(extract_password(request)):
+            return _forbidden()
+        return Response({'models': list_clearable_models()})
+
+
+class AdminStateClearView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed]
+
+    def post(self, request):
+        if not password_matches(extract_password(request)):
+            return _forbidden()
+
+        try:
+            deleted = clear_state_tables(request.data.get('tables'))
+        except ValueError as exc:
+            return Response(
+                {'detail': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({'deleted': deleted}, status=status.HTTP_200_OK)

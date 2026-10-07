@@ -337,3 +337,12 @@ export interface StateImportResult {
   counts: Record<string, number>
   errors: StateImportError[]
 }
+
+export interface StateModelOption {
+  id: string
+  label: string
+}
+
+export interface StateClearResult {
+  deleted: Record<string, number>
+}

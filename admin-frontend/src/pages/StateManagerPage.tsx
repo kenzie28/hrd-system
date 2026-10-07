@@ -12,6 +12,7 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   Form,
   Input,
   Modal,
@@ -23,7 +24,13 @@ import {
 import type { UploadFile, UploadProps } from 'antd'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
-import { useStateExport, useStateImport, useStateReset } from '../api/hooks'
+import {
+  useStateClear,
+  useStateExport,
+  useStateImport,
+  useStateModels,
+  useStateReset,
+} from '../api/hooks'
 import type { StateImportResult } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { ImportErrorCsvDownload } from '../components/ImportErrorCsvDownload'
@@ -131,10 +138,15 @@ export default function StateManagerPage() {
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [result, setResult] = useState<StateImportResult | null>(null)
+  const [selectedModels, setSelectedModels] = useState<string[]>([])
+  const [clearSummary, setClearSummary] = useState<string | null>(null)
 
   const stateExport = useStateExport()
   const stateImport = useStateImport()
   const stateReset = useStateReset()
+  const stateClear = useStateClear()
+  const stateModels = useStateModels(readStoredPassword(), unlocked)
+  const modelOptions = stateModels.data ?? []
 
   useEffect(() => {
     if (!unlocked) {
@@ -233,6 +245,39 @@ export default function StateManagerPage() {
     }
   }
 
+  const runClear = async () => {
+    if (selectedModels.length === 0) return
+    const password = readStoredPassword()
+    const labels = Object.fromEntries(modelOptions.map((model) => [model.id, model.label]))
+    try {
+      const data = await stateClear.mutateAsync({ password, tables: selectedModels })
+      const summary = Object.entries(data.deleted)
+        .map(([id, count]) => `${labels[id] ?? id}: ${count}`)
+        .join(', ')
+      setClearSummary(summary || 'Tidak ada baris yang dihapus.')
+      setSelectedModels([])
+      queryClient.clear()
+      message.success('Model terpilih berhasil dihapus.')
+    } catch (err) {
+      message.error(await errorDetail(err))
+    }
+  }
+
+  const handleClear = () => {
+    if (selectedModels.length === 0) return
+    const labels = modelOptions
+      .filter((model) => selectedModels.includes(model.id))
+      .map((model) => model.label)
+    modal.confirm({
+      title: 'Hapus data model terpilih?',
+      content: `Data berikut akan dihapus permanen: ${labels.join(', ')}. Model lain tidak berubah. Admin 0000003 dan akun loginnya tetap ada.`,
+      okText: 'Hapus',
+      okType: 'danger',
+      cancelText: 'Batal',
+      onOk: runClear,
+    })
+  }
+
   const handleReset = () => {
     modal.confirm({
       title: 'Reset seluruh database HRD?',
@@ -249,8 +294,8 @@ export default function StateManagerPage() {
     <div>
       <Typography.Title level={3}>State Manager</Typography.Title>
       <Typography.Paragraph type="secondary">
-        Unduh snapshot CSV lengkap (karyawan, shift, absensi, gaji, permohonan cuti/lembur,
-        dan data sementara lainnya), atau pulihkan server ke isi file yang pernah diunduh.
+        Unduh snapshot CSV lengkap, pulihkan server dari file itu, hapus model yang
+        dipilih, atau reset seluruh database.
       </Typography.Paragraph>
 
       {unlocked ? (
@@ -304,6 +349,59 @@ export default function StateManagerPage() {
                 Pulihkan state
               </Button>
               {result && !result.ok && <ImportResultPanel result={result} />}
+            </Space>
+          </Card>
+
+          <Card>
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Typography.Title level={5} style={{ margin: 0 }}>
+                Hapus model tertentu
+              </Typography.Title>
+              <Alert
+                type="warning"
+                showIcon
+                message="Hanya model yang dicentang yang dikosongkan."
+                description="Jika model lain masih mereferensi data itu, penghapusan ditolak sampai model tersebut ikut dicentang. Admin 0000003 dan akun loginnya tidak dihapus. Absensi yang dihapus juga menghapus kehadiran yang menaut ke absensi itu. Catatan rekap ikut terhapus bersama rekap."
+              />
+              {stateModels.isError ? (
+                <Alert type="error" showIcon message="Daftar model gagal dimuat." />
+              ) : (
+                <Checkbox
+                  indeterminate={
+                    selectedModels.length > 0 && selectedModels.length < modelOptions.length
+                  }
+                  checked={modelOptions.length > 0 && selectedModels.length === modelOptions.length}
+                  disabled={stateClear.isPending || modelOptions.length === 0}
+                  onChange={(event) =>
+                    setSelectedModels(event.target.checked ? modelOptions.map((model) => model.id) : [])
+                  }
+                >
+                  Pilih semua
+                </Checkbox>
+              )}
+              <Checkbox.Group
+                value={selectedModels}
+                disabled={stateClear.isPending}
+                onChange={(values) => setSelectedModels(values.map(String))}
+                style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                options={modelOptions.map((model) => ({
+                  label: model.label,
+                  value: model.id,
+                }))}
+              />
+              <Button
+                danger
+                type="primary"
+                icon={<DeleteOutlined />}
+                onClick={handleClear}
+                disabled={selectedModels.length === 0}
+                loading={stateClear.isPending}
+              >
+                Hapus model terpilih
+              </Button>
+              {clearSummary ? (
+                <Alert type="success" showIcon message="Model terpilih dihapus" description={clearSummary} />
+              ) : null}
             </Space>
           </Card>
 

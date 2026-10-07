@@ -116,3 +116,44 @@ TABLE_COLUMNS = {
 }
 
 TABLE_ORDER = tuple(TABLE_COLUMNS.keys())
+
+TABLE_KEHADIRAN = 'kehadiran'
+TABLE_REKAP_ABSENSI = 'rekap_absensi'
+
+# id, Indonesian label. Order is the checklist order in State Manager.
+CLEARABLE_MODELS: tuple[tuple[str, str], ...] = (
+    (TABLE_LOKASI, 'Lokasi kerja'),
+    (TABLE_AUTH_USER, 'Akun login'),
+    (TABLE_KARYAWAN, 'Karyawan'),
+    (TABLE_LANGGANAN, 'Langganan kalender'),
+    (TABLE_SHIFT, 'Shift'),
+    (TABLE_LIBURAN, 'Hari libur'),
+    (TABLE_ABSENSI, 'Absensi'),
+    (TABLE_PERMOHONAN_CUTI, 'Permohonan cuti'),
+    (TABLE_NOTIFIKASI_DISMISS, 'Notifikasi ditutup'),
+    (TABLE_CUTI, 'Hari cuti'),
+    (TABLE_PERMOHONAN_LEMBUR, 'Permohonan lembur'),
+    (TABLE_GAJI, 'Gaji'),
+    (TABLE_KEHADIRAN, 'Kehadiran'),
+    (TABLE_REKAP_ABSENSI, 'Rekap absensi'),
+)
+
+CLEARABLE_LABELS = dict(CLEARABLE_MODELS)
+
+# Children before parents so PROTECT / CASCADE parents can be removed afterwards.
+CLEAR_ORDER = (
+    TABLE_REKAP_ABSENSI,
+    TABLE_KEHADIRAN,
+    TABLE_GAJI,
+    TABLE_PERMOHONAN_LEMBUR,
+    TABLE_NOTIFIKASI_DISMISS,
+    TABLE_LANGGANAN,
+    TABLE_CUTI,
+    TABLE_PERMOHONAN_CUTI,
+    TABLE_ABSENSI,
+    TABLE_SHIFT,
+    TABLE_LIBURAN,
+    TABLE_KARYAWAN,
+    TABLE_AUTH_USER,
+    TABLE_LOKASI,
+)

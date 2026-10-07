@@ -12,7 +12,9 @@ import type {
   GajiImportResult,
   GajiTemp,
   Karyawan,
+  StateClearResult,
   StateImportResult,
+  StateModelOption,
   KaryawanImportResult,
   KaryawanWrite,
   Liburan,
@@ -1008,6 +1010,32 @@ export function useStateReset() {
       const response = await api.post<{ detail: string }>(
         '/admin/state/reset/',
         { password },
+        { headers: { [STATE_PASSWORD_HEADER]: password } },
+      )
+      return response.data
+    },
+  })
+}
+
+export function useStateModels(password: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['state-models'],
+    enabled: enabled && password.length > 0,
+    queryFn: async () => {
+      const response = await api.get<{ models: StateModelOption[] }>('/admin/state/models/', {
+        headers: { [STATE_PASSWORD_HEADER]: password },
+      })
+      return response.data.models
+    },
+  })
+}
+
+export function useStateClear() {
+  return useMutation({
+    mutationFn: async ({ password, tables }: { password: string; tables: string[] }) => {
+      const response = await api.post<StateClearResult>(
+        '/admin/state/clear/',
+        { tables, password },
         { headers: { [STATE_PASSWORD_HEADER]: password } },
       )
       return response.data

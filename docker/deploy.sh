@@ -2,7 +2,7 @@
 # =============================================================================
 # Deploy (start) the HRD System Docker Compose stack.
 # =============================================================================
-# Brings up mysql, backend, admin-frontend, and portal-frontend as containers.
+# Brings up the stack with restart=always so a terminated container comes back.
 # Ensures docker/.env exists and has required secrets (API_KEY,
 # DJANGO_SECRET_KEY) the same way ./build.sh does.
 #
@@ -97,6 +97,23 @@ compose() {
     docker compose -p "${COMPOSE_PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
 }
 
+# Compose only applies restart policy when it creates or recreates a
+# container. Update whatever is already there so a long-running stack picks
+# up restart=always without a recreate.
+enforce_restart_always() {
+    local ids
+    ids="$(compose ps -aq)"
+    if [ -z "${ids}" ]; then
+        echo "WARNING: no containers found to set restart=always."
+        return
+    fi
+    # shellcheck disable=SC2086
+    docker update --restart=always ${ids} >/dev/null
+    echo "==> Restart policy:"
+    # shellcheck disable=SC2086
+    docker inspect --format '  {{slice .Name 1}} {{.HostConfig.RestartPolicy.Name}}' ${ids}
+}
+
 env_value() {
     local key="$1"
     local default="${2:-}"
@@ -148,6 +165,13 @@ if [ "${DO_STATUS}" = true ]; then
         exit 1
     fi
     compose ps
+    echo ""
+    ids="$(compose ps -aq)"
+    if [ -n "${ids}" ]; then
+        echo "Restart policies:"
+        # shellcheck disable=SC2086
+        docker inspect --format '  {{slice .Name 1}} {{.HostConfig.RestartPolicy.Name}}' ${ids}
+    fi
     exit 0
 fi
 
@@ -166,6 +190,8 @@ if [ "${DO_DOWN}" = true ]; then
         exit 1
     fi
     echo "==> Stopping HRD System containers..."
+    # Stop the restarter first so it cannot start containers down is removing.
+    compose stop ensure-running >/dev/null 2>&1 || true
     compose down
     echo "Containers stopped. MySQL data volume was kept."
     exit 0
@@ -177,7 +203,10 @@ if [ "${DO_RESTART}" = true ]; then
         exit 1
     fi
     echo "==> Restarting HRD System containers..."
+    # up starts anything that was exited (restart alone skips those).
+    compose up -d --no-build --remove-orphans
     compose restart
+    enforce_restart_always
     compose ps
     print_urls
     exit 0
@@ -257,6 +286,7 @@ echo ""
 # `./build.sh` (git pull + ./deploy.sh is enough after env secrets exist).
 echo "==> Building images and starting containers..."
 compose up -d --build --remove-orphans
+enforce_restart_always
 
 echo ""
 echo "==> Waiting for services to become healthy..."

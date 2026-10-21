@@ -1,11 +1,16 @@
 # =============================================================================
 # HRD System — self-hosted Docker Compose stack
 # =============================================================================
-# 4 services:
+# 5 services:
 #   mysql            - MySQL 8, data persisted on the `hrd-system-db` volume
 #   backend           - Django REST API (gunicorn), requires an API key
 #   admin-frontend    - HR admin SPA (nginx) — proxies /api → backend
 #   portal-frontend   - Employee SPA (nginx) — proxies /api → backend
+#   ensure-running    - starts any stack container Docker left exited
+#
+# restart: always — dockerd starts the container again after a crash and
+# after the daemon itself restarts. An explicit stop (nginx logs this as
+# SIGQUIT) is not started again by that policy; ensure-running does that.
 #
 # Zero-config path:
 #   git pull && ./build.sh && ./deploy.sh
@@ -28,7 +33,7 @@ name: docker-hrd-system
 services:
   mysql:
     image: mysql:8.0
-    restart: unless-stopped
+    restart: always
     environment:
       MYSQL_DATABASE: ${DB_NAME:-hrd_system}
       MYSQL_USER: ${DB_USER:-admin}
@@ -46,7 +51,7 @@ services:
     build:
       context: ..
       dockerfile: docker/backend/Dockerfile
-    restart: unless-stopped
+    restart: always
     depends_on:
       mysql:
         condition: service_healthy
@@ -72,7 +77,7 @@ services:
     build:
       context: ..
       dockerfile: docker/admin-frontend/Dockerfile
-    restart: unless-stopped
+    restart: always
     depends_on:
       - backend
     environment:
@@ -85,13 +90,29 @@ services:
     build:
       context: ..
       dockerfile: docker/portal-frontend/Dockerfile
-    restart: unless-stopped
+    restart: always
     depends_on:
       - backend
     environment:
       API_KEY: ${API_KEY:?API_KEY is required, run ./build.sh first}
     ports:
       - "${PORTAL_FRONTEND_PORT:-5129}:80"
+
+  # nginx's image stops on SIGQUIT. Docker then treats that as a manual stop
+  # and will not start the container again until dockerd itself restarts,
+  # which leaves the public proxy returning 502. This sidecar starts exited
+  # containers in *this* Compose project only. ./deploy.sh --down stops it
+  # before removing the rest, and it waits through several passes so a
+  # normal shutdown can delete containers before they are started again.
+  ensure-running:
+    image: docker:27-cli
+    restart: always
+    init: true
+    stop_grace_period: 5s
+    entrypoint: ["/bin/sh", "/ensure-running.sh"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./ensure-running.sh:/ensure-running.sh:ro
 
 volumes:
   hrd_system_db:

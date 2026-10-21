@@ -7,7 +7,7 @@
 #
 # What it does:
 #   1. Builds images (same Dockerfiles as production)
-#   2. Starts mysql + backend + admin-frontend + portal-frontend
+#   2. Starts mysql, backend, both frontends, and ensure-running
 #   3. Waits until the backend can serve /api (migrations + seed finished)
 #   4. Hits healthz, SPA, API-key, login, /me, and lokasi through the nginx
 #      proxies — the same path a browser uses
@@ -243,6 +243,8 @@ cleanup() {
     fi
     echo ""
     info "Tearing down test stack (containers + hrd-system-db-test volume)..."
+    # Stop the restarter first so it cannot start containers down is removing.
+    compose stop ensure-running >/dev/null 2>&1 || true
     compose down -v --remove-orphans >/dev/null 2>&1 || true
 }
 
@@ -371,11 +373,17 @@ echo ""
 set +e
 
 # Containers should be running, not restarting.
-running_count="$(compose ps --status running --format '{{.Name}}' 2>/dev/null | wc -l | tr -d ' ')"
-if [ "${running_count}" -ge 4 ]; then
-    pass "all 4 services running (${running_count} containers)"
+running_names="$(compose ps --status running --format '{{.Name}}' 2>/dev/null || true)"
+missing=""
+for svc in mysql backend admin-frontend portal-frontend ensure-running; do
+    if ! printf '%s\n' "${running_names}" | grep -F -q -- "-${svc}-"; then
+        missing="${missing} ${svc}"
+    fi
+done
+if [ -z "${missing}" ]; then
+    pass "mysql, backend, both frontends, and ensure-running are running"
 else
-    fail "expected 4 running containers, got ${running_count}"
+    fail "not running:${missing}"
     compose ps
 fi
 
@@ -541,6 +549,38 @@ if [ "${HTTP_CODE}" = "200" ] && echo "${CURL_BODY}" | grep -qi 'Django'; then
     pass "Django admin login page → 200"
 else
     fail "GET /django-admin/login/ → HTTP ${HTTP_CODE}"
+fi
+
+# Docker does not start a manually stopped container (nginx logs that stop
+# as SIGQUIT). ensure-running must bring the backend back without another deploy.
+info "Stopping backend; ensure-running should start it again (about a minute)..."
+set +e
+compose stop backend >/dev/null 2>&1
+stop_rc=$?
+set -e
+if [ "${stop_rc}" -ne 0 ]; then
+    fail "could not stop backend to test restart"
+else
+    came_back=false
+    stopped_at="$(date +%s)"
+    for _attempt in $(seq 1 30); do
+        curl_status POST "${ADMIN_URL}/api/admin/login/" \
+            -H 'Content-Type: application/json' \
+            -d '{"karyawan_id":"x","password":"x"}'
+        if [ "${HTTP_CODE}" = "401" ] && echo "${CURL_BODY}" | grep -q 'invalid_username'; then
+            came_back=true
+            echo "    backend answered again after ~$(( $(date +%s) - stopped_at ))s"
+            break
+        fi
+        sleep 5
+    done
+    if [ "${came_back}" = true ]; then
+        pass "stopped backend came back through the admin proxy"
+    else
+        fail "backend stayed down after stop (last HTTP ${HTTP_CODE})"
+        compose ps || true
+        compose logs --tail=50 ensure-running backend || true
+    fi
 fi
 
 set -e

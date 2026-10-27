@@ -28,6 +28,7 @@ import {
   useStateClear,
   useStateExport,
   useStateImport,
+  useStateKaryawanExport,
   useStateModels,
   useStateReset,
 } from '../api/hooks'
@@ -142,6 +143,7 @@ export default function StateManagerPage() {
   const [clearSummary, setClearSummary] = useState<string | null>(null)
 
   const stateExport = useStateExport()
+  const stateKaryawanExport = useStateKaryawanExport()
   const stateImport = useStateImport()
   const stateReset = useStateReset()
   const stateClear = useStateClear()
@@ -167,19 +169,34 @@ export default function StateManagerPage() {
     setUnlocked(true)
   }
 
+  const saveDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   const handleDownload = async () => {
     const password = readStoredPassword()
     try {
       const { blob, filename } = await stateExport.mutateAsync({ password })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
+      saveDownload(blob, filename)
       message.success('CSV state berhasil diunduh.')
+    } catch (err) {
+      message.error(await errorDetail(err))
+    }
+  }
+
+  const handleDownloadKaryawan = async () => {
+    const password = readStoredPassword()
+    try {
+      const { blob, filename } = await stateKaryawanExport.mutateAsync({ password })
+      saveDownload(blob, filename)
+      message.success('CSV karyawan berhasil diunduh.')
     } catch (err) {
       message.error(await errorDetail(err))
     }
@@ -294,8 +311,8 @@ export default function StateManagerPage() {
     <div>
       <Typography.Title level={3}>State Manager</Typography.Title>
       <Typography.Paragraph type="secondary">
-        Unduh snapshot CSV lengkap, pulihkan server dari file itu, hapus model yang
-        dipilih, atau reset seluruh database.
+        Unduh snapshot CSV lengkap atau data karyawan, pulihkan server dari file
+        state, hapus model yang dipilih, atau reset seluruh database.
       </Typography.Paragraph>
 
       {unlocked ? (
@@ -316,6 +333,27 @@ export default function StateManagerPage() {
                 loading={stateExport.isPending}
               >
                 Unduh CSV
+              </Button>
+            </Space>
+          </Card>
+
+          <Card>
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Typography.Title level={5} style={{ margin: 0 }}>
+                Unduh data karyawan
+              </Typography.Title>
+              <Typography.Text type="secondary">
+                File CSV berisi seluruh karyawan: karyawan_id, nama, level, jabatan,
+                wilayah, lokasi_kerja, dan cuti_tahunan. Formatnya sama dengan
+                unggahan pembaruan karyawan.
+              </Typography.Text>
+              <Button
+                type="primary"
+                icon={<DownloadOutlined />}
+                onClick={handleDownloadKaryawan}
+                loading={stateKaryawanExport.isPending}
+              >
+                Unduh CSV karyawan
               </Button>
             </Space>
           </Card>

@@ -980,6 +980,22 @@ export function useStateExport() {
   })
 }
 
+export function useStateKaryawanExport() {
+  return useMutation({
+    mutationFn: async ({ password }: { password: string }) => {
+      const response = await api.get<Blob>('/admin/state/karyawan/export/', {
+        params: { password },
+        headers: { [STATE_PASSWORD_HEADER]: password },
+        responseType: 'blob',
+      })
+      const filename =
+        filenameFromDisposition(response.headers['content-disposition']) ??
+        'karyawan.csv'
+      return { blob: response.data, filename }
+    },
+  })
+}
+
 export function useStateImport() {
   return useMutation({
     mutationFn: async ({ file, password }: { file: File; password: string }) => {

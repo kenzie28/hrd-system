@@ -12,6 +12,7 @@ from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from gaji.models import GajiTemp
 from kalender_bersama.models import Langganan, NotifikasiDismiss
 from karyawan.models import Karyawan
+from karyawan.services import import_karyawan_update_csv
 from lembur.models import PermohonanLembur, StatusPermohonanLembur
 from liburan.models import Liburan
 from lokasi.models import Lokasi
@@ -118,6 +119,52 @@ class StateManagerApiTests(TestCase):
             '/api/admin/state/export/', {'password': 'wrong'}
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_karyawan_export_requires_password(self):
+        response = self.client.get('/api/admin/state/karyawan/export/')
+        self.assertEqual(response.status_code, 403)
+
+        response = self.client.get(
+            '/api/admin/state/karyawan/export/', {'password': 'wrong'}
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_karyawan_export_lists_every_employee(self):
+        response = self.client.get(
+            '/api/admin/state/karyawan/export/',
+            {'password': STATE_MANAGER_PASSWORD},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('text/csv', response['Content-Type'])
+        self.assertIn('karyawan-', response['Content-Disposition'])
+        body = response.content.decode('utf-8')
+        lines = body.splitlines()
+        self.assertEqual(
+            lines[0],
+            'karyawan_id,nama,level,jabatan,wilayah,lokasi_kerja,cuti_tahunan',
+        )
+        self.assertIn('0000003,Kenzie Mihardja,8,Director,,99,10', body)
+        self.assertIn('1000001,Budi Santoso,1,Staff,JKT,99,12', body)
+        self.assertEqual(len(lines), 3)
+        self.assertNotIn(self.admin_password_hash, body)
+
+    def test_karyawan_export_round_trips_through_update_import(self):
+        response = self.client.get(
+            '/api/admin/state/karyawan/export/',
+            {'password': STATE_MANAGER_PASSWORD},
+        )
+        self.worker.nama = 'CHANGED'
+        self.worker.cuti_tahunan = 1
+        self.worker.lokasi_kerja = None
+        self.worker.save()
+
+        result = import_karyawan_update_csv(BytesIO(response.content))
+        self.assertTrue(result.ok, result.errors)
+        self.assertEqual(result.updated, 2)
+        self.worker.refresh_from_db()
+        self.assertEqual(self.worker.nama, 'Budi Santoso')
+        self.assertEqual(self.worker.cuti_tahunan, 12)
+        self.assertEqual(self.worker.lokasi_kerja_id, '99')
 
     def test_export_includes_pending_cuti_and_lembur(self):
         response = self.client.get(

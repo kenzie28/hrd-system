@@ -32,6 +32,37 @@ UPDATE_OPTIONAL_COLUMNS = [
 ]
 
 
+KARYAWAN_EXPORT_COLUMNS = [
+    COL_KARYAWAN_ID,
+    COL_NAMA,
+    COL_LEVEL,
+    COL_JABATAN,
+    COL_WILAYAH,
+    COL_LOKASI,
+    COL_CUTI,
+]
+
+
+def export_karyawan_csv() -> str:
+    """Serialize every Karyawan row as a flat CSV the update importer accepts."""
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator='\n')
+    writer.writerow(KARYAWAN_EXPORT_COLUMNS)
+    for obj in Karyawan.objects.order_by('karyawan_id'):
+        writer.writerow(
+            [
+                obj.karyawan_id,
+                obj.nama,
+                obj.level,
+                obj.jabatan,
+                obj.wilayah,
+                obj.lokasi_kerja_id or '',
+                obj.cuti_tahunan,
+            ]
+        )
+    return buf.getvalue()
+
+
 def create_portal_login(karyawan, password=DEFAULT_PORTAL_PASSWORD):
     """Create (or reset) the Django User used to log into the employee portal.
 

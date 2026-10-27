@@ -43,6 +43,7 @@ from state_manager.views import (
     AdminStateClearView,
     AdminStateExportView,
     AdminStateImportView,
+    AdminStateKaryawanExportView,
     AdminStateModelsView,
     AdminStateResetView,
 )
@@ -165,6 +166,11 @@ admin_api_urlpatterns = [
         'admin/state/export/',
         AdminStateExportView.as_view(),
         name='admin-state-export',
+    ),
+    path(
+        'admin/state/karyawan/export/',
+        AdminStateKaryawanExportView.as_view(),
+        name='admin-state-karyawan-export',
     ),
     path(
         'admin/state/import/',

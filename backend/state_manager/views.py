@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from karyawan.permissions import IsAdminAllowed
+from karyawan.services import export_karyawan_csv
 
 from .services import (
     StateError,
@@ -39,6 +40,21 @@ class AdminStateExportView(APIView):
 
         csv_text = export_state_csv()
         filename = timezone.localtime().strftime('hrd-state-%Y%m%d-%H%M%S.csv')
+        response = HttpResponse(csv_text, content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+class AdminStateKaryawanExportView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed]
+
+    def get(self, request):
+        if not password_matches(extract_password(request)):
+            return _forbidden()
+
+        csv_text = export_karyawan_csv()
+        filename = timezone.localtime().strftime('karyawan-%Y%m%d-%H%M%S.csv')
         response = HttpResponse(csv_text, content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response

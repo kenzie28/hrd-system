@@ -21,7 +21,8 @@ class AbsensiSerializer(serializers.ModelSerializer):
             'tanggal', 'jam_masuk', 'durasi', 'jam_keluar', 'keluar_hari_offset',
         ]
         # Uniqueness is enforced in the DB; create is idempotent in the view
-        # (get_or_create) and must not fail validation on exact duplicates.
+        # (same karyawan, lokasi, tanggal, and jam masuk/keluar to the minute)
+        # and must not fail validation on those duplicates.
         validators = []
 
 

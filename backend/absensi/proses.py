@@ -19,6 +19,16 @@ from lembur.models import PermohonanLembur, StatusPermohonanLembur
 from liburan.models import Liburan
 from shift.models import HariKerja, Shift
 
+from .engine import (
+    FULL_DAY_LEAVE,
+    WEEKDAY_TO_HARI,
+    aggregate_month,
+    best_match,
+    closed_through,
+    iter_days,
+    materialize_day,
+    whole_minutes,
+)
 from .models import Absensi, CatatanRekapAbsensi, RekapAbsensi
 
 _WEEKDAY_TO_HARI = {
@@ -184,114 +194,31 @@ def _day_notes(
 
 
 @transaction.atomic
-def proses_absensi_bulan(month_start: date) -> list[RekapAbsensi]:
-    """Replace every employee's RekapAbsensi for ``month_start`` (day must be 1)."""
+def proses_absensi_bulan(
+    month_start: date, *, today: date | None = None
+) -> list[RekapAbsensi]:
+    """Compatibility reconciliation through the last closed date in the month."""
     if month_start.day != 1:
         raise ValueError('month_start must be the first day of the month')
 
-    start, end = _month_bounds(month_start)
     karyawan_list = list(
         Karyawan.objects.select_related('lokasi_kerja').order_by('nama', 'karyawan_id')
     )
-    lokasi_ids = {k.lokasi_kerja_id for k in karyawan_list if k.lokasi_kerja_id}
-
-    shift_map: dict[tuple[str, str], list[Shift]] = defaultdict(list)
-    if lokasi_ids:
-        for shift in Shift.objects.filter(lokasi_kerja_id__in=lokasi_ids):
-            shift_map[(shift.lokasi_kerja_id, shift.hari)].append(shift)
-
-    punch_map: dict[tuple[str, date], list[Absensi]] = defaultdict(list)
-    for punch in Absensi.objects.filter(tanggal__gte=start, tanggal__lte=end).select_related(
-        'lokasi'
-    ):
-        punch_map[(punch.karyawan_id, punch.tanggal)].append(punch)
-
-    liburan = set(
-        Liburan.objects.filter(tanggal__gte=start, tanggal__lte=end).values_list(
-            'tanggal', flat=True
-        )
-    )
-
-    full_day: set[tuple[str, date]] = set()
-    izin_telat: set[tuple[str, date]] = set()
-    izin_pulang: set[tuple[str, date]] = set()
-    cuti_rows = Cuti.objects.filter(
-        tanggal__gte=start,
-        tanggal__lte=end,
-        permohonan__status=StatusPermohonanCuti.APPROVED,
-    ).select_related('permohonan')
-    for row in cuti_rows:
-        key = (row.permohonan.karyawan_id, row.tanggal)
-        if row.permohonan.tipe in _FULL_DAY_LEAVE:
-            full_day.add(key)
-        elif row.permohonan.tipe == TipeCuti.IZIN_TELAT:
-            izin_telat.add(key)
-        elif row.permohonan.tipe == TipeCuti.IZIN_PULANG_CEPAT:
-            izin_pulang.add(key)
-
-    approved_lembur = set(
-        PermohonanLembur.objects.filter(
-            tanggal__gte=start,
-            tanggal__lte=end,
-            status=StatusPermohonanLembur.APPROVED,
-        ).values_list('karyawan_id', 'tanggal')
-    )
-
-    saved_ids: list[int] = []
+    cutoff = closed_through(month_start, today)
+    saved = []
     for karyawan in karyawan_list:
-        counts = {
-            'hari_hadir': 0,
-            'hari_telat': 0,
-            'hari_alpa': 0,
-            'hari_keluar_cepat': 0,
-            'total_menit_telat': 0,
-            'total_menit_lembur': 0,
-        }
-        notes: list[tuple[date | None, str]] = []
-
-        if not karyawan.lokasi_kerja_id:
-            notes.append((None, _NO_LOKASI))
-        else:
-            for day in _iter_days(start, end):
-                if day in liburan:
-                    continue
-                key = (karyawan.karyawan_id, day)
-                if key in full_day:
-                    continue
-                hari = _WEEKDAY_TO_HARI[day.weekday()]
-                shifts = shift_map.get((karyawan.lokasi_kerja_id, hari))
-                if not shifts:
-                    continue
-                day_counts, day_notes = _day_notes(
-                    day,
-                    shifts,
-                    punch_map.get(key, []),
-                    izin_telat=key in izin_telat,
-                    izin_pulang_cepat=key in izin_pulang,
-                    lembur_approved=key in approved_lembur,
-                )
-                for name, value in day_counts.items():
-                    counts[name] += value
-                notes.extend(day_notes)
-
-        rekap, _created = RekapAbsensi.objects.update_or_create(
-            karyawan=karyawan,
-            month=month_start,
-            defaults=counts,
-        )
-        rekap.catatan.all().delete()
-        if notes:
-            CatatanRekapAbsensi.objects.bulk_create(
-                [
-                    CatatanRekapAbsensi(rekap=rekap, tanggal=tanggal, pesan=pesan)
-                    for tanggal, pesan in notes
-                ]
+        notes_by_day = {}
+        if cutoff is not None:
+            for day in iter_days(month_start, cutoff):
+                _outcome, evaluation = materialize_day(karyawan, day, today=today)
+                notes_by_day[day] = evaluation.notes
+        saved.append(
+            aggregate_month(
+                karyawan,
+                month_start,
+                today=today,
+                notes_by_day=notes_by_day,
+                replace_all_notes=True,
             )
-        saved_ids.append(rekap.pk)
-
-    return list(
-        RekapAbsensi.objects.filter(pk__in=saved_ids)
-        .select_related('karyawan')
-        .prefetch_related('catatan')
-        .order_by('karyawan__nama', 'karyawan_id')
-    )
+        )
+    return saved

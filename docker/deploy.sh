@@ -7,7 +7,7 @@
 # DJANGO_SECRET_KEY) the same way ./build.sh does.
 #
 # Usage:
-#   ./deploy.sh              # start (or recreate) the stack
+#   ./deploy.sh              # create missing migrations, then start the stack
 #   ./deploy.sh --build      # rebuild images, then start
 #   ./deploy.sh --down       # stop and remove containers (keeps mysql volume)
 #   ./deploy.sh --restart    # restart running containers
@@ -95,6 +95,60 @@ fi
 
 compose() {
     docker compose -p "${COMPOSE_PROJECT_NAME}" --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
+}
+
+# Write any missing migration files into the host source tree, then the image
+# build below packages those files. Generating them only inside a running
+# container would change the database without surviving the next rebuild.
+ensure_model_migrations() {
+    local backend_dir snapshot_before snapshot_after
+    backend_dir="$(cd "${SCRIPT_DIR}/../backend" && pwd)"
+    echo "==> Checking Django models for missing migrations..."
+    compose build backend
+    snapshot_before="$(
+        find "${backend_dir}" -path '*/migrations/*.py' -type f ! -name '__init__.py' -printf '%p %s\n' | sort
+    )"
+    # Start MySQL first. makemigrations compares the files with migration
+    # history, and --no-deps would only produce a connection warning.
+    compose run --rm -T \
+        --user "$(id -u):$(id -g)" \
+        --entrypoint bash \
+        -e PYTHONDONTWRITEBYTECODE=1 \
+        -e HOME=/tmp \
+        -v "${backend_dir}:/app/backend" \
+        backend \
+        -c 'python manage.py makemigrations --noinput && python manage.py makemigrations --check --dry-run'
+    snapshot_after="$(
+        find "${backend_dir}" -path '*/migrations/*.py' -type f ! -name '__init__.py' -printf '%p %s\n' | sort
+    )"
+    if [ "${snapshot_before}" != "${snapshot_after}" ]; then
+        echo "==> makemigrations wrote new files under backend/*/migrations/."
+        echo "    This deploy includes them. Commit the files so every machine uses the same schema."
+    else
+        echo "==> Migrations already match the models."
+    fi
+}
+
+wait_for_schema() {
+    local attempt schema_log
+    schema_log="$(mktemp)"
+    echo ""
+    echo "==> Waiting until migrations are applied and every model table exists..."
+    for attempt in $(seq 1 90); do
+        if compose exec -T backend python manage.py ensure_schema --verify-only >"${schema_log}" 2>&1; then
+            echo "    schema ready after ~$((attempt * 2))s"
+            rm -f "${schema_log}"
+            return 0
+        fi
+        sleep 2
+    done
+    echo "Error: database schema was not ready after 3 minutes."
+    echo "----- last schema check -----"
+    cat "${schema_log}" || true
+    echo "----- backend logs -----"
+    compose logs --tail=120 backend || true
+    rm -f "${schema_log}"
+    exit 1
 }
 
 # Compose only applies restart policy when it creates or recreates a
@@ -282,16 +336,17 @@ echo "Deploying HRD System"
 echo "=============================================="
 echo ""
 
-# Always rebuild so SPA/API proxy/entrypoint fixes ship without a separate
-# `./build.sh` (git pull + ./deploy.sh is enough after env secrets exist).
+ensure_model_migrations
+
+# Always rebuild so SPA/API proxy/entrypoint fixes and new migration files
+# ship without a separate `./build.sh`.
 echo "==> Building images and starting containers..."
 compose up -d --build --remove-orphans
 enforce_restart_always
+wait_for_schema
 
 echo ""
-echo "==> Waiting for services to become healthy..."
-# Give mysql healthcheck + backend migrations a moment, then show status.
-sleep 5
+echo "==> Service status:"
 compose ps
 
 # Smoke-test same-origin API proxy through the admin frontend container.

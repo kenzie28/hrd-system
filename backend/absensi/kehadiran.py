@@ -18,6 +18,7 @@ from lembur.models import PermohonanLembur, StatusPermohonanLembur
 from liburan.models import Liburan
 from shift.models import Shift
 
+from .engine import aggregate_month, iter_days, materialize_day, month_start
 from .models import Absensi, Kehadiran, StatusKehadiran
 from .proses import (
     _FULL_DAY_LEAVE,
@@ -130,23 +131,12 @@ def _store_day(existing: Kehadiran | None, karyawan, day: date, desired: dict) -
 
 @transaction.atomic
 def proses_kehadiran(today: date | None = None) -> dict[str, int]:
-    """Ensure one Kehadiran per employee per shift-day before ``today``.
-
-    Returns how many Hadir, Cuti, and Alpa rows were created. Months that
-    changed have their RekapAbsensi rebuilt.
-    """
+    """Compatibility reconciliation of historical days before ``today``."""
     if today is None:
         today = timezone.localdate()
 
     counts = {'hadir': 0, 'cuti': 0, 'alpa': 0}
     karyawan_list = list(Karyawan.objects.select_related('lokasi_kerja'))
-    lokasi_ids = {k.lokasi_kerja_id for k in karyawan_list if k.lokasi_kerja_id}
-
-    shift_map: dict[tuple[str, str], list[Shift]] = defaultdict(list)
-    if lokasi_ids:
-        for shift in Shift.objects.filter(lokasi_kerja_id__in=lokasi_ids):
-            shift_map[(shift.lokasi_kerja_id, shift.hari)].append(shift)
-
     earliest_absensi = Absensi.objects.filter(tanggal__lt=today).aggregate(Min('tanggal'))
     earliest_cuti = Cuti.objects.filter(
         tanggal__lt=today,
@@ -166,74 +156,20 @@ def proses_kehadiran(today: date | None = None) -> dict[str, int]:
     if start > yesterday:
         return counts
 
-    liburan = set(
-        Liburan.objects.filter(tanggal__gte=start, tanggal__lt=today).values_list(
-            'tanggal', flat=True
-        )
-    )
-
-    full_day: dict[tuple[str, date], Cuti] = {}
-    izin_telat: dict[tuple[str, date], Cuti] = {}
-    izin_pulang: dict[tuple[str, date], Cuti] = {}
-    for row in Cuti.objects.filter(
-        tanggal__gte=start,
-        tanggal__lt=today,
-        permohonan__status=StatusPermohonanCuti.APPROVED,
-    ).select_related('permohonan'):
-        key = (row.permohonan.karyawan_id, row.tanggal)
-        if row.permohonan.tipe in _FULL_DAY_LEAVE:
-            full_day[key] = row
-        elif row.permohonan.tipe == TipeCuti.IZIN_TELAT:
-            izin_telat[key] = row
-        elif row.permohonan.tipe == TipeCuti.IZIN_PULANG_CEPAT:
-            izin_pulang[key] = row
-
-    lembur_map: dict[tuple[str, date], PermohonanLembur] = {}
-    for permohonan in PermohonanLembur.objects.filter(
-        tanggal__gte=start,
-        tanggal__lt=today,
-        status=StatusPermohonanLembur.APPROVED,
-    ):
-        lembur_map[(permohonan.karyawan_id, permohonan.tanggal)] = permohonan
-
-    punch_map: dict[tuple[str, date], list[Absensi]] = defaultdict(list)
-    for punch in Absensi.objects.filter(tanggal__gte=start, tanggal__lt=today):
-        punch_map[(punch.karyawan_id, punch.tanggal)].append(punch)
-
-    existing_map = {
-        (row.karyawan_id, row.tanggal): row
-        for row in Kehadiran.objects.filter(tanggal__gte=start, tanggal__lt=today)
-    }
-
-    touched: set[date] = set()
+    touched: dict[tuple[str, date], dict[date, tuple[str, ...]]] = defaultdict(dict)
     for karyawan in karyawan_list:
-        if not karyawan.lokasi_kerja_id:
-            continue
-        for day in _iter_days(start, yesterday):
-            if day in liburan:
-                continue
-            hari = _WEEKDAY_TO_HARI[day.weekday()]
-            shifts = shift_map.get((karyawan.lokasi_kerja_id, hari))
-            if not shifts:
-                continue
-            key = (karyawan.karyawan_id, day)
-            desired = _compose_day(
-                day,
-                shifts,
-                punch_map.get(key, []),
-                full_day=full_day.get(key),
-                izin_telat=izin_telat.get(key),
-                izin_pulang=izin_pulang.get(key),
-                permohonan=lembur_map.get(key),
-            )
-            outcome = _store_day(existing_map.get(key), karyawan, day, desired)
+        for day in iter_days(start, yesterday):
+            outcome, evaluation = materialize_day(karyawan, day, today=today)
             if outcome == 'created':
-                counts[_status_key(desired['status'])] += 1
-                touched.add(day)
-            elif outcome == 'updated':
-                touched.add(day)
+                counts[_status_key(evaluation.values['status'])] += 1
+            if outcome != 'same':
+                touched[(karyawan.pk, month_start(day))][day] = evaluation.notes
 
-    _rebuild_rekap(touched)
+    by_id = {row.pk: row for row in karyawan_list}
+    for (karyawan_id, month), notes in touched.items():
+        aggregate_month(
+            by_id[karyawan_id], month, today=today, notes_by_day=notes
+        )
     return counts
 
 

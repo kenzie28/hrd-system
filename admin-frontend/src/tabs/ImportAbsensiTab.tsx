@@ -29,7 +29,7 @@ function failureSummary(result: AbsensiImportResult) {
   return `Validasi data gagal pada ${result.errors.length} baris — tidak ada data disimpan.`
 }
 
-function ImportResultPanel({ result }: { result: AbsensiImportResult }) {
+export function ImportResultPanel({ result }: { result: AbsensiImportResult }) {
   if (result.ok) {
     return (
       <Alert

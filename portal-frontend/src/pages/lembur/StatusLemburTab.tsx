@@ -27,7 +27,12 @@ export default function StatusLemburTab() {
       pagination={{ pageSize: 10 }}
       scroll={{ x: true }}
       columns={[
-        { title: 'Tanggal', dataIndex: 'tanggal' },
+        {
+          title: 'Tanggal',
+          dataIndex: 'tanggal',
+          sorter: (a, b) => a.tanggal.localeCompare(b.tanggal),
+          defaultSortOrder: 'descend',
+        },
         {
           title: 'Supervisor',
           dataIndex: 'supervisor_nama',

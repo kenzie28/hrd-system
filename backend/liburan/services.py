@@ -8,6 +8,8 @@ from datetime import date, datetime
 
 from django.db import transaction
 
+from absensi.invalidation import enqueue_holiday_days
+
 from .models import Liburan
 
 COL_NAMA = 'nama'
@@ -156,5 +158,6 @@ def import_liburan_csv(upload) -> LiburanImportResult:
 
     with transaction.atomic():
         Liburan.objects.bulk_create(to_create)
+        enqueue_holiday_days(row.tanggal for row in to_create)
     result.created = len(to_create)
     return result

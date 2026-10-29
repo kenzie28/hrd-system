@@ -30,9 +30,8 @@ else:
     sys.exit("MySQL did not become ready in time.")
 PY
 
-# migrate + verify tables exist. If django_migrations says apps are applied but
-# tables are missing (common with a half-initialized mysql volume), history for
-# those apps is reset and migrations are re-applied before seeding.
+# Apply committed migrations and refuse to serve until every model table exists.
+# ./deploy.sh creates any missing migration files before this image is built.
 echo "==> Ensuring database schema (migrate + table check)..."
 python manage.py ensure_schema
 

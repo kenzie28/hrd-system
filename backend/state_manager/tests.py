@@ -198,8 +198,10 @@ class StateManagerApiTests(TestCase):
         self.assertTrue(Lokasi.objects.filter(id='XX').exists())
         self.assertEqual(Karyawan.objects.get(pk='1000001').nama, 'CHANGED')
 
-        result = import_state_csv(csv_text)
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            result = import_state_csv(csv_text)
         self.assertTrue(result.ok, result.errors)
+        self.assertEqual(len(callbacks), 1)
 
         self.assertFalse(Lokasi.objects.filter(id='XX').exists())
         worker = Karyawan.objects.get(pk='1000001')
@@ -303,13 +305,15 @@ class StateManagerApiTests(TestCase):
         self.assertTrue(User.objects.filter(username='djangoadmin').exists())
 
     def test_reset_clears_state_and_preserves_seed_admin_login(self):
-        response = self.client.post(
-            '/api/admin/state/reset/',
-            {'password': STATE_MANAGER_PASSWORD},
-            format='json',
-        )
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            response = self.client.post(
+                '/api/admin/state/reset/',
+                {'password': STATE_MANAGER_PASSWORD},
+                format='json',
+            )
 
         self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(len(callbacks), 1)
         admin = Karyawan.objects.get()
         self.assertEqual(admin.karyawan_id, '0000003')
         self.assertEqual(admin.nama, 'Kenzie Mihardja')
@@ -389,8 +393,10 @@ class StateManagerApiTests(TestCase):
             hari_hadir=1,
         )
 
-        response = self._clear(['absensi', 'liburan'])
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            response = self._clear(['absensi', 'liburan'])
         self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(len(callbacks), 1)
         self.assertEqual(response.json()['deleted']['absensi'], 1)
         self.assertEqual(response.json()['deleted']['liburan'], 1)
         self.assertNotIn('gaji', response.json()['deleted'])

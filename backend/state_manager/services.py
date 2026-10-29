@@ -19,7 +19,16 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework.authtoken.models import Token
 
-from absensi.models import Absensi, Kehadiran, RekapAbsensi
+from absensi.invalidation import (
+    expand_employee_months,
+    expand_holiday_days,
+    expand_location_changes,
+    expand_shift_shapes,
+    enqueue_days,
+    suppress_signal_invalidation,
+    tracked_months,
+)
+from absensi.models import Absensi, Kehadiran, RekapAbsensi, absensi_minute_key
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from gaji.models import GajiTemp
 from kalender_bersama.models import Langganan, NotifikasiDismiss
@@ -811,9 +820,8 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
         if lokasi_id not in lokasi_ids:
             errors.append(StateError(line, f'lokasi_id tidak ada: {lokasi_id}.'))
             continue
-        key = (karyawan_id, lokasi_id, tanggal, jam_masuk, durasi)
+        key = absensi_minute_key(karyawan_id, lokasi_id, tanggal, jam_masuk, durasi)
         if key in absensi_keys:
-            errors.append(StateError(line, 'Baris absensi duplikat (karyawan/lokasi/tanggal/jam/durasi).'))
             continue
         absensi_ids.add(pk)
         absensi_keys.add(key)
@@ -1103,6 +1111,64 @@ def _wipe_hrd_state() -> list[int]:
     return linked_user_ids
 
 
+def _state_invalidation_keys(selected: set[str] | None = None) -> set[tuple[str, date]]:
+    """Capture source effects before state rows (and their context) disappear."""
+    selected = selected or {
+        TABLE_ABSENSI,
+        TABLE_CUTI,
+        TABLE_PERMOHONAN_CUTI,
+        TABLE_PERMOHONAN_LEMBUR,
+        TABLE_SHIFT,
+        TABLE_LIBURAN,
+        TABLE_KARYAWAN,
+        TABLE_LOKASI,
+    }
+    keys: set[tuple[str, date]] = set()
+    if TABLE_ABSENSI in selected:
+        keys.update(Absensi.objects.values_list('karyawan_id', 'tanggal'))
+    if TABLE_CUTI in selected or TABLE_PERMOHONAN_CUTI in selected:
+        keys.update(
+            Cuti.objects.values_list('permohonan__karyawan_id', 'tanggal')
+        )
+    if TABLE_PERMOHONAN_LEMBUR in selected:
+        keys.update(
+            PermohonanLembur.objects.values_list('karyawan_id', 'tanggal')
+        )
+    if TABLE_LIBURAN in selected:
+        keys.update(
+            expand_holiday_days(Liburan.objects.values_list('tanggal', flat=True))
+        )
+    if TABLE_SHIFT in selected:
+        keys.update(
+            expand_shift_shapes(
+                Shift.objects.values_list('lokasi_kerja_id', 'hari')
+            )
+        )
+    if TABLE_KARYAWAN in selected:
+        keys.update(
+            expand_location_changes(
+                (
+                    (employee_id, location_id, None)
+                    for employee_id, location_id in Karyawan.objects.values_list(
+                        'pk', 'lokasi_kerja_id'
+                    )
+                )
+            )
+        )
+    if TABLE_LOKASI in selected:
+        keys.update(
+            expand_location_changes(
+                (
+                    (employee_id, location_id, None)
+                    for employee_id, location_id in Karyawan.objects.exclude(
+                        lokasi_kerja_id=None
+                    ).values_list('pk', 'lokasi_kerja_id')
+                )
+            )
+        )
+    return keys
+
+
 def reset_hrd_state() -> None:
     """Delete all HRD data except the designated seed admin and linked login."""
     with transaction.atomic():
@@ -1117,23 +1183,29 @@ def reset_hrd_state() -> None:
                 'Admin 0000003 tidak ditemukan atau tidak memiliki akun login.'
             )
 
-        GajiTemp.objects.all().delete()
-        PermohonanLembur.objects.all().delete()
-        NotifikasiDismiss.objects.all().delete()
-        Langganan.objects.all().delete()
-        Cuti.objects.all().delete()
-        PermohonanCuti.objects.all().delete()
-        Absensi.objects.all().delete()
-        Shift.objects.all().delete()
-        Liburan.objects.all().delete()
+        invalidation_keys = _state_invalidation_keys()
+        invalidation_keys.update(
+            expand_employee_months([admin.pk], tracked_months())
+        )
+        with suppress_signal_invalidation():
+            GajiTemp.objects.all().delete()
+            PermohonanLembur.objects.all().delete()
+            NotifikasiDismiss.objects.all().delete()
+            Langganan.objects.all().delete()
+            Cuti.objects.all().delete()
+            PermohonanCuti.objects.all().delete()
+            Absensi.objects.all().delete()
+            Shift.objects.all().delete()
+            Liburan.objects.all().delete()
 
-        Karyawan.objects.exclude(pk=admin.pk).delete()
-        admin.lokasi_kerja = None
-        admin.save(update_fields=['lokasi_kerja'])
-        Lokasi.objects.all().delete()
+            Karyawan.objects.exclude(pk=admin.pk).delete()
+            admin.lokasi_kerja = None
+            admin.save(update_fields=['lokasi_kerja'])
+            Lokasi.objects.all().delete()
 
-        Token.objects.exclude(user_id=admin.user_id).delete()
-        User.objects.exclude(pk=admin.user_id).delete()
+            Token.objects.exclude(user_id=admin.user_id).delete()
+            User.objects.exclude(pk=admin.user_id).delete()
+        enqueue_days(invalidation_keys)
 
 
 def list_clearable_models() -> list[dict[str, str]]:
@@ -1311,11 +1383,14 @@ def clear_state_tables(table_names) -> dict[str, int]:
             auth_user_ids = (
                 _auth_user_ids_to_delete() if TABLE_AUTH_USER in selected else []
             )
+            invalidation_keys = _state_invalidation_keys(selected)
             deleted: dict[str, int] = {}
-            for name in CLEAR_ORDER:
-                if name not in selected:
-                    continue
-                deleted[name] = _delete_table(name, auth_user_ids)
+            with suppress_signal_invalidation():
+                for name in CLEAR_ORDER:
+                    if name not in selected:
+                        continue
+                    deleted[name] = _delete_table(name, auth_user_ids)
+            enqueue_days(invalidation_keys)
     except ProtectedError as exc:
         raise ValueError(
             'Penghapusan tertahan oleh data yang masih mereferensi model terpilih.'
@@ -1485,8 +1560,31 @@ def import_state_csv(text: str) -> StateImportResult:
     try:
         with without_karyawan_login_signal():
             with transaction.atomic():
-                _wipe_hrd_state()
-                _insert_state(typed)
+                invalidation_keys = _state_invalidation_keys()
+                with suppress_signal_invalidation():
+                    _wipe_hrd_state()
+                    _insert_state(typed)
+                imported_months = {
+                    row['month'] for row in typed.get(TABLE_REKAP_ABSENSI, [])
+                }
+                imported_months.update(
+                    row['tanggal'].replace(day=1)
+                    for table in (
+                        TABLE_ABSENSI,
+                        TABLE_CUTI,
+                        TABLE_PERMOHONAN_LEMBUR,
+                        TABLE_LIBURAN,
+                    )
+                    for row in typed.get(table, [])
+                )
+                invalidation_keys.update(
+                    expand_employee_months(
+                        Karyawan.objects.values_list('pk', flat=True),
+                        imported_months,
+                    )
+                )
+                invalidation_keys.update(_state_invalidation_keys())
+                enqueue_days(invalidation_keys)
     except Exception as exc:  # noqa: BLE001 — surface any DB failure as import error
         result.errors.append(
             StateError(0, f'Gagal menyimpan state: {exc}')

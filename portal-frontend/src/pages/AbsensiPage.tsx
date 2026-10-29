@@ -60,7 +60,7 @@ export default function AbsensiPage() {
             title: 'Tanggal',
             dataIndex: 'tanggal',
             sorter: (a, b) => a.tanggal.localeCompare(b.tanggal),
-            defaultSortOrder: 'ascend',
+            defaultSortOrder: 'descend',
           },
           {
             title: 'Status',

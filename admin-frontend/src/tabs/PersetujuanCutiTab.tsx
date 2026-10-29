@@ -60,8 +60,17 @@ export function PersetujuanCutiTab() {
         { title: 'ID Karyawan', dataIndex: 'karyawan_id', width: 110 },
         { title: 'Karyawan', dataIndex: 'karyawan_nama' },
         { title: 'Tipe', dataIndex: 'tipe_display' },
-        { title: 'Mulai', dataIndex: 'tanggal_mulai' },
-        { title: 'Selesai', dataIndex: 'tanggal_selesai' },
+        {
+          title: 'Mulai',
+          dataIndex: 'tanggal_mulai',
+          sorter: (a, b) => a.tanggal_mulai.localeCompare(b.tanggal_mulai),
+          defaultSortOrder: 'descend',
+        },
+        {
+          title: 'Selesai',
+          dataIndex: 'tanggal_selesai',
+          sorter: (a, b) => a.tanggal_selesai.localeCompare(b.tanggal_selesai),
+        },
         { title: 'Hari', dataIndex: 'jumlah_hari', width: 70 },
         {
           title: 'Supervisor',

@@ -41,7 +41,12 @@ export default function PersetujuanLemburTab() {
       locale={{ emptyText: 'Tidak ada permohonan menunggu persetujuan.' }}
       columns={[
         { title: 'Karyawan', dataIndex: 'karyawan_nama' },
-        { title: 'Tanggal', dataIndex: 'tanggal' },
+        {
+          title: 'Tanggal',
+          dataIndex: 'tanggal',
+          sorter: (a, b) => a.tanggal.localeCompare(b.tanggal),
+          defaultSortOrder: 'descend',
+        },
         {
           title: 'Alasan',
           dataIndex: 'alasan',

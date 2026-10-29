@@ -145,21 +145,19 @@ export interface AbsensiImportResult {
   required_columns: string[]
 }
 
+export interface CutiImportResult {
+  ok: boolean
+  total_rows: number
+  created: number
+  errors: AbsensiImportError[]
+  received_headers: string[]
+  required_columns: string[]
+}
+
 export interface CatatanRekapAbsensi {
   id: number
   tanggal: string | null
   pesan: string
-}
-
-export interface ProsesKehadiranResult {
-  hadir: number
-  cuti: number
-  alpa: number
-}
-
-export interface HapusKehadiranResult {
-  deleted: number
-  bulan: string
 }
 
 export interface RekapAbsensi {

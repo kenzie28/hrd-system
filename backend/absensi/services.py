@@ -11,7 +11,8 @@ from django.db import transaction
 from lokasi.models import Lokasi
 from karyawan.models import Karyawan
 
-from .models import Absensi
+from .invalidation import enqueue_days
+from .models import Absensi, absensi_minute_key
 
 COL_KARYAWAN_ID = 'karyawan_id'
 COL_LOKASI = 'lokasi_kerja'
@@ -97,11 +98,11 @@ def import_absensi_csv(upload) -> AbsensiImportResult:
     reference an existing Lokasi. tanggal accepts yyyy-mm-dd;
     jam_masuk/jam_keluar accept HH:MM or HH:MM:SS. When jam_keluar is not
     after jam_masuk it is treated as an overnight shift (durasi spans into
-    the next calendar day).     Multiple rows for the same employee/day are
-    allowed on purpose — HRD resolves conflicts separately. Exact duplicates
-    (same karyawan, lokasi, tanggal, jam_masuk, durasi) are skipped. Delimiter
-    may be comma or semicolon (auto-detected). All rows are validated before
-    any write.
+    the next calendar day). Multiple rows for the same employee/day are
+    allowed on purpose — HRD resolves conflicts separately. Rows that match to
+    the minute (same karyawan, lokasi, tanggal, jam masuk, and jam keluar) are
+    skipped. Delimiter may be comma or semicolon (auto-detected). All rows are
+    validated before any write.
     """
     result = AbsensiImportResult()
 
@@ -224,18 +225,18 @@ def import_absensi_csv(upload) -> AbsensiImportResult:
             keluar_dt += timedelta(days=1)
         durasi = keluar_dt - masuk_dt
 
-        key = (karyawan.pk, lokasi.pk, tanggal, jam_masuk, durasi)
+        key = absensi_minute_key(karyawan.pk, lokasi.pk, tanggal, jam_masuk, durasi)
         if key in seen_keys:
             continue
         seen_keys.add(key)
 
-        if Absensi.objects.filter(
+        if Absensi.objects.same_minute(
             karyawan=karyawan,
             lokasi=lokasi,
             tanggal=tanggal,
             jam_masuk=jam_masuk,
             durasi=durasi,
-        ).exists():
+        ) is not None:
             continue
 
         to_create.append(
@@ -260,5 +261,8 @@ def import_absensi_csv(upload) -> AbsensiImportResult:
     if to_create:
         with transaction.atomic():
             Absensi.objects.bulk_create(to_create)
+            enqueue_days(
+                ((row.karyawan_id, row.tanggal) for row in to_create)
+            )
         result.created = len(to_create)
     return result

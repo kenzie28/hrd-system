@@ -7,6 +7,7 @@ admin-frontend (HRD) application. Edit this list to grant/revoke access.
 ADMIN_LOGIN_ALLOWLIST = [
     '0000003',
     '9610003',
+    '1111011'
 ]
 
 

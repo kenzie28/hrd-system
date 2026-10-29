@@ -1,14 +1,26 @@
 from datetime import date, datetime, time, timedelta
-
-from django.test import TestCase
-from rest_framework.test import APIClient
+from io import StringIO
+from unittest import mock
 
 from django.contrib.auth.models import User
+from django.core.management import call_command
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, TransactionTestCase
+from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
 
 from absensi.kehadiran import proses_kehadiran
-from absensi.models import Absensi, Kehadiran, RekapAbsensi, StatusKehadiran
+from absensi.invalidation import drain_pending, enqueue_day
+from absensi.models import (
+    Absensi,
+    Kehadiran,
+    PendingAttendanceDay,
+    PendingAttendanceMonth,
+    RekapAbsensi,
+    StatusKehadiran,
+)
 from absensi.proses import proses_absensi_bulan
+from absensi.services import import_absensi_csv
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from karyawan.models import Karyawan
 from lembur.models import PermohonanLembur, StatusPermohonanLembur
@@ -307,23 +319,19 @@ class ProsesAbsensiApiTests(TestCase):
         self.karyawan = _karyawan('1000001', 'Budi', self.home)
         _shift(self.home, 1, '08:00', '17:00')
 
-    def test_proses_and_rekap_round_trip(self):
-        created = self.client.post('/api/absensi/proses/', {'bulan': '2026-09'}, format='json')
-        self.assertEqual(created.status_code, 200)
-        self.assertEqual(len(created.data), 1)
-        self.assertEqual(created.data[0]['karyawan_id'], '1000001')
-        self.assertEqual(created.data[0]['month'], '2026-09-01')
-        self.assertGreater(created.data[0]['hari_alpa'], 0)
-        self.assertTrue(created.data[0]['catatan'])
+    def test_rekap_is_read_only_and_manual_process_is_removed(self):
+        created = proses_absensi_bulan(MONTH)[0]
+        manual = self.client.post(
+            '/api/absensi/proses/', {'bulan': '2026-09'}, format='json'
+        )
+        self.assertEqual(manual.status_code, 405)
 
         listed = self.client.get('/api/absensi/rekap/', {'bulan': '2026-09'})
         self.assertEqual(listed.status_code, 200)
-        self.assertEqual(listed.data[0]['id'], created.data[0]['id'])
-        self.assertEqual(listed.data[0]['hari_alpa'], created.data[0]['hari_alpa'])
+        self.assertEqual(listed.data[0]['id'], created.id)
+        self.assertEqual(listed.data[0]['hari_alpa'], created.hari_alpa)
 
     def test_invalid_bulan_rejected(self):
-        response = self.client.post('/api/absensi/proses/', {'bulan': 'September'}, format='json')
-        self.assertEqual(response.status_code, 400)
         missing = self.client.get('/api/absensi/rekap/')
         self.assertEqual(missing.status_code, 400)
 
@@ -486,6 +494,132 @@ class ProsesKehadiranTests(TestCase):
         self.assertIsNone(worked.cuti_id)
 
 
+class IncrementalAttendanceTests(TestCase):
+    def setUp(self):
+        self.home = Lokasi.objects.create(id='81', nama='Toko 81')
+        self.karyawan = _karyawan('1000001', 'Budi', self.home)
+        _shift(self.home, 1, '08:00', '17:00')
+        PendingAttendanceDay.objects.all().delete()
+        PendingAttendanceMonth.objects.all().delete()
+
+    def test_current_month_stops_at_yesterday(self):
+        rekap = proses_absensi_bulan(MONTH, today=date(2026, 9, 10))[0]
+        self.assertEqual(rekap.hari_alpa, 2)  # 1 and 8 September only
+        self.assertEqual(rekap.materialized_through, date(2026, 9, 9))
+        self.assertFalse(
+            Kehadiran.objects.filter(tanggal__gte=date(2026, 9, 10)).exists()
+        )
+
+    def test_holiday_removes_existing_canonical_day(self):
+        focus = date(2026, 9, 1)
+        proses_absensi_bulan(MONTH, today=date(2026, 9, 3))
+        self.assertTrue(
+            Kehadiran.objects.filter(karyawan=self.karyawan, tanggal=focus).exists()
+        )
+        Liburan.objects.create(nama='Libur', tanggal=focus)
+        proses_absensi_bulan(MONTH, today=date(2026, 9, 3))
+        self.assertFalse(
+            Kehadiran.objects.filter(karyawan=self.karyawan, tanggal=focus).exists()
+        )
+        self.assertEqual(
+            RekapAbsensi.objects.get(karyawan=self.karyawan, month=MONTH).hari_alpa,
+            0,
+        )
+
+    def test_dirty_day_deduplicates_and_failed_work_retries(self):
+        focus = date(2026, 9, 1)
+        enqueue_day(self.karyawan.pk, focus, drain=False)
+        enqueue_day(self.karyawan.pk, focus, drain=False)
+        self.assertEqual(PendingAttendanceDay.objects.count(), 1)
+
+        with mock.patch(
+            'absensi.invalidation.materialize_day',
+            side_effect=RuntimeError('temporary failure'),
+        ):
+            result = drain_pending(today=date(2026, 9, 3))
+        pending = PendingAttendanceDay.objects.get()
+        self.assertEqual(result['failed'], 1)
+        self.assertEqual(pending.attempts, 1)
+        self.assertIn('temporary failure', pending.last_error)
+
+        retried = drain_pending(today=date(2026, 9, 3))
+        self.assertEqual(retried['days'], 1)
+        self.assertFalse(PendingAttendanceDay.objects.exists())
+        self.assertTrue(
+            Kehadiran.objects.filter(karyawan=self.karyawan, tanggal=focus).exists()
+        )
+
+    def test_bootstrap_command_is_restartable_for_one_month(self):
+        output = StringIO()
+        call_command('bootstrap_rekap', month='2026-09', stdout=output)
+        first = RekapAbsensi.objects.get(karyawan=self.karyawan, month=MONTH)
+        call_command('bootstrap_rekap', month='2026-09', stdout=output)
+        self.assertEqual(
+            RekapAbsensi.objects.get(karyawan=self.karyawan, month=MONTH).pk,
+            first.pk,
+        )
+
+
+class AutomaticAbsensiCrudTests(TransactionTestCase):
+    reset_sequences = True
+
+    def setUp(self):
+        self.client = APIClient()
+        self.home = Lokasi.objects.create(id='81', nama='Toko 81')
+        self.karyawan = _karyawan('1000001', 'Budi', self.home)
+        _shift(self.home, 1, '08:00', '17:00')
+
+    def test_create_move_and_delete_recompute_only_old_and_new_days(self):
+        first_day = date(2026, 9, 1)
+        second_day = date(2026, 9, 8)
+        created = self.client.post(
+            '/api/absensi/',
+            {
+                'karyawan_id': self.karyawan.pk,
+                'lokasi': self.home.pk,
+                'tanggal': first_day.isoformat(),
+                'jam_masuk': '08:00:00',
+                'durasi': '09:00:00',
+            },
+            format='json',
+        )
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(
+            Kehadiran.objects.get(
+                karyawan=self.karyawan, tanggal=first_day
+            ).status,
+            StatusKehadiran.HADIR,
+        )
+
+        moved = self.client.patch(
+            f"/api/absensi/{created.data['id']}/",
+            {'tanggal': second_day.isoformat()},
+            format='json',
+        )
+        self.assertEqual(moved.status_code, 200)
+        self.assertEqual(
+            Kehadiran.objects.get(
+                karyawan=self.karyawan, tanggal=first_day
+            ).status,
+            StatusKehadiran.ALPA,
+        )
+        self.assertEqual(
+            Kehadiran.objects.get(
+                karyawan=self.karyawan, tanggal=second_day
+            ).status,
+            StatusKehadiran.HADIR,
+        )
+
+        removed = self.client.delete(f"/api/absensi/{created.data['id']}/")
+        self.assertEqual(removed.status_code, 204)
+        self.assertEqual(
+            Kehadiran.objects.get(
+                karyawan=self.karyawan, tanggal=second_day
+            ).status,
+            StatusKehadiran.ALPA,
+        )
+
+
 class ProsesKehadiranApiTests(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -498,13 +632,10 @@ class ProsesKehadiranApiTests(TestCase):
         token = Token.objects.create(user=user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
 
-    def test_manual_proses_and_portal_list(self):
+    def test_automatic_materialization_and_portal_list(self):
         focus = _days_in_month(1)[0]
         _punch(self.karyawan, self.home, focus, '08:10', '17:00')
-        created = self.client.post('/api/absensi/proses-kehadiran/')
-        self.assertEqual(created.status_code, 200)
-        self.assertGreaterEqual(created.data['hadir'], 1)
-        self.assertIn('alpa', created.data)
+        proses_kehadiran(date(2026, 10, 1))
 
         listed = self.client.get('/api/portal/kehadiran/', {'bulan': '2026-09'})
         self.assertEqual(listed.status_code, 200)
@@ -518,31 +649,110 @@ class ProsesKehadiranApiTests(TestCase):
         alpa = next(row for row in listed.data if row['status'] == 'ALPA')
         self.assertIsNone(alpa['absensi'])
 
-    def test_hapus_kehadiran_for_month(self):
-        focus = _days_in_month(1)[0]
-        _punch(self.karyawan, self.home, focus, '08:00', '17:00')
-        self.client.post('/api/absensi/proses-kehadiran/')
-        self.assertGreater(
-            Kehadiran.objects.filter(tanggal__year=2026, tanggal__month=9).count(),
-            0,
-        )
+    def test_manual_processing_and_deletion_actions_are_removed(self):
+        self.assertEqual(self.client.post('/api/absensi/proses-kehadiran/').status_code, 405)
+        self.assertEqual(self.client.post('/api/absensi/hapus-kehadiran/').status_code, 405)
 
-        removed = self.client.post(
-            '/api/absensi/hapus-kehadiran/',
-            {'bulan': '2026-09'},
+
+class AbsensiMinuteSquashTests(TestCase):
+    def setUp(self):
+        self.lokasi = Lokasi.objects.create(id='80', nama='Toko')
+        self.lain = Lokasi.objects.create(id='81', nama='Gudang')
+        self.karyawan = _karyawan('0001', 'Ani', self.lokasi)
+        self.lain_karyawan = _karyawan('0002', 'Budi', self.lokasi)
+        self.client = APIClient()
+        self.tanggal = date(2026, 10, 1)
+
+    def _post(self, jam_masuk, durasi, **overrides):
+        payload = {
+            'karyawan_id': self.karyawan.pk,
+            'lokasi': self.lokasi.pk,
+            'tanggal': self.tanggal.isoformat(),
+            'jam_masuk': jam_masuk,
+            'durasi': durasi,
+        }
+        payload.update(overrides)
+        return self.client.post('/api/absensi/', payload, format='json')
+
+    def test_api_create_keeps_one_row_when_times_match_to_the_minute(self):
+        first = self._post('08:00:10', '08:59:50')
+        second = self._post('08:00:50', '08:59:20')
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(first.data['id'], second.data['id'])
+        self.assertEqual(Absensi.objects.count(), 1)
+        kept = Absensi.objects.get()
+        self.assertEqual(kept.jam_masuk, time(8, 0, 10))
+        self.assertEqual(kept.jam_keluar, time(17, 0, 0))
+
+    def test_api_create_keeps_separate_rows_when_the_minute_differs(self):
+        self._post('08:00:10', '08:00:00')
+        later = self._post('08:01:00', '08:00:00')
+
+        self.assertEqual(later.status_code, 201)
+        self.assertEqual(Absensi.objects.count(), 2)
+
+    def test_resolve_conflict_updates_kept_times_and_deletes_siblings(self):
+        self._post('08:00:00', '09:00:00')
+        selected = self._post('08:15:00', '08:45:00')
+
+        response = self.client.post(
+            f"/api/absensi/{selected.data['id']}/resolve_conflict/",
+            {'jam_masuk': '08:30:00', 'durasi': '08:15:00'},
             format='json',
         )
-        self.assertEqual(removed.status_code, 200)
-        self.assertGreater(removed.data['deleted'], 0)
-        self.assertEqual(removed.data['bulan'], '2026-09')
-        self.assertFalse(
-            Kehadiran.objects.filter(tanggal__year=2026, tanggal__month=9).exists()
-        )
-        self.assertTrue(Absensi.objects.filter(karyawan=self.karyawan).exists())
 
-        missing = self.client.post(
-            '/api/absensi/hapus-kehadiran/',
-            {'bulan': 'September'},
-            format='json',
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Absensi.objects.count(), 1)
+        kept = Absensi.objects.get()
+        self.assertEqual(kept.pk, selected.data['id'])
+        self.assertEqual(kept.jam_masuk, time(8, 30))
+        self.assertEqual(kept.jam_keluar, time(16, 45))
+
+    def test_api_create_distinguishes_karyawan_and_lokasi(self):
+        self._post('08:00:10', '08:59:50')
+        other_person = self._post(
+            '08:00:40', '08:59:30', karyawan_id=self.lain_karyawan.pk
         )
-        self.assertEqual(missing.status_code, 400)
+        other_place = self._post('08:00:40', '08:59:30', lokasi=self.lain.pk)
+
+        self.assertEqual(other_person.status_code, 201)
+        self.assertEqual(other_place.status_code, 201)
+        self.assertEqual(Absensi.objects.count(), 3)
+
+    def test_overnight_match_to_the_minute_is_one_row(self):
+        self._post('22:00:05', '08:00:00')
+        second = self._post('22:00:40', '07:59:30')
+
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(Absensi.objects.count(), 1)
+        self.assertEqual(Absensi.objects.get().keluar_hari_offset, 1)
+
+    def test_objects_create_squashes_to_the_first_row(self):
+        first = _punch(self.karyawan, self.lokasi, self.tanggal, '08:00:10', '17:00:05')
+        second = _punch(self.karyawan, self.lokasi, self.tanggal, '08:00:40', '17:00:50')
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(Absensi.objects.count(), 1)
+        self.assertEqual(Absensi.objects.get().jam_masuk, time(8, 0, 10))
+
+    def test_csv_import_skips_same_minute_rows(self):
+        raw = (
+            'karyawan_id,lokasi_kerja,tanggal,jam_masuk,jam_keluar\n'
+            '0001,80,2026-10-01,08:00:10,17:00:05\n'
+            '0001,80,2026-10-01,08:00:40,17:00:50\n'
+            '0001,80,2026-10-01,08:15:00,17:00:00\n'
+            '0002,80,2026-10-01,08:00:00,17:00:00\n'
+        )
+        upload = SimpleUploadedFile('absensi.csv', raw.encode(), content_type='text/csv')
+        result = import_absensi_csv(upload)
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.created, 3)
+        self.assertEqual(Absensi.objects.count(), 3)
+
+        again = SimpleUploadedFile('absensi.csv', raw.encode(), content_type='text/csv')
+        second = import_absensi_csv(again)
+        self.assertTrue(second.ok)
+        self.assertEqual(second.created, 0)
+        self.assertEqual(Absensi.objects.count(), 3)

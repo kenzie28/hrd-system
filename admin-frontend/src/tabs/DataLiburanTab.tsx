@@ -86,6 +86,8 @@ export function DataLiburanTab() {
             dataIndex: 'tanggal',
             width: 130,
             render: (v: string) => dayjs(v).format('DD MMM YYYY'),
+            sorter: (a, b) => a.tanggal.localeCompare(b.tanggal),
+            defaultSortOrder: 'descend',
           },
           { title: 'Nama', dataIndex: 'nama' },
           {

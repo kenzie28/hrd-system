@@ -27,6 +27,7 @@ export function LemburTab() {
           title: 'Tanggal',
           dataIndex: 'tanggal',
           sorter: (a, b) => a.tanggal.localeCompare(b.tanggal),
+          defaultSortOrder: 'descend',
         },
         { title: 'ID Karyawan', dataIndex: 'karyawan_id', width: 110 },
         { title: 'Karyawan', dataIndex: 'karyawan_nama' },

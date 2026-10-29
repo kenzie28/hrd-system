@@ -8,7 +8,11 @@ from shift.admin_views import AdminShiftImportView
 from shift.views import ShiftViewSet
 from lokasi.views import LokasiViewSet
 from lokasi.admin_views import AdminLokasiImportView, AdminLokasiViewSet
-from cuti.admin_views import AdminCutiViewSet
+from cuti.admin_views import (
+    AdminCutiSakitImportView,
+    AdminCutiTahunanImportView,
+    AdminCutiViewSet,
+)
 from cuti.views import CutiViewSet, PortalCutiViewSet
 from kalender_bersama.views import (
     KalenderView,
@@ -146,6 +150,16 @@ admin_api_urlpatterns = [
         'admin/absensi/import/',
         AdminAbsensiImportView.as_view(),
         name='admin-absensi-import',
+    ),
+    path(
+        'admin/cuti/import/',
+        AdminCutiTahunanImportView.as_view(),
+        name='admin-cuti-import',
+    ),
+    path(
+        'admin/cuti-sakit/import/',
+        AdminCutiSakitImportView.as_view(),
+        name='admin-cuti-sakit-import',
     ),
     path(
         'admin/liburan/import/',

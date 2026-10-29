@@ -5,7 +5,6 @@ import {
   DatePicker,
   Empty,
   Form,
-  InputNumber,
   Modal,
   Popconfirm,
   Select,
@@ -19,19 +18,23 @@ import { useAbsensi, useAbsensiMutations, useKaryawan, useLokasi } from '../api/
 import type { Absensi } from '../api/types'
 import { JamKeluar } from '../components/JamKeluar'
 import { fmtTime } from '../constants'
-import { getKeluarHariOffset, parseDurasi } from '../utils/absensi'
+import { durasiFromTimes } from '../utils/absensi'
 
 interface EditFormValues {
   lokasi: string
   jam_masuk: Dayjs
-  durasi_jam: number
-  durasi_menit: number
+  jam_keluar: Dayjs
 }
 
-export function AbsensiTab() {
+interface AbsensiTabProps {
+  initialKaryawanId?: string
+  initialBulan?: string
+}
+
+export function AbsensiTab({ initialKaryawanId, initialBulan }: AbsensiTabProps) {
   const { message } = App.useApp()
-  const [month, setMonth] = useState(() => dayjs())
-  const [karyawanId, setKaryawanId] = useState<string>()
+  const [month, setMonth] = useState(() => initialBulan ? dayjs(initialBulan) : dayjs())
+  const [karyawanId, setKaryawanId] = useState<string | undefined>(initialKaryawanId)
   const { data: absensi, isLoading } = useAbsensi({
     karyawan_id: karyawanId,
     bulan: month.format('YYYY-MM'),
@@ -48,26 +51,12 @@ export function AbsensiTab() {
     [karyawan],
   )
 
-  const jamMasuk = Form.useWatch('jam_masuk', form)
-  const durasiJam = Form.useWatch('durasi_jam', form)
-  const durasiMenit = Form.useWatch('durasi_menit', form)
-  const computedJamKeluar = useMemo(() => {
-    if (!jamMasuk) return null
-    return jamMasuk.add(durasiJam ?? 0, 'hour').add(durasiMenit ?? 0, 'minute')
-  }, [jamMasuk, durasiJam, durasiMenit])
-  const computedKeluarHariOffset = useMemo(() => {
-    if (!editing || !jamMasuk) return 0
-    return getKeluarHariOffset(editing.tanggal, jamMasuk, durasiJam ?? 0, durasiMenit ?? 0)
-  }, [editing, jamMasuk, durasiJam, durasiMenit])
-
   const openEdit = (record: Absensi) => {
-    const { jam, menit } = parseDurasi(record.durasi)
     setEditing(record)
     form.setFieldsValue({
       lokasi: record.lokasi,
-      jam_masuk: dayjs(record.jam_masuk, 'HH:mm:ss'),
-      durasi_jam: jam,
-      durasi_menit: menit,
+      jam_masuk: dayjs(`2000-01-01T${record.jam_masuk}`),
+      jam_keluar: dayjs(`2000-01-01T${record.jam_keluar}`),
     })
   }
 
@@ -78,7 +67,7 @@ export function AbsensiTab() {
       id: editing.id,
       lokasi: values.lokasi,
       jam_masuk: values.jam_masuk.format('HH:mm:00'),
-      durasi: `${String(values.durasi_jam).padStart(2, '0')}:${String(values.durasi_menit).padStart(2, '0')}:00`,
+      durasi: durasiFromTimes(values.jam_masuk, values.jam_keluar),
     })
     message.success('Absensi diperbarui')
     setEditing(null)
@@ -115,7 +104,12 @@ export function AbsensiTab() {
           pagination={{ pageSize: 20, showSizeChanger: false }}
           scroll={{ x: 'max-content' }}
           columns={[
-            { title: 'Tanggal', dataIndex: 'tanggal', sorter: (a, b) => a.tanggal.localeCompare(b.tanggal) },
+            {
+              title: 'Tanggal',
+              dataIndex: 'tanggal',
+              sorter: (a, b) => a.tanggal.localeCompare(b.tanggal),
+              defaultSortOrder: 'descend',
+            },
             { title: 'Lokasi', dataIndex: 'lokasi_nama' },
             { title: 'Jam Masuk', dataIndex: 'jam_masuk', render: fmtTime },
             { title: 'Durasi', dataIndex: 'durasi', render: (d: string) => d.slice(0, 5) },
@@ -173,27 +167,12 @@ export function AbsensiTab() {
           <Form.Item name="jam_masuk" label="Jam Masuk" rules={[{ required: true, message: 'Wajib diisi' }]}>
             <TimePicker format="HH:mm" style={{ width: '100%' }} />
           </Form.Item>
-          <Space wrap>
-            <Form.Item name="durasi_jam" label="Durasi (jam)" rules={[{ required: true, message: 'Wajib' }]}>
-              <InputNumber min={0} max={24} />
-            </Form.Item>
-            <Form.Item name="durasi_menit" label="Durasi (menit)" rules={[{ required: true, message: 'Wajib' }]}>
-              <InputNumber min={0} max={59} />
-            </Form.Item>
-          </Space>
-          <Typography.Paragraph type="secondary">
-            Jam keluar (dihitung otomatis):{' '}
-            <Typography.Text strong>
-              {computedJamKeluar ? (
-                <JamKeluar
-                  jamKeluar={computedJamKeluar.format('HH:mm:ss')}
-                  keluarHariOffset={computedKeluarHariOffset}
-                />
-              ) : (
-                '-'
-              )}
-            </Typography.Text>
-          </Typography.Paragraph>
+          <Form.Item name="jam_keluar" label="Jam Keluar" rules={[{ required: true, message: 'Wajib diisi' }]}>
+            <TimePicker format="HH:mm" style={{ width: '100%' }} />
+          </Form.Item>
+          <Typography.Text type="secondary">
+            Jam keluar yang sama atau lebih awal dari jam masuk dianggap hari berikutnya.
+          </Typography.Text>
         </Form>
       </Modal>
     </Space>

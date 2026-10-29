@@ -8,6 +8,7 @@ from datetime import datetime, time
 
 from django.db import transaction
 
+from absensi.invalidation import enqueue_shift_shapes
 from lokasi.models import Lokasi
 
 from .models import HariKerja, Shift
@@ -209,5 +210,8 @@ def import_shift_csv(upload) -> ShiftImportResult:
 
     with transaction.atomic():
         Shift.objects.bulk_create(to_create)
+        enqueue_shift_shapes(
+            ((row.lokasi_kerja_id, row.hari) for row in to_create)
+        )
     result.created = len(to_create)
     return result

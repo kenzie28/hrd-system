@@ -1,18 +1,18 @@
 from django.core.management.base import BaseCommand
 
-from absensi.kehadiran import proses_kehadiran
+from absensi.invalidation import close_yesterday
 
 
 class Command(BaseCommand):
-    help = 'Process past absensi, leave, and absences into Kehadiran rows.'
+    help = 'Close yesterday and retry pending attendance materialization.'
 
     def handle(self, *args, **options):
-        counts = proses_kehadiran()
+        counts = close_yesterday()
         self.stdout.write(
             self.style.SUCCESS(
                 'Kehadiran: '
-                f"{counts['hadir']} hadir, "
-                f"{counts['cuti']} cuti, "
-                f"{counts['alpa']} alpa."
+                f"{counts['days']} hari, "
+                f"{counts['months']} bulan, "
+                f"{counts['failed']} gagal."
             )
         )

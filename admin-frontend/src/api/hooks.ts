@@ -5,8 +5,7 @@ import type {
   Absensi,
   AbsensiConflictGroup,
   AbsensiImportResult,
-  HapusKehadiranResult,
-  ProsesKehadiranResult,
+  CutiImportResult,
   RekapAbsensi,
   Cuti,
   GajiImportResult,
@@ -558,6 +557,12 @@ export interface AbsensiUpdatePayload {
   durasi: string
 }
 
+interface AbsensiResolvePayload {
+  id: number
+  jam_masuk: string
+  durasi: string
+}
+
 export function useAbsensiMutations() {
   const qc = useQueryClient()
   const invalidate = () => {
@@ -666,6 +671,37 @@ export function useAbsensiImport() {
   })
 }
 
+function useCutiCsvImport(path: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ file }: { file: File }): Promise<CutiImportResult> => {
+      const formData = new FormData()
+      formData.append('file', file)
+      try {
+        const response = await api.post<CutiImportResult>(path, formData)
+        return normalizeAbsensiImportResult(response.data)
+      } catch (err) {
+        return parseAbsensiImportError(err)
+      }
+    },
+    onSuccess: (result) => {
+      if (result.ok) {
+        qc.invalidateQueries({ queryKey: ['cuti'] })
+        qc.invalidateQueries({ queryKey: ['pending-cuti'] })
+        qc.invalidateQueries({ queryKey: ['karyawan'] })
+      }
+    },
+  })
+}
+
+export function useCutiImport() {
+  return useCutiCsvImport('/admin/cuti/import/')
+}
+
+export function useCutiSakitImport() {
+  return useCutiCsvImport('/admin/cuti-sakit/import/')
+}
+
 // ---- Absensi conflicts (duplicate clock-in/out on the same day) ----
 
 export function useAbsensiConflicts() {
@@ -684,15 +720,11 @@ export function useAbsensiConflictMutations() {
   }
 
   const resolve = useMutation({
-    mutationFn: (id: number) =>
-      api.post<Absensi>(`/absensi/${id}/resolve_conflict/`),
+    mutationFn: ({ id, ...data }: AbsensiResolvePayload) =>
+      api.post<Absensi>(`/absensi/${id}/resolve_conflict/`, data),
     onSuccess: invalidate,
   })
-  const remove = useMutation({
-    mutationFn: (id: number) => api.delete(`/absensi/${id}/`),
-    onSuccess: invalidate,
-  })
-  return { resolve, remove }
+  return { resolve }
 }
 
 export function useRekapAbsensi(bulan: string) {
@@ -700,24 +732,6 @@ export function useRekapAbsensi(bulan: string) {
     queryKey: ['rekap-absensi', bulan],
     queryFn: async () =>
       (await api.get<RekapAbsensi[]>('/absensi/rekap/', { params: { bulan } })).data,
-  })
-}
-
-export function useProsesKehadiran() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async () =>
-      (await api.post<ProsesKehadiranResult>('/absensi/proses-kehadiran/')).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['rekap-absensi'] })
-    },
-  })
-}
-
-export function useHapusKehadiran() {
-  return useMutation({
-    mutationFn: async (bulan: string) =>
-      (await api.post<HapusKehadiranResult>('/absensi/hapus-kehadiran/', { bulan })).data,
   })
 }
 

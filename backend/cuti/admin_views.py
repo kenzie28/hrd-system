@@ -1,14 +1,86 @@
+from django.db import IntegrityError
 from rest_framework import status, viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
+from core.debug_log import debug_exception
 from karyawan.permissions import IsAdminAllowed
 from karyawan.portal_views import _karyawan_for
 
-from .models import PermohonanCuti, StatusPermohonanCuti
+from .models import PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from .serializers import PermohonanCutiSerializer
-from .services import approve_by_hrd, approve_cancellation_by_hrd
+from .services import (
+    CutiImportError,
+    CutiImportResult,
+    approve_by_hrd,
+    approve_cancellation_by_hrd,
+    import_cuti_csv,
+    serialize_cuti_import_result,
+)
+
+
+class AdminCutiImportView(APIView):
+    """Import approved one-day annual or sick leave requests."""
+
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed]
+    parser_classes = [MultiPartParser]
+    tipe_cuti: str
+
+    def post(self, request):
+        upload = request.FILES.get('file')
+        if upload is None:
+            return Response(
+                serialize_cuti_import_result(
+                    CutiImportResult(
+                        errors=[CutiImportError(0, 'File CSV wajib diunggah.')]
+                    )
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = import_cuti_csv(upload, self.tipe_cuti)
+        except IntegrityError as exc:
+            debug_exception(
+                'cuti_import_post',
+                'Import CSV cuti gagal: constraint database.',
+                exc,
+                tipe=self.tipe_cuti,
+                filename=getattr(upload, 'name', None),
+            )
+            result = CutiImportResult(
+                errors=[
+                    CutiImportError(0, f'Gagal menyimpan data ke database: {exc}')
+                ]
+            )
+        except Exception as exc:
+            debug_exception(
+                'cuti_import_post',
+                'Import CSV cuti gagal dengan exception tak terduga.',
+                exc,
+                tipe=self.tipe_cuti,
+                filename=getattr(upload, 'name', None),
+            )
+            result = CutiImportResult(
+                errors=[CutiImportError(0, f'Import gagal: {exc}')]
+            )
+
+        return Response(
+            serialize_cuti_import_result(result),
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminCutiTahunanImportView(AdminCutiImportView):
+    tipe_cuti = TipeCuti.TAHUNAN
+
+
+class AdminCutiSakitImportView(AdminCutiImportView):
+    tipe_cuti = TipeCuti.SAKIT
 
 
 class AdminCutiViewSet(viewsets.ReadOnlyModelViewSet):

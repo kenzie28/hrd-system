@@ -1,29 +1,45 @@
-import { App as AntApp, Button, Card, Empty, Popconfirm, Space, Table, Typography } from 'antd'
+import { useState } from 'react'
+import { App as AntApp, Button, Card, Empty, Form, Modal, Space, Table, TimePicker, Typography } from 'antd'
+import dayjs, { Dayjs } from 'dayjs'
 import { useAbsensiConflictMutations, useAbsensiConflicts } from '../api/hooks'
 import type { Absensi } from '../api/types'
 import { JamKeluar } from '../components/JamKeluar'
 import { fmtTime } from '../constants'
+import { durasiFromTimes } from '../utils/absensi'
+
+interface ResolveFormValues {
+  jam_masuk: Dayjs
+  jam_keluar: Dayjs
+}
 
 export function AbsensiKonflikTab() {
   const { data, isLoading } = useAbsensiConflicts()
-  const { resolve, remove } = useAbsensiConflictMutations()
+  const { resolve } = useAbsensiConflictMutations()
   const { message } = AntApp.useApp()
+  const [selected, setSelected] = useState<Absensi | null>(null)
+  const [form] = Form.useForm<ResolveFormValues>()
 
-  const onResolve = async (id: number) => {
-    try {
-      await resolve.mutateAsync(id)
-      message.success('Konflik diselesaikan — entri lain untuk hari ini dihapus.')
-    } catch {
-      message.error('Gagal menyelesaikan konflik.')
-    }
+  const openResolve = (entry: Absensi) => {
+    setSelected(entry)
+    form.setFieldsValue({
+      jam_masuk: dayjs(`2000-01-01T${entry.jam_masuk}`),
+      jam_keluar: dayjs(`2000-01-01T${entry.jam_keluar}`),
+    })
   }
 
-  const onDelete = async (id: number) => {
+  const onResolve = async () => {
+    if (!selected) return
+    const values = await form.validateFields()
     try {
-      await remove.mutateAsync(id)
-      message.success('Entri absensi dihapus.')
+      await resolve.mutateAsync({
+        id: selected.id,
+        jam_masuk: values.jam_masuk.format('HH:mm:00'),
+        durasi: durasiFromTimes(values.jam_masuk, values.jam_keluar),
+      })
+      message.success('Konflik diselesaikan — entri lain untuk hari ini dihapus.')
+      setSelected(null)
     } catch {
-      message.error('Gagal menghapus entri.')
+      message.error('Gagal menyelesaikan konflik.')
     }
   }
 
@@ -61,36 +77,44 @@ export function AbsensiKonflikTab() {
               },
               {
                 title: 'Aksi',
-                width: 220,
+                width: 120,
                 render: (_, entry) => (
-                  <Space>
-                    <Popconfirm
-                      title="Gunakan entri ini dan hapus entri lain untuk hari ini?"
-                      okText="Ya"
-                      cancelText="Tidak"
-                      onConfirm={() => onResolve(entry.id)}
-                    >
-                      <Button type="primary" size="small" loading={resolve.isPending}>
-                        Gunakan Ini
-                      </Button>
-                    </Popconfirm>
-                    <Popconfirm
-                      title="Hapus entri ini?"
-                      okText="Ya"
-                      cancelText="Tidak"
-                      onConfirm={() => onDelete(entry.id)}
-                    >
-                      <Button danger size="small" loading={remove.isPending}>
-                        Hapus
-                      </Button>
-                    </Popconfirm>
-                  </Space>
+                  <Button type="primary" size="small" onClick={() => openResolve(entry)}>
+                    Gunakan Ini
+                  </Button>
                 ),
               },
             ]}
           />
         </Card>
       ))}
+
+      <Modal
+        title={
+          selected
+            ? `Gunakan Absensi — ${selected.karyawan_nama} (${selected.karyawan_id}), ${selected.tanggal}`
+            : 'Gunakan Absensi'
+        }
+        open={selected != null}
+        onOk={onResolve}
+        okText="Gunakan Ini"
+        confirmLoading={resolve.isPending}
+        onCancel={() => setSelected(null)}
+        destroyOnHidden
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item name="jam_masuk" label="Jam Masuk" rules={[{ required: true, message: 'Wajib diisi' }]}>
+            <TimePicker format="HH:mm" style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="jam_keluar" label="Jam Keluar" rules={[{ required: true, message: 'Wajib diisi' }]}>
+            <TimePicker format="HH:mm" style={{ width: '100%' }} />
+          </Form.Item>
+          <Typography.Text type="secondary">
+            Entri lain pada tanggal ini akan dihapus. Jam keluar yang sama atau lebih awal
+            dari jam masuk dianggap hari berikutnya.
+          </Typography.Text>
+        </Form>
+      </Modal>
     </Space>
   )
 }

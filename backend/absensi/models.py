@@ -3,6 +3,38 @@ from datetime import datetime
 from django.db import models
 
 
+def absensi_minute_key(karyawan_id, lokasi_id, tanggal, jam_masuk, durasi):
+    """Identity of one punch down to the minute.
+
+    Seconds on jam masuk and jam keluar do not distinguish rows. Jam keluar is
+    the clock time jam masuk + durasi, so an overnight span stays distinct from
+    a same-day span that ends at the same clock minute.
+    """
+    start = datetime.combine(tanggal, jam_masuk)
+    end = start + durasi
+    return (
+        karyawan_id,
+        lokasi_id,
+        tanggal,
+        start.replace(second=0, microsecond=0),
+        end.replace(second=0, microsecond=0),
+    )
+
+
+class AbsensiQuerySet(models.QuerySet):
+    def same_minute(self, *, karyawan, lokasi, tanggal, jam_masuk, durasi):
+        """Return the kept row when this punch matches an existing one to the minute."""
+        karyawan_id = getattr(karyawan, 'pk', karyawan)
+        lokasi_id = getattr(lokasi, 'pk', lokasi)
+        key = absensi_minute_key(karyawan_id, lokasi_id, tanggal, jam_masuk, durasi)
+        for row in self.filter(
+            karyawan_id=karyawan_id, lokasi_id=lokasi_id, tanggal=tanggal
+        ):
+            if row.minute_key() == key:
+                return row
+        return None
+
+
 class Absensi(models.Model):
     karyawan = models.ForeignKey(
         'karyawan.Karyawan', on_delete=models.CASCADE, related_name='absensi'
@@ -14,6 +46,8 @@ class Absensi(models.Model):
     jam_masuk = models.TimeField()
     durasi = models.DurationField()
 
+    objects = AbsensiQuerySet.as_manager()
+
     class Meta:
         verbose_name_plural = 'Absensi'
         ordering = ['-tanggal', 'karyawan__nama']
@@ -23,6 +57,44 @@ class Absensi(models.Model):
                 name='absensi_unique_exact_entry',
             ),
         ]
+
+    def minute_key(self):
+        return absensi_minute_key(
+            self.karyawan_id, self.lokasi_id, self.tanggal, self.jam_masuk, self.durasi
+        )
+
+    def save(self, *args, **kwargs):
+        """Keep one row when a new punch matches an existing one to the minute.
+
+        Same karyawan, lokasi, and tanggal are required. Seconds on jam masuk
+        and jam keluar are ignored. The first stored row is left unchanged.
+        """
+        if self._state.adding and None not in (
+            self.karyawan_id,
+            self.lokasi_id,
+            self.tanggal,
+            self.jam_masuk,
+            self.durasi,
+        ):
+            existing = type(self).objects.same_minute(
+                karyawan=self.karyawan_id,
+                lokasi=self.lokasi_id,
+                tanggal=self.tanggal,
+                jam_masuk=self.jam_masuk,
+                durasi=self.durasi,
+            )
+            if existing is not None:
+                self.pk = existing.pk
+                self.karyawan_id = existing.karyawan_id
+                self.lokasi_id = existing.lokasi_id
+                self.tanggal = existing.tanggal
+                self.jam_masuk = existing.jam_masuk
+                self.durasi = existing.durasi
+                self._state.adding = False
+                self._state.db = existing._state.db
+                self._squashed = True
+                return
+        super().save(*args, **kwargs)
 
     @property
     def jam_keluar(self):
@@ -52,6 +124,7 @@ class RekapAbsensi(models.Model):
     hari_keluar_cepat = models.PositiveIntegerField(default=0)
     total_menit_telat = models.PositiveIntegerField(default=0)
     total_menit_lembur = models.PositiveIntegerField(default=0)
+    materialized_through = models.DateField(null=True, blank=True)
 
     class Meta:
         verbose_name_plural = 'Rekap Absensi'
@@ -146,3 +219,45 @@ class CatatanRekapAbsensi(models.Model):
     def __str__(self):
         when = self.tanggal.isoformat() if self.tanggal else 'bulan'
         return f'{when}: {self.pesan}'
+
+
+class PendingAttendanceDay(models.Model):
+    """A durable request to rematerialize one employee/day."""
+
+    karyawan = models.ForeignKey(
+        'karyawan.Karyawan', on_delete=models.CASCADE, related_name='+'
+    )
+    tanggal = models.DateField()
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['tanggal', 'karyawan_id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['karyawan', 'tanggal'],
+                name='pending_attendance_day_unique_key',
+            ),
+        ]
+
+
+class PendingAttendanceMonth(models.Model):
+    """A durable request to re-aggregate one employee/month."""
+
+    karyawan = models.ForeignKey(
+        'karyawan.Karyawan', on_delete=models.CASCADE, related_name='+'
+    )
+    month = models.DateField(help_text='First day of the affected month.')
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['month', 'karyawan_id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['karyawan', 'month'],
+                name='pending_attendance_month_unique_key',
+            ),
+        ]

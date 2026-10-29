@@ -28,6 +28,7 @@ export function CutiTab() {
           title: 'Tanggal',
           dataIndex: 'tanggal',
           sorter: (a, b) => a.tanggal.localeCompare(b.tanggal),
+          defaultSortOrder: 'descend',
         },
         { title: 'Karyawan', dataIndex: 'karyawan_nama' },
         {

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from django.contrib.auth.models import User
 from django.db import transaction
 
+from absensi.invalidation import enqueue_location_changes
 from lokasi.models import Lokasi
 
 from .models import Karyawan
@@ -610,13 +611,19 @@ def import_karyawan_update_csv(upload) -> KaryawanImportResult:
         return result
 
     to_update: list[Karyawan] = []
+    location_changes = []
     for _, karyawan_id, fields in pending:
         karyawan = found[karyawan_id]
+        old_location_id = karyawan.lokasi_kerja_id
         for attr, value in fields.items():
             setattr(karyawan, attr, value)
         to_update.append(karyawan)
+        location_changes.append(
+            (karyawan_id, old_location_id, karyawan.lokasi_kerja_id)
+        )
 
     with transaction.atomic():
         Karyawan.objects.bulk_update(to_update, update_columns)
+        enqueue_location_changes(location_changes)
     result.updated = len(to_update)
     return result

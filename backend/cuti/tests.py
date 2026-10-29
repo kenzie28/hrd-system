@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -11,6 +12,7 @@ from cuti.policy import (
     cancellation_cutoff,
     tahunan_range_errors,
 )
+from cuti.services import import_cuti_csv
 from karyawan.models import Karyawan
 from lokasi.models import Lokasi
 
@@ -60,6 +62,74 @@ class TahunanRangePolicyTests(TestCase):
         start = today + timedelta(days=28)
         errors = tahunan_range_errors(start, start + timedelta(days=3), today=today)
         self.assertEqual(errors, {})
+
+
+class CutiCsvImportTests(TestCase):
+    def setUp(self):
+        self.employee = Karyawan.objects.create(
+            karyawan_id='1000001',
+            nama='Budi',
+            level=1,
+            cuti_tahunan=2,
+        )
+
+    def _upload(self, rows: str, tipe: str):
+        upload = SimpleUploadedFile(
+            'cuti.csv',
+            f'karyawan_id,tanggal\n{rows}'.encode(),
+            content_type='text/csv',
+        )
+        return import_cuti_csv(upload, tipe)
+
+    def test_tahunan_creates_approved_requests_and_deducts_quota(self):
+        result = self._upload(
+            '1000001,2026-11-02\n1000001,2026-11-03\n',
+            TipeCuti.TAHUNAN,
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.created, 2)
+        requests = PermohonanCuti.objects.order_by('tanggal_mulai')
+        self.assertEqual(requests.count(), 2)
+        self.assertTrue(
+            all(
+                request.status == StatusPermohonanCuti.APPROVED
+                and request.supervisor is None
+                and request.hrd_approver is None
+                for request in requests
+            )
+        )
+        self.assertEqual(Cuti.objects.count(), 2)
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.cuti_tahunan, 0)
+
+    def test_sakit_does_not_deduct_quota_and_duplicate_is_skipped(self):
+        first = self._upload(
+            '1000001;2026-11-02\n1000001;2026-11-02\n'.replace(';', ','),
+            TipeCuti.SAKIT,
+        )
+        second = self._upload('1000001,2026-11-02\n', TipeCuti.SAKIT)
+
+        self.assertTrue(first.ok)
+        self.assertEqual(first.created, 1)
+        self.assertTrue(second.ok)
+        self.assertEqual(second.created, 0)
+        self.assertEqual(PermohonanCuti.objects.get().tipe, TipeCuti.SAKIT)
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.cuti_tahunan, 2)
+
+    def test_insufficient_tahunan_quota_writes_nothing(self):
+        result = self._upload(
+            '1000001,2026-11-02\n'
+            '1000001,2026-11-03\n'
+            '1000001,2026-11-04\n',
+            TipeCuti.TAHUNAN,
+        )
+
+        self.assertFalse(result.ok)
+        self.assertIn('tidak cukup', result.errors[0].message)
+        self.assertEqual(PermohonanCuti.objects.count(), 0)
+        self.assertEqual(Cuti.objects.count(), 0)
 
 
 class PortalCutiCancellationTests(TestCase):

@@ -1,10 +1,15 @@
+import { CalendarOutlined } from '@ant-design/icons'
 import { useState } from 'react'
-import { DatePicker, Space, Table, Typography } from 'antd'
+import { Button, DatePicker, Space, Table, Typography } from 'antd'
 import dayjs from 'dayjs'
 import { useRekapAbsensi } from '../api/hooks'
 import type { RekapAbsensi } from '../api/types'
 
-export function RekapAbsensiTab() {
+interface RekapAbsensiTabProps {
+  onViewAbsensi: (karyawanId: string, bulan: string) => void
+}
+
+export function RekapAbsensiTab({ onViewAbsensi }: RekapAbsensiTabProps) {
   const [month, setMonth] = useState(() => dayjs())
   const bulan = month.format('YYYY-MM')
   const { data, isLoading } = useRekapAbsensi(bulan)
@@ -25,7 +30,7 @@ export function RekapAbsensiTab() {
         dataSource={data ?? []}
         pagination={{ pageSize: 20, showSizeChanger: false }}
         scroll={{ x: 'max-content' }}
-        locale={{ emptyText: 'Belum ada rekap untuk bulan ini. Jalankan Proses Absensi.' }}
+        locale={{ emptyText: 'Belum ada rekap otomatis untuk bulan ini.' }}
         expandable={{
           rowExpandable: (record) => record.catatan.length > 0,
           expandedRowRender: (record) => (
@@ -51,6 +56,20 @@ export function RekapAbsensiTab() {
           { title: 'Pulang Cepat', dataIndex: 'hari_keluar_cepat', width: 120 },
           { title: 'Menit Telat', dataIndex: 'total_menit_telat', width: 110 },
           { title: 'Menit Lembur', dataIndex: 'total_menit_lembur', width: 120 },
+          {
+            title: 'Aksi',
+            width: 140,
+            fixed: 'right',
+            render: (_, record) => (
+              <Button
+                size="small"
+                icon={<CalendarOutlined />}
+                onClick={() => onViewAbsensi(record.karyawan_id, bulan)}
+              >
+                Lihat Absensi
+              </Button>
+            ),
+          },
         ]}
       />
     </Space>

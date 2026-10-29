@@ -1,5 +1,17 @@
 import dayjs, { Dayjs } from 'dayjs'
 
+export function durasiFromTimes(jamMasuk: Dayjs, jamKeluar: Dayjs): string {
+  const masukMenit = jamMasuk.hour() * 60 + jamMasuk.minute()
+  const keluarMenit = jamKeluar.hour() * 60 + jamKeluar.minute()
+  const totalMenit = keluarMenit > masukMenit
+    ? keluarMenit - masukMenit
+    : keluarMenit + 24 * 60 - masukMenit
+
+  const jam = Math.floor(totalMenit / 60)
+  const menit = totalMenit % 60
+  return `${String(jam).padStart(2, '0')}:${String(menit).padStart(2, '0')}:00`
+}
+
 export function parseDurasi(durasi: string): { jam: number; menit: number } {
   // DRF renders durations as "HH:MM:SS" (or "D HH:MM:SS" past 24h)
   const [dayPart, timePart] = durasi.includes(' ') ? durasi.split(' ') : ['0', durasi]

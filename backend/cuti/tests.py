@@ -372,3 +372,35 @@ class PortalCutiTahunanRulesTests(TestCase):
         response = self._post(TipeCuti.IZIN_OFF, start, start + timedelta(days=5))
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(response.data['jumlah_hari'], 6)
+
+
+class CutiLedgerTests(TestCase):
+    def test_tahunan_rows_include_remaining_quota(self):
+        employee = Karyawan.objects.create(
+            karyawan_id='1000001',
+            nama='Budi',
+            level=1,
+            cuti_tahunan=7,
+        )
+        tahunan = PermohonanCuti.objects.create(
+            karyawan=employee,
+            tipe=TipeCuti.TAHUNAN,
+            tanggal_mulai=date(2026, 11, 2),
+            tanggal_selesai=date(2026, 11, 2),
+            status=StatusPermohonanCuti.APPROVED,
+        )
+        sakit = PermohonanCuti.objects.create(
+            karyawan=employee,
+            tipe=TipeCuti.SAKIT,
+            tanggal_mulai=date(2026, 11, 3),
+            tanggal_selesai=date(2026, 11, 3),
+            status=StatusPermohonanCuti.APPROVED,
+        )
+        Cuti.objects.create(permohonan=tahunan, tanggal=date(2026, 11, 2))
+        Cuti.objects.create(permohonan=sakit, tanggal=date(2026, 11, 3))
+
+        response = APIClient().get('/api/cuti/')
+        self.assertEqual(response.status_code, 200)
+        by_tipe = {row['tipe']: row for row in response.data}
+        self.assertEqual(by_tipe[TipeCuti.TAHUNAN]['sisa_cuti_tahunan'], 7)
+        self.assertIsNone(by_tipe[TipeCuti.SAKIT]['sisa_cuti_tahunan'])

@@ -24,13 +24,19 @@ class CutiSerializer(serializers.ModelSerializer):
     supervisor_nama = serializers.CharField(
         source='permohonan.supervisor.nama', read_only=True, default=None
     )
+    sisa_cuti_tahunan = serializers.SerializerMethodField()
 
     class Meta:
         model = Cuti
         fields = [
             'id', 'permohonan', 'tanggal', 'karyawan_id', 'karyawan_nama',
-            'tipe', 'tipe_display', 'supervisor_nama',
+            'tipe', 'tipe_display', 'supervisor_nama', 'sisa_cuti_tahunan',
         ]
+
+    def get_sisa_cuti_tahunan(self, obj):
+        if obj.permohonan.tipe != TipeCuti.TAHUNAN:
+            return None
+        return obj.permohonan.karyawan.cuti_tahunan
 
 
 class SupervisorOptionSerializer(serializers.ModelSerializer):

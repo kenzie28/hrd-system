@@ -198,6 +198,7 @@ export interface Cuti {
   tipe: CutiTipe
   tipe_display: string
   supervisor_nama: string | null
+  sisa_cuti_tahunan: number | null
 }
 
 export interface RecordFilters {

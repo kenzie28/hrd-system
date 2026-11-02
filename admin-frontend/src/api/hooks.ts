@@ -791,7 +791,7 @@ export function useCutiApprovalMutations() {
 
 // ---- HRD Lembur Approval ----
 
-export function useLembur(filters?: RecordFilters) {
+export function useLembur(filters?: RecordFilters, enabled = true) {
   return useQuery({
     queryKey: ['admin-lembur-list', filters],
     queryFn: async () =>
@@ -800,6 +800,7 @@ export function useLembur(filters?: RecordFilters) {
           params: { status: 'APPROVED', ...filterParams(filters) },
         })
       ).data,
+    enabled,
   })
 }
 
@@ -827,6 +828,31 @@ export function useLemburApprovalMutations() {
     onSuccess: invalidate,
   })
   return { approve, reject }
+}
+
+export interface LemburDayPayload {
+  karyawan_id: string
+  tanggal: string
+}
+
+export function useLemburDayMutations() {
+  const qc = useQueryClient()
+  const invalidate = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ['admin-lembur'] }),
+      qc.invalidateQueries({ queryKey: ['admin-lembur-list'] }),
+      qc.invalidateQueries({ queryKey: ['rekap-absensi'] }),
+    ])
+
+  const add = useMutation({
+    mutationFn: (data: LemburDayPayload) => api.post('/admin/lembur/add/', data),
+    onSuccess: invalidate,
+  })
+  const remove = useMutation({
+    mutationFn: (data: LemburDayPayload) => api.post('/admin/lembur/remove/', data),
+    onSuccess: invalidate,
+  })
+  return { add, remove }
 }
 
 // ---- Gaji ----

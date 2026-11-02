@@ -2,6 +2,8 @@ from datetime import date
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APIClient
 
 from karyawan.models import Karyawan
 from lembur.models import PermohonanLembur, StatusPermohonanLembur
@@ -78,3 +80,99 @@ class LemburCsvImportTests(TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.errors[0].row, 0)
         self.assertIn('tanggal', result.errors[0].message)
+
+
+class AdminLemburDayTests(TestCase):
+    def setUp(self):
+        self.admin = Karyawan.objects.create(
+            karyawan_id='0000003',
+            nama='Admin',
+            level=8,
+        )
+        self.admin.refresh_from_db()
+        self.employee = Karyawan.objects.create(
+            karyawan_id='1000001',
+            nama='Budi',
+            level=1,
+        )
+        self.client = APIClient()
+        token = Token.objects.create(user=self.admin.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    def _post(self, path, **overrides):
+        payload = {
+            'karyawan_id': self.employee.pk,
+            'tanggal': '2026-11-02',
+        }
+        payload.update(overrides)
+        return self.client.post(path, payload, format='json')
+
+    def test_add_is_idempotent_and_remove_clears_approved(self):
+        created = self._post('/api/admin/lembur/add/')
+
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.data['status'], StatusPermohonanLembur.APPROVED)
+        self.assertEqual(created.data['tanggal'], '2026-11-02')
+        self.assertIsNone(created.data['supervisor'])
+        self.assertEqual(PermohonanLembur.objects.count(), 1)
+
+        again = self._post('/api/admin/lembur/add/')
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(again.data['id'], created.data['id'])
+        self.assertEqual(PermohonanLembur.objects.count(), 1)
+
+        removed = self._post('/api/admin/lembur/remove/')
+        self.assertEqual(removed.status_code, 204)
+        self.assertEqual(PermohonanLembur.objects.count(), 0)
+
+        removed_again = self._post('/api/admin/lembur/remove/')
+        self.assertEqual(removed_again.status_code, 204)
+
+    def test_remove_keeps_requests_that_are_not_approved(self):
+        pending = PermohonanLembur.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 11, 2),
+            status=StatusPermohonanLembur.MENUNGGU_HRD,
+        )
+        self._post('/api/admin/lembur/add/')
+
+        removed = self._post('/api/admin/lembur/remove/')
+
+        self.assertEqual(removed.status_code, 204)
+        pending.refresh_from_db()
+        self.assertEqual(pending.status, StatusPermohonanLembur.MENUNGGU_HRD)
+        self.assertFalse(
+            PermohonanLembur.objects.filter(
+                status=StatusPermohonanLembur.APPROVED
+            ).exists()
+        )
+
+    def test_rejects_unknown_employee_and_bad_date(self):
+        unknown = self._post('/api/admin/lembur/add/', karyawan_id='9999999')
+        self.assertEqual(unknown.status_code, 400)
+        self.assertIn('tidak ditemukan', unknown.data['karyawan_id'])
+
+        bad_date = self._post('/api/admin/lembur/add/', tanggal='02-11-2026')
+        self.assertEqual(bad_date.status_code, 400)
+        self.assertIn('yyyy-mm-dd', bad_date.data['tanggal'])
+        self.assertEqual(PermohonanLembur.objects.count(), 0)
+
+    def test_requires_admin(self):
+        anonymous = APIClient().post(
+            '/api/admin/lembur/add/',
+            {'karyawan_id': self.employee.pk, 'tanggal': '2026-11-02'},
+            format='json',
+        )
+        self.assertEqual(anonymous.status_code, 401)
+
+        self.employee.refresh_from_db()
+        token = Token.objects.create(user=self.employee.user)
+        employee_client = APIClient()
+        employee_client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+        forbidden = employee_client.post(
+            '/api/admin/lembur/add/',
+            {'karyawan_id': self.employee.pk, 'tanggal': '2026-11-02'},
+            format='json',
+        )
+        self.assertEqual(forbidden.status_code, 403)
+        self.assertEqual(PermohonanLembur.objects.count(), 0)

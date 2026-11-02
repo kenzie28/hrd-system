@@ -14,7 +14,14 @@ import {
   Typography,
 } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
-import { useAbsensi, useAbsensiMutations, useKaryawan, useLokasi } from '../api/hooks'
+import {
+  useAbsensi,
+  useAbsensiMutations,
+  useKaryawan,
+  useLembur,
+  useLemburDayMutations,
+  useLokasi,
+} from '../api/hooks'
 import type { Absensi } from '../api/types'
 import { JamKeluar } from '../components/JamKeluar'
 import { fmtTime } from '../constants'
@@ -39,9 +46,18 @@ export function AbsensiTab({ initialKaryawanId, initialBulan }: AbsensiTabProps)
     karyawan_id: karyawanId,
     bulan: month.format('YYYY-MM'),
   })
+  const { data: approvedLembur, isLoading: lemburLoading } = useLembur(
+    {
+      karyawan_id: karyawanId,
+      bulan: month.format('YYYY-MM'),
+    },
+    Boolean(karyawanId),
+  )
   const { data: karyawan } = useKaryawan()
   const { data: lokasi } = useLokasi()
   const { update, remove } = useAbsensiMutations()
+  const { add: addLembur, remove: removeLembur } = useLemburDayMutations()
+  const [pendingLemburTanggal, setPendingLemburTanggal] = useState<string | null>(null)
 
   const [editing, setEditing] = useState<Absensi | null>(null)
   const [form] = Form.useForm<EditFormValues>()
@@ -50,6 +66,34 @@ export function AbsensiTab({ initialKaryawanId, initialBulan }: AbsensiTabProps)
     () => (karyawan ?? []).map((k) => ({ label: `${k.nama} (${k.karyawan_id})`, value: k.karyawan_id })),
     [karyawan],
   )
+  const lemburDates = useMemo(
+    () => new Set((approvedLembur ?? []).map((row) => row.tanggal)),
+    [approvedLembur],
+  )
+
+  const toggleLembur = async (record: Absensi) => {
+    const hasLembur = lemburDates.has(record.tanggal)
+    setPendingLemburTanggal(record.tanggal)
+    try {
+      if (hasLembur) {
+        await removeLembur.mutateAsync({
+          karyawan_id: record.karyawan_id,
+          tanggal: record.tanggal,
+        })
+        message.success('Lembur dihapus')
+      } else {
+        await addLembur.mutateAsync({
+          karyawan_id: record.karyawan_id,
+          tanggal: record.tanggal,
+        })
+        message.success('Lembur ditambahkan')
+      }
+    } catch {
+      message.error(hasLembur ? 'Gagal menghapus lembur.' : 'Gagal menambahkan lembur.')
+    } finally {
+      setPendingLemburTanggal(null)
+    }
+  }
 
   const openEdit = (record: Absensi) => {
     setEditing(record)
@@ -124,9 +168,9 @@ export function AbsensiTab({ initialKaryawanId, initialBulan }: AbsensiTabProps)
             },
             {
               title: 'Aksi',
-              width: 160,
+              width: 300,
               render: (_, record) => (
-                <Space>
+                <Space wrap>
                   <Button size="small" onClick={() => openEdit(record)}>
                     Edit
                   </Button>
@@ -141,6 +185,15 @@ export function AbsensiTab({ initialKaryawanId, initialBulan }: AbsensiTabProps)
                       Hapus
                     </Button>
                   </Popconfirm>
+                  {!lemburLoading && (
+                    <Button
+                      size="small"
+                      loading={pendingLemburTanggal === record.tanggal}
+                      onClick={() => toggleLembur(record)}
+                    >
+                      {lemburDates.has(record.tanggal) ? 'Remove Lembur' : 'Add Lembur'}
+                    </Button>
+                  )}
                 </Space>
               ),
             },

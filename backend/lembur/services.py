@@ -176,18 +176,56 @@ def import_lembur_csv(upload) -> LemburImportResult:
         ]
 
         for row in to_create:
-            PermohonanLembur.objects.create(
-                karyawan=employees[row.karyawan_id],
-                tanggal=row.tanggal,
-                alasan='',
-                status=StatusPermohonanLembur.APPROVED,
-                supervisor=None,
-                hrd_approver=None,
-            )
+            create_approved_lembur(employees[row.karyawan_id], row.tanggal)
 
         result.created = len(to_create)
 
     return result
+
+
+def create_approved_lembur(karyawan, tanggal) -> PermohonanLembur:
+    """Create one already-approved overtime request for a single day."""
+    return PermohonanLembur.objects.create(
+        karyawan=karyawan,
+        tanggal=tanggal,
+        alasan='',
+        status=StatusPermohonanLembur.APPROVED,
+        supervisor=None,
+        hrd_approver=None,
+    )
+
+
+@transaction.atomic
+def ensure_approved_lembur(karyawan, tanggal) -> tuple[PermohonanLembur, bool]:
+    """Return the approved request for this day, creating it when missing."""
+    existing = (
+        PermohonanLembur.objects.select_for_update()
+        .filter(
+            karyawan=karyawan,
+            tanggal=tanggal,
+            status=StatusPermohonanLembur.APPROVED,
+        )
+        .order_by('pk')
+        .first()
+    )
+    if existing is not None:
+        return existing, False
+    return create_approved_lembur(karyawan, tanggal), True
+
+
+@transaction.atomic
+def clear_approved_lembur(karyawan, tanggal) -> int:
+    """Delete approved overtime for this day. Other statuses are left in place."""
+    rows = list(
+        PermohonanLembur.objects.select_for_update().filter(
+            karyawan=karyawan,
+            tanggal=tanggal,
+            status=StatusPermohonanLembur.APPROVED,
+        )
+    )
+    for row in rows:
+        row.delete()
+    return len(rows)
 
 
 @transaction.atomic

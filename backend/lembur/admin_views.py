@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from django.db import IntegrityError
 from rest_framework import status, viewsets
 from rest_framework.authentication import TokenAuthentication
@@ -7,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.debug_log import debug_exception
+from karyawan.models import Karyawan
 from karyawan.permissions import IsAdminAllowed
 from karyawan.portal_views import _karyawan_for
 
@@ -16,9 +19,47 @@ from .services import (
     LemburImportError,
     LemburImportResult,
     approve_by_hrd,
+    clear_approved_lembur,
+    ensure_approved_lembur,
     import_lembur_csv,
     serialize_lembur_import_result,
 )
+
+
+def _lembur_day(data):
+    """Return ``(karyawan, tanggal, error_response)`` for an add/remove body."""
+    if not isinstance(data, dict):
+        return None, None, Response(
+            {'detail': 'Body harus berupa objek.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    karyawan_id = data.get('karyawan_id')
+    if not isinstance(karyawan_id, str) or not karyawan_id.strip():
+        return None, None, Response(
+            {'karyawan_id': 'karyawan_id wajib diisi.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    karyawan = Karyawan.objects.filter(pk=karyawan_id.strip()).first()
+    if karyawan is None:
+        return None, None, Response(
+            {'karyawan_id': 'Karyawan tidak ditemukan.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    tanggal_raw = data.get('tanggal')
+    tanggal = None
+    if isinstance(tanggal_raw, str):
+        try:
+            tanggal = datetime.strptime(tanggal_raw.strip(), '%Y-%m-%d').date()
+        except ValueError:
+            tanggal = None
+    if tanggal is None:
+        return None, None, Response(
+            {'tanggal': 'tanggal harus format yyyy-mm-dd.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return karyawan, tanggal, None
 
 
 class AdminLemburImportView(APIView):
@@ -96,6 +137,27 @@ class AdminLemburViewSet(viewsets.ReadOnlyModelViewSet):
             year, month = map(int, bulan.split('-'))
             qs = qs.filter(tanggal__year=year, tanggal__month=month)
         return qs
+
+    @action(detail=False, methods=['post'])
+    def add(self, request):
+        """Create an approved overtime request for one employee and date."""
+        karyawan, tanggal, error = _lembur_day(request.data)
+        if error is not None:
+            return error
+        permohonan, created = ensure_approved_lembur(karyawan, tanggal)
+        return Response(
+            PermohonanLemburSerializer(permohonan).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['post'])
+    def remove(self, request):
+        """Delete approved overtime for one employee and date."""
+        karyawan, tanggal, error = _lembur_day(request.data)
+        if error is not None:
+            return error
+        clear_approved_lembur(karyawan, tanggal)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):

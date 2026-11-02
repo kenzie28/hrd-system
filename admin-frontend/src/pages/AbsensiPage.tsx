@@ -4,7 +4,7 @@ import { useAbsensiConflicts } from '../api/hooks'
 import { AbsensiKonflikTab } from '../tabs/AbsensiKonflikTab'
 import { AbsensiTab } from '../tabs/AbsensiTab'
 import { ImportAbsensiTab } from '../tabs/ImportAbsensiTab'
-import { ImportCutiTab, ImportSakitTab } from '../tabs/ImportCutiTab'
+import { ImportCutiTab, ImportLemburTab, ImportSakitTab } from '../tabs/ImportCutiTab'
 import { RekapAbsensiTab } from '../tabs/RekapAbsensiTab'
 
 export default function AbsensiPage() {
@@ -51,6 +51,7 @@ export default function AbsensiPage() {
     { key: 'import-absensi', label: 'Import CSV Absensi', children: <ImportAbsensiTab /> },
     { key: 'import-cuti', label: 'Import CSV Cuti', children: <ImportCutiTab /> },
     { key: 'import-sakit', label: 'Import CSV Sakit', children: <ImportSakitTab /> },
+    { key: 'import-lembur', label: 'Import CSV Lembur', children: <ImportLemburTab /> },
   ]
 
   return (

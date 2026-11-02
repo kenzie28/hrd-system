@@ -2,7 +2,7 @@ import { InboxOutlined, UploadOutlined } from '@ant-design/icons'
 import { App as AntApp, Button, Space, Typography, Upload } from 'antd'
 import type { UploadFile, UploadProps } from 'antd'
 import { useState, type CSSProperties } from 'react'
-import { useCutiImport, useCutiSakitImport } from '../api/hooks'
+import { useCutiImport, useCutiSakitImport, useLemburImport } from '../api/hooks'
 import type { CutiImportResult } from '../api/types'
 import { ImportResultPanel } from './ImportAbsensiTab'
 
@@ -74,7 +74,7 @@ function ImportCutiForm({
   label,
   importAction,
 }: {
-  label: 'Cuti' | 'Sakit'
+  label: 'Cuti' | 'Sakit' | 'Lembur'
   importAction: ImportAction
 }) {
   const [fileList, setFileList] = useState<UploadFile[]>([])
@@ -157,4 +157,9 @@ export function ImportCutiTab() {
 export function ImportSakitTab() {
   const importAction = useCutiSakitImport()
   return <ImportCutiForm label="Sakit" importAction={importAction} />
+}
+
+export function ImportLemburTab() {
+  const importAction = useLemburImport()
+  return <ImportCutiForm label="Lembur" importAction={importAction} />
 }

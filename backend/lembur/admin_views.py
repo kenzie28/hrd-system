@@ -1,14 +1,74 @@
+from django.db import IntegrityError
 from rest_framework import status, viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
+from core.debug_log import debug_exception
 from karyawan.permissions import IsAdminAllowed
 from karyawan.portal_views import _karyawan_for
 
 from .models import PermohonanLembur, StatusPermohonanLembur
 from .serializers import PermohonanLemburSerializer
-from .services import approve_by_hrd
+from .services import (
+    LemburImportError,
+    LemburImportResult,
+    approve_by_hrd,
+    import_lembur_csv,
+    serialize_lembur_import_result,
+)
+
+
+class AdminLemburImportView(APIView):
+    """Import approved one-day overtime requests."""
+
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        upload = request.FILES.get('file')
+        if upload is None:
+            return Response(
+                serialize_lembur_import_result(
+                    LemburImportResult(
+                        errors=[LemburImportError(0, 'File CSV wajib diunggah.')]
+                    )
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = import_lembur_csv(upload)
+        except IntegrityError as exc:
+            debug_exception(
+                'lembur_import_post',
+                'Import CSV lembur gagal: constraint database.',
+                exc,
+                filename=getattr(upload, 'name', None),
+            )
+            result = LemburImportResult(
+                errors=[
+                    LemburImportError(0, f'Gagal menyimpan data ke database: {exc}')
+                ]
+            )
+        except Exception as exc:
+            debug_exception(
+                'lembur_import_post',
+                'Import CSV lembur gagal dengan exception tak terduga.',
+                exc,
+                filename=getattr(upload, 'name', None),
+            )
+            result = LemburImportResult(
+                errors=[LemburImportError(0, f'Import gagal: {exc}')]
+            )
+
+        return Response(
+            serialize_lembur_import_result(result),
+            status=status.HTTP_200_OK,
+        )
 
 
 class AdminLemburViewSet(viewsets.ReadOnlyModelViewSet):

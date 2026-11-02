@@ -22,7 +22,7 @@ from kalender_bersama.views import (
     NotifikasiDismissView,
     NotifikasiListView,
 )
-from lembur.admin_views import AdminLemburViewSet
+from lembur.admin_views import AdminLemburImportView, AdminLemburViewSet
 from lembur.views import PortalLemburViewSet
 from gaji.admin_views import AdminGajiImportView, AdminGajiViewSet
 from gaji.views import PortalGajiView
@@ -160,6 +160,11 @@ admin_api_urlpatterns = [
         'admin/cuti-sakit/import/',
         AdminCutiSakitImportView.as_view(),
         name='admin-cuti-sakit-import',
+    ),
+    path(
+        'admin/lembur/import/',
+        AdminLemburImportView.as_view(),
+        name='admin-lembur-import',
     ),
     path(
         'admin/liburan/import/',

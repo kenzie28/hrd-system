@@ -671,7 +671,7 @@ export function useAbsensiImport() {
   })
 }
 
-function useCutiCsvImport(path: string) {
+function useCsvImport(path: string, queryKeys: string[][]) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ file }: { file: File }): Promise<CutiImportResult> => {
@@ -686,20 +686,36 @@ function useCutiCsvImport(path: string) {
     },
     onSuccess: (result) => {
       if (result.ok) {
-        qc.invalidateQueries({ queryKey: ['cuti'] })
-        qc.invalidateQueries({ queryKey: ['pending-cuti'] })
-        qc.invalidateQueries({ queryKey: ['karyawan'] })
+        for (const queryKey of queryKeys) {
+          qc.invalidateQueries({ queryKey })
+        }
       }
     },
   })
 }
 
 export function useCutiImport() {
-  return useCutiCsvImport('/admin/cuti/import/')
+  return useCsvImport('/admin/cuti/import/', [
+    ['cuti'],
+    ['pending-cuti'],
+    ['karyawan'],
+  ])
 }
 
 export function useCutiSakitImport() {
-  return useCutiCsvImport('/admin/cuti-sakit/import/')
+  return useCsvImport('/admin/cuti-sakit/import/', [
+    ['cuti'],
+    ['pending-cuti'],
+    ['karyawan'],
+  ])
+}
+
+export function useLemburImport() {
+  return useCsvImport('/admin/lembur/import/', [
+    ['admin-lembur'],
+    ['admin-lembur-list'],
+    ['rekap-absensi'],
+  ])
 }
 
 // ---- Absensi conflicts (duplicate clock-in/out on the same day) ----

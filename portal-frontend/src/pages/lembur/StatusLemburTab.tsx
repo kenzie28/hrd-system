@@ -33,6 +33,7 @@ export default function StatusLemburTab() {
           sorter: (a, b) => a.tanggal.localeCompare(b.tanggal),
           defaultSortOrder: 'descend',
         },
+        { title: 'Tipe', dataIndex: 'tipe_display', width: 90 },
         {
           title: 'Supervisor',
           dataIndex: 'supervisor_nama',

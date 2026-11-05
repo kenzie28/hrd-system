@@ -23,7 +23,7 @@ from absensi.proses import proses_absensi_bulan
 from absensi.services import import_absensi_csv
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from karyawan.models import Karyawan
-from lembur.models import PermohonanLembur, StatusPermohonanLembur
+from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
 from liburan.models import Liburan
 from lokasi.models import Lokasi
 from shift.models import HariKerja, Shift
@@ -218,6 +218,36 @@ class ProsesAbsensiTests(TestCase):
         rekap = self._rekap()
         self.assertEqual(rekap.total_menit_lembur, 45)
         self.assertEqual(_notes(rekap, self.focus), [])
+
+    def test_lembur_biasa_on_time_adds_no_minutes(self):
+        _punch(self.karyawan, self.home, self.focus, '08:00', '17:00')
+        PermohonanLembur.objects.create(
+            karyawan=self.karyawan,
+            tanggal=self.focus,
+            status=StatusPermohonanLembur.APPROVED,
+            tipe=TipeLembur.BIASA,
+        )
+        rekap = self._rekap()
+        self.assertEqual(rekap.hari_hadir, 1)
+        self.assertEqual(rekap.total_menit_lembur, 0)
+
+    def test_lembur_dinas_counts_entire_attendance(self):
+        _punch(self.karyawan, self.home, self.focus, '08:00', '17:00')
+        PermohonanLembur.objects.create(
+            karyawan=self.karyawan,
+            tanggal=self.focus,
+            status=StatusPermohonanLembur.APPROVED,
+            tipe=TipeLembur.DINAS,
+        )
+        rekap = self._rekap()
+        self.assertEqual(rekap.hari_hadir, 1)
+        self.assertEqual(rekap.total_menit_lembur, 540)
+
+        Absensi.objects.filter(karyawan=self.karyawan, tanggal=self.focus).delete()
+        _punch(self.karyawan, self.home, self.focus, '08:00', '17:45')
+        rekap = self._rekap()
+        self.assertEqual(rekap.hari_hadir, 1)
+        self.assertEqual(rekap.total_menit_lembur, 585)
 
     def test_best_match_picks_closest_start_and_notes_unused_punches(self):
         _punch(self.karyawan, self.other, self.focus, '07:00', '08:00')

@@ -2,7 +2,12 @@ import { InboxOutlined, UploadOutlined } from '@ant-design/icons'
 import { App as AntApp, Button, Space, Typography, Upload } from 'antd'
 import type { UploadFile, UploadProps } from 'antd'
 import { useState, type CSSProperties } from 'react'
-import { useCutiImport, useCutiSakitImport, useLemburImport } from '../api/hooks'
+import {
+  useCutiImport,
+  useCutiSakitImport,
+  useLemburDinasImport,
+  useLemburImport,
+} from '../api/hooks'
 import type { CutiImportResult } from '../api/types'
 import { ImportResultPanel } from './ImportAbsensiTab'
 
@@ -73,9 +78,11 @@ function ExampleSheet() {
 function ImportCutiForm({
   label,
   importAction,
+  note,
 }: {
-  label: 'Cuti' | 'Sakit' | 'Lembur'
+  label: 'Cuti' | 'Sakit' | 'Lembur' | 'Lembur Dinas'
   importAction: ImportAction
+  note?: string
 }) {
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -117,6 +124,7 @@ function ImportCutiForm({
         dan <Typography.Text code>tanggal</Typography.Text> (format{' '}
         <Typography.Text code>yyyy-mm-dd</Typography.Text>). Setiap baris akan membuat
         permohonan {label.toLowerCase()} satu hari yang langsung berstatus approved.
+        {note ? ` ${note}` : ''}
       </Typography.Paragraph>
 
       <ExampleSheet />
@@ -162,4 +170,15 @@ export function ImportSakitTab() {
 export function ImportLemburTab() {
   const importAction = useLemburImport()
   return <ImportCutiForm label="Lembur" importAction={importAction} />
+}
+
+export function ImportLemburDinasTab() {
+  const importAction = useLemburDinasImport()
+  return (
+    <ImportCutiForm
+      label="Lembur Dinas"
+      importAction={importAction}
+      note="Tanggal yang sudah punya lembur approved, Biasa atau Dinas, dilewati."
+    />
+  )
 }

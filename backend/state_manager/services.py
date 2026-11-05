@@ -34,7 +34,7 @@ from gaji.models import GajiTemp
 from kalender_bersama.models import Langganan, NotifikasiDismiss
 from karyawan.models import Karyawan
 from karyawan.signals import ensure_portal_login
-from lembur.models import PermohonanLembur, StatusPermohonanLembur
+from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
 from liburan.models import Liburan
 from lokasi.models import Lokasi
 from shift.models import HariKerja, Shift
@@ -43,6 +43,7 @@ from .constants import (
     CLEAR_ORDER,
     CLEARABLE_LABELS,
     CLEARABLE_MODELS,
+    OPTIONAL_TABLE_COLUMNS,
     STATE_FORMAT_MARKER,
     STATE_FORMAT_VERSION,
     STATE_MANAGER_PASSWORD,
@@ -311,6 +312,7 @@ def export_state_csv() -> str:
                 _cell(obj.status),
                 _cell(obj.supervisor_id),
                 _cell(obj.hrd_approver_id),
+                _cell(obj.tipe),
             ]
         )
     _write_table(
@@ -401,7 +403,8 @@ def parse_state_csv(text: str) -> tuple[dict[str, list[dict]], list[StateError]]
             expected = TABLE_COLUMNS[current_table]
             received = tuple(row)
             seen_headers[current_table] = list(received)
-            missing = [c for c in expected if c not in received]
+            optional = OPTIONAL_TABLE_COLUMNS.get(current_table, frozenset())
+            missing = [c for c in expected if c not in received and c not in optional]
             extra = [c for c in received if c not in expected]
             if missing or extra:
                 parts = []
@@ -958,6 +961,7 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
         )
 
     status_lembur = {choice.value for choice in StatusPermohonanLembur}
+    tipe_lembur = {choice.value for choice in TipeLembur}
     lembur_ids: set[int] = set()
     for row in tables.get(TABLE_PERMOHONAN_LEMBUR, []):
         line = _line_of(row)
@@ -965,9 +969,15 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
         karyawan_id = _req(row, 'karyawan_id', errors, TABLE_PERMOHONAN_LEMBUR)
         tanggal = _parse_date(_opt(row, 'tanggal'), line, 'tanggal', errors)
         status = _choice(_opt(row, 'status'), status_lembur, line, 'status', errors)
+        raw_tipe = _opt(row, 'tipe')
+        tipe = (
+            TipeLembur.BIASA
+            if not raw_tipe
+            else _choice(raw_tipe, tipe_lembur, line, 'tipe', errors)
+        )
         supervisor_id = _opt(row, 'supervisor_id') or None
         hrd_approver_id = _opt(row, 'hrd_approver_id') or None
-        if None in (pk, karyawan_id, tanggal, status):
+        if None in (pk, karyawan_id, tanggal, status, tipe):
             continue
         if pk in lembur_ids:
             errors.append(StateError(line, f'permohonan_lembur.id duplikat: {pk}.'))
@@ -989,6 +999,7 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
                 'alasan': row.get('alasan') or '',
                 'tanggal': tanggal,
                 'status': status,
+                'tipe': tipe,
                 'supervisor_id': supervisor_id,
                 'hrd_approver_id': hrd_approver_id,
                 '_line': line,
@@ -1499,6 +1510,7 @@ def _insert_state(typed: dict[str, list[dict]]) -> None:
             alasan=row['alasan'],
             tanggal=row['tanggal'],
             status=row['status'],
+            tipe=row['tipe'],
             supervisor_id=row['supervisor_id'],
             hrd_approver_id=row['hrd_approver_id'],
         )

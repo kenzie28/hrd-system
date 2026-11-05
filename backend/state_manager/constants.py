@@ -82,6 +82,7 @@ TABLE_COLUMNS = {
         'status',
         'supervisor_id',
         'hrd_approver_id',
+        'tipe',
     ),
     TABLE_GAJI: (
         'id',
@@ -116,6 +117,11 @@ TABLE_COLUMNS = {
 }
 
 TABLE_ORDER = tuple(TABLE_COLUMNS.keys())
+
+# Older snapshots may omit these columns. Missing values default during parse.
+OPTIONAL_TABLE_COLUMNS = {
+    TABLE_PERMOHONAN_LEMBUR: frozenset({'tipe'}),
+}
 
 TABLE_KEHADIRAN = 'kehadiran'
 TABLE_REKAP_ABSENSI = 'rekap_absensi'

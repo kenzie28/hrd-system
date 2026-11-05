@@ -6,7 +6,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from karyawan.models import Karyawan
-from lembur.models import PermohonanLembur, StatusPermohonanLembur
+from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
 from lembur.services import import_lembur_csv
 
 
@@ -18,13 +18,13 @@ class LemburCsvImportTests(TestCase):
             level=1,
         )
 
-    def _upload(self, rows: str, header='karyawan_id,tanggal'):
+    def _upload(self, rows: str, header='karyawan_id,tanggal', tipe=TipeLembur.BIASA):
         upload = SimpleUploadedFile(
             'lembur.csv',
             f'{header}\n{rows}'.encode(),
             content_type='text/csv',
         )
-        return import_lembur_csv(upload)
+        return import_lembur_csv(upload, tipe)
 
     def test_creates_approved_requests_and_skips_duplicates(self):
         result = self._upload(
@@ -42,6 +42,7 @@ class LemburCsvImportTests(TestCase):
         self.assertTrue(
             all(
                 request.status == StatusPermohonanLembur.APPROVED
+                and request.tipe == TipeLembur.BIASA
                 and request.karyawan_id == self.employee.pk
                 and request.supervisor_id is None
                 and request.hrd_approver_id is None
@@ -80,6 +81,27 @@ class LemburCsvImportTests(TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.errors[0].row, 0)
         self.assertIn('tanggal', result.errors[0].message)
+
+    def test_dinas_import_skips_a_day_that_already_has_approved_lembur(self):
+        dinas = self._upload('1000001,2026-11-02\n', tipe=TipeLembur.DINAS)
+
+        self.assertTrue(dinas.ok)
+        self.assertEqual(dinas.created, 1)
+        self.assertEqual(PermohonanLembur.objects.get().tipe, TipeLembur.DINAS)
+
+        biasa = self._upload('1000001,2026-11-02\n')
+        self.assertTrue(biasa.ok)
+        self.assertEqual(biasa.created, 0)
+
+        other = self._upload('1000001,2026-11-04\n')
+        self.assertEqual(other.created, 1)
+        self.assertEqual(
+            PermohonanLembur.objects.get(tanggal=date(2026, 11, 4)).tipe,
+            TipeLembur.BIASA,
+        )
+        blocked = self._upload('1000001,2026-11-04\n', tipe=TipeLembur.DINAS)
+        self.assertEqual(blocked.created, 0)
+        self.assertEqual(PermohonanLembur.objects.count(), 2)
 
 
 class AdminLemburDayTests(TestCase):
@@ -176,3 +198,29 @@ class AdminLemburDayTests(TestCase):
         )
         self.assertEqual(forbidden.status_code, 403)
         self.assertEqual(PermohonanLembur.objects.count(), 0)
+
+    def test_hrd_approve_rejected_when_day_already_approved(self):
+        pending = PermohonanLembur.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 11, 2),
+            status=StatusPermohonanLembur.MENUNGGU_HRD,
+        )
+        PermohonanLembur.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 11, 2),
+            status=StatusPermohonanLembur.APPROVED,
+            tipe=TipeLembur.DINAS,
+        )
+
+        response = self.client.post(f'/api/admin/lembur/{pending.pk}/approve/')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('approved', response.data['detail'])
+        pending.refresh_from_db()
+        self.assertEqual(pending.status, StatusPermohonanLembur.MENUNGGU_HRD)
+        self.assertEqual(
+            PermohonanLembur.objects.filter(
+                status=StatusPermohonanLembur.APPROVED
+            ).count(),
+            1,
+        )

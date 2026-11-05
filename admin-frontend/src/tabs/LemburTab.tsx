@@ -31,6 +31,7 @@ export function LemburTab() {
         },
         { title: 'ID Karyawan', dataIndex: 'karyawan_id', width: 110 },
         { title: 'Karyawan', dataIndex: 'karyawan_nama' },
+        { title: 'Tipe', dataIndex: 'tipe_display', width: 90 },
         {
           title: 'Alasan',
           dataIndex: 'alasan',
@@ -49,7 +50,8 @@ export function LemburTab() {
       ]}
       renderBadge={(r) => (
         <Tag color="green" style={{ fontSize: 11, lineHeight: '16px', margin: 0 }}>
-          {r.karyawan_nama.split(' ')[0]}: Lembur
+          {r.karyawan_nama.split(' ')[0]}:{' '}
+          {r.tipe === 'DINAS' ? 'Lembur Dinas' : 'Lembur'}
         </Tag>
       )}
     />

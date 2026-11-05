@@ -1,6 +1,7 @@
+import csv
 from datetime import date, time, timedelta
 from decimal import Decimal
-from io import BytesIO
+from io import BytesIO, StringIO
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -13,12 +14,36 @@ from gaji.models import GajiTemp
 from kalender_bersama.models import Langganan, NotifikasiDismiss
 from karyawan.models import Karyawan
 from karyawan.services import import_karyawan_update_csv
-from lembur.models import PermohonanLembur, StatusPermohonanLembur
+from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
 from liburan.models import Liburan
 from lokasi.models import Lokasi
 from shift.models import HariKerja, Shift
 from state_manager.constants import STATE_MANAGER_PASSWORD
 from state_manager.services import export_state_csv, import_state_csv
+
+
+def _without_lembur_tipe(csv_text: str) -> str:
+    """Drop the permohonan_lembur.tipe column, as an older snapshot would."""
+    rows = list(csv.reader(StringIO(csv_text)))
+    out = StringIO()
+    writer = csv.writer(out, lineterminator='\n')
+    in_lembur = False
+    tipe_index = None
+    for row in rows:
+        if row and row[0] == '__table__':
+            in_lembur = len(row) > 1 and row[1] == 'permohonan_lembur'
+            tipe_index = None
+            writer.writerow(row)
+            continue
+        if in_lembur and tipe_index is None:
+            tipe_index = row.index('tipe')
+            writer.writerow([cell for index, cell in enumerate(row) if index != tipe_index])
+            continue
+        if in_lembur and tipe_index is not None:
+            writer.writerow([cell for index, cell in enumerate(row) if index != tipe_index])
+            continue
+        writer.writerow(row)
+    return out.getvalue()
 
 
 class StateManagerApiTests(TestCase):
@@ -219,6 +244,7 @@ class StateManagerApiTests(TestCase):
             PermohonanLembur.objects.filter(
                 alasan='Closing bulan',
                 status=StatusPermohonanLembur.MENUNGGU_HRD,
+                tipe=TipeLembur.BIASA,
             ).exists()
         )
         self.assertTrue(
@@ -240,6 +266,38 @@ class StateManagerApiTests(TestCase):
         gaji = GajiTemp.objects.get(karyawan_id='1000001', periode=date(2026, 2, 1))
         self.assertEqual(gaji.freq_lembur_6_jam, Decimal('0.68'))
         self.assertEqual(gaji.hadir, '19/0/0')
+
+    def test_lembur_tipe_round_trips_and_legacy_snapshot_defaults_biasa(self):
+        PermohonanLembur.objects.create(
+            karyawan=self.worker,
+            tanggal=date(2026, 3, 16),
+            status=StatusPermohonanLembur.APPROVED,
+            tipe=TipeLembur.DINAS,
+        )
+        csv_text = export_state_csv()
+        self.assertIn(
+            'id,karyawan_id,alasan,tanggal,status,supervisor_id,hrd_approver_id,tipe',
+            csv_text,
+        )
+
+        result = import_state_csv(csv_text)
+        self.assertTrue(result.ok, result.errors)
+        self.assertEqual(
+            PermohonanLembur.objects.get(tanggal=date(2026, 3, 16)).tipe,
+            TipeLembur.DINAS,
+        )
+        self.assertEqual(
+            PermohonanLembur.objects.get(alasan='Closing bulan').tipe,
+            TipeLembur.BIASA,
+        )
+
+        legacy = import_state_csv(_without_lembur_tipe(csv_text))
+        self.assertTrue(legacy.ok, legacy.errors)
+        self.assertFalse(PermohonanLembur.objects.filter(tipe=TipeLembur.DINAS).exists())
+        self.assertEqual(
+            PermohonanLembur.objects.get(tanggal=date(2026, 3, 16)).tipe,
+            TipeLembur.BIASA,
+        )
 
     def test_invalid_csv_writes_nothing(self):
         Karyawan.objects.filter(pk='1000001').update(nama='CHANGED')

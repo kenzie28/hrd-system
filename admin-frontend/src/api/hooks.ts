@@ -718,6 +718,14 @@ export function useLemburImport() {
   ])
 }
 
+export function useLemburDinasImport() {
+  return useCsvImport('/admin/lembur-dinas/import/', [
+    ['admin-lembur'],
+    ['admin-lembur-list'],
+    ['rekap-absensi'],
+  ])
+}
+
 // ---- Absensi conflicts (duplicate clock-in/out on the same day) ----
 
 export function useAbsensiConflicts() {

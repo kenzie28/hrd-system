@@ -10,7 +10,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from cuti.models import Cuti, StatusPermohonanCuti, TipeCuti
-from lembur.models import PermohonanLembur, StatusPermohonanLembur
+from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
 from liburan.models import Liburan
 from shift.models import HariKerja, Shift
 
@@ -90,6 +90,17 @@ def shift_window(day: date, shift: Shift) -> tuple[datetime, datetime]:
 def punch_window(punch: Absensi) -> tuple[datetime, datetime]:
     start = datetime.combine(punch.tanggal, punch.jam_masuk)
     return start, start + punch.durasi
+
+
+def approved_lembur_minutes(permohonan, punch_start, punch_end, shift_end) -> int:
+    """Overtime minutes unlocked by an approved request, or zero."""
+    if permohonan is None:
+        return 0
+    if permohonan.tipe == TipeLembur.DINAS:
+        return whole_minutes(punch_end - punch_start)
+    if punch_end > shift_end:
+        return whole_minutes(punch_end - shift_end)
+    return 0
 
 
 def whole_minutes(delta: timedelta) -> int:
@@ -198,7 +209,6 @@ def evaluate_day(karyawan, day: date, *, today: date | None = None) -> DayEvalua
         )
         late = whole_minutes(punch_start - shift_start) if punch_start > shift_start else 0
         early = whole_minutes(shift_end - punch_end) if punch_end < shift_end else 0
-        extra = whole_minutes(punch_end - shift_end) if punch_end > shift_end else 0
         if izin_telat is not None:
             late = 0
         if izin_pulang is not None:
@@ -229,7 +239,9 @@ def evaluate_day(karyawan, day: date, *, today: date | None = None) -> DayEvalua
                 'shift_id': shift.pk,
                 'menit_telat': late,
                 'cepat_keluar': early,
-                'lembur': extra if permohonan else 0,
+                'lembur': approved_lembur_minutes(
+                    permohonan, punch_start, punch_end, shift_end
+                ),
                 'status': StatusKehadiran.HADIR,
             },
             tuple(notes),

@@ -8,7 +8,7 @@ from django.db import transaction
 
 from karyawan.models import Karyawan
 
-from .models import PermohonanLembur, StatusPermohonanLembur
+from .models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
 
 
 LEMBUR_IMPORT_REQUIRED_COLUMNS = ['karyawan_id', 'tanggal']
@@ -70,13 +70,16 @@ def _parse_import_date(value: str) -> date | None:
         return None
 
 
-def import_lembur_csv(upload) -> LemburImportResult:
-    """Create approved one-day overtime requests from CSV.
+def import_lembur_csv(upload, tipe: str = TipeLembur.BIASA) -> LemburImportResult:
+    """Create approved one-day overtime requests of ``tipe`` from CSV.
 
     Duplicate rows, and dates that already have an approved request for the
-    same employee, are skipped. Validation is all-or-nothing.
+    same employee (either type), are skipped. Validation is all-or-nothing.
     """
     result = LemburImportResult()
+    if tipe not in (TipeLembur.BIASA, TipeLembur.DINAS):
+        result.errors.append(LemburImportError(0, f'Tipe lembur tidak valid: "{tipe}".'))
+        return result
     try:
         raw = upload.read()
         text = raw.decode('utf-8-sig') if isinstance(raw, bytes) else str(raw)
@@ -176,19 +179,20 @@ def import_lembur_csv(upload) -> LemburImportResult:
         ]
 
         for row in to_create:
-            create_approved_lembur(employees[row.karyawan_id], row.tanggal)
+            create_approved_lembur(employees[row.karyawan_id], row.tanggal, tipe)
 
         result.created = len(to_create)
 
     return result
 
 
-def create_approved_lembur(karyawan, tanggal) -> PermohonanLembur:
+def create_approved_lembur(karyawan, tanggal, tipe=TipeLembur.BIASA) -> PermohonanLembur:
     """Create one already-approved overtime request for a single day."""
     return PermohonanLembur.objects.create(
         karyawan=karyawan,
         tanggal=tanggal,
         alasan='',
+        tipe=tipe,
         status=StatusPermohonanLembur.APPROVED,
         supervisor=None,
         hrd_approver=None,

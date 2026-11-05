@@ -19,6 +19,7 @@ class PermohonanLemburSerializer(serializers.ModelSerializer):
         source='karyawan', read_only=True
     )
     karyawan_nama = serializers.CharField(source='karyawan.nama', read_only=True)
+    tipe_display = serializers.CharField(source='get_tipe_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     supervisor_nama = serializers.CharField(
         source='supervisor.nama', read_only=True, default=None
@@ -32,6 +33,7 @@ class PermohonanLemburSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'karyawan_id', 'karyawan_nama',
             'alasan', 'tanggal',
+            'tipe', 'tipe_display',
             'status', 'status_display',
             'supervisor', 'supervisor_nama',
             'hrd_approver', 'hrd_approver_nama',

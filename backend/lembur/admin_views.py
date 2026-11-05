@@ -13,7 +13,7 @@ from karyawan.models import Karyawan
 from karyawan.permissions import IsAdminAllowed
 from karyawan.portal_views import _karyawan_for
 
-from .models import PermohonanLembur, StatusPermohonanLembur
+from .models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
 from .serializers import PermohonanLemburSerializer
 from .services import (
     LemburImportError,
@@ -68,6 +68,7 @@ class AdminLemburImportView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAdminAllowed]
     parser_classes = [MultiPartParser]
+    tipe_lembur = TipeLembur.BIASA
 
     def post(self, request):
         upload = request.FILES.get('file')
@@ -82,12 +83,13 @@ class AdminLemburImportView(APIView):
             )
 
         try:
-            result = import_lembur_csv(upload)
+            result = import_lembur_csv(upload, self.tipe_lembur)
         except IntegrityError as exc:
             debug_exception(
                 'lembur_import_post',
                 'Import CSV lembur gagal: constraint database.',
                 exc,
+                tipe=self.tipe_lembur,
                 filename=getattr(upload, 'name', None),
             )
             result = LemburImportResult(
@@ -100,6 +102,7 @@ class AdminLemburImportView(APIView):
                 'lembur_import_post',
                 'Import CSV lembur gagal dengan exception tak terduga.',
                 exc,
+                tipe=self.tipe_lembur,
                 filename=getattr(upload, 'name', None),
             )
             result = LemburImportResult(
@@ -110,6 +113,12 @@ class AdminLemburImportView(APIView):
             serialize_lembur_import_result(result),
             status=status.HTTP_200_OK,
         )
+
+
+class AdminLemburDinasImportView(AdminLemburImportView):
+    """Import approved one-day Lembur Dinas requests."""
+
+    tipe_lembur = TipeLembur.DINAS
 
 
 class AdminLemburViewSet(viewsets.ReadOnlyModelViewSet):
@@ -170,6 +179,16 @@ class AdminLemburViewSet(viewsets.ReadOnlyModelViewSet):
         if permohonan.status != StatusPermohonanLembur.MENUNGGU_HRD:
             return Response(
                 {'detail': 'Permohonan tidak menunggu persetujuan HRD.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        already_approved = PermohonanLembur.objects.filter(
+            karyawan_id=permohonan.karyawan_id,
+            tanggal=permohonan.tanggal,
+            status=StatusPermohonanLembur.APPROVED,
+        ).exclude(pk=permohonan.pk).exists()
+        if already_approved:
+            return Response(
+                {'detail': 'Sudah ada lembur yang approved pada tanggal ini.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         hrd = _karyawan_for(request.user)

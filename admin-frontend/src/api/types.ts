@@ -258,12 +258,16 @@ export type LemburStatus =
   | 'DIBATALKAN'
   | 'APPROVED'
 
+export type TipeLembur = 'BIASA' | 'DINAS'
+
 export interface PermohonanLembur {
   id: number
   karyawan_id: string
   karyawan_nama: string
   alasan: string
   tanggal: string
+  tipe: TipeLembur
+  tipe_display: string
   status: LemburStatus
   status_display: string
   supervisor: string | null

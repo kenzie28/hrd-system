@@ -39,6 +39,7 @@ export interface Karyawan {
   wilayah: string
   level: number
   cuti_tahunan: number
+  base_gaji: number
 }
 
 export interface KaryawanWrite {
@@ -312,6 +313,51 @@ export interface GajiTemp {
   pot_kehilangan: number
   koreksi_absensi: number
   total_gaji: number
+}
+
+export interface Koreksi {
+  id: number
+  karyawan_id: string
+  karyawan_nama: string
+  tipe: string
+  nominal: number
+  bulan: string
+}
+
+export interface KoreksiImportError {
+  row: number
+  message: string
+}
+
+export interface KoreksiImportResult {
+  ok: boolean
+  total_rows: number
+  created: number
+  errors: KoreksiImportError[]
+  received_headers: string[]
+  required_columns: string[]
+}
+
+export interface TunjanganObat {
+  id: number
+  karyawan_id: string
+  karyawan_nama: string
+  nominal: number
+  bulan: string
+}
+
+export interface TunjanganObatImportError {
+  row: number
+  message: string
+}
+
+export interface TunjanganObatImportResult {
+  ok: boolean
+  total_rows: number
+  created: number
+  errors: TunjanganObatImportError[]
+  received_headers: string[]
+  required_columns: string[]
 }
 
 export interface GajiImportError {

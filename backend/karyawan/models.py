@@ -29,6 +29,7 @@ class Karyawan(models.Model):
         default=12,
         help_text='Sisa jatah cuti tahunan (hari) yang masih bisa diambil.',
     )
+    base_gaji = models.PositiveBigIntegerField(default=0)
 
     class Meta:
         verbose_name_plural = 'Karyawan'

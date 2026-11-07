@@ -30,6 +30,7 @@ import {
   useLokasi,
 } from '../api/hooks'
 import type { Karyawan } from '../api/types'
+import { formatCurrency } from '../constants'
 
 type ColumnKey =
   | 'karyawan_id'
@@ -39,6 +40,7 @@ type ColumnKey =
   | 'wilayah'
   | 'level'
   | 'cuti_tahunan'
+  | 'base_gaji'
 
 const ALL_COLUMN_KEYS: ColumnKey[] = [
   'karyawan_id',
@@ -48,6 +50,7 @@ const ALL_COLUMN_KEYS: ColumnKey[] = [
   'wilayah',
   'level',
   'cuti_tahunan',
+  'base_gaji',
 ]
 
 const COLUMN_LABELS: Record<ColumnKey, string> = {
@@ -58,6 +61,7 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   wilayah: 'Wilayah',
   level: 'Level',
   cuti_tahunan: 'Cuti',
+  base_gaji: 'Base Gaji',
 }
 
 const STORAGE_KEY = 'master-karyawan-columns'
@@ -76,7 +80,12 @@ function loadVisibleColumns(): ColumnKey[] {
     const valid = parsed.filter((k): k is ColumnKey =>
       ALL_COLUMN_KEYS.includes(k as ColumnKey),
     )
-    return valid.length > 0 ? valid : [...ALL_COLUMN_KEYS]
+    if (valid.length === 0) return [...ALL_COLUMN_KEYS]
+    if (!valid.includes('base_gaji')) {
+      const previous = ALL_COLUMN_KEYS.filter((k) => k !== 'base_gaji')
+      if (previous.every((k) => valid.includes(k))) valid.push('base_gaji')
+    }
+    return valid
   } catch {
     return [...ALL_COLUMN_KEYS]
   }
@@ -178,6 +187,13 @@ export function DataKaryawanTab() {
       title: COLUMN_LABELS.cuti_tahunan,
       dataIndex: 'cuti_tahunan',
       width: 100,
+    },
+    {
+      key: 'base_gaji',
+      title: COLUMN_LABELS.base_gaji,
+      dataIndex: 'base_gaji',
+      width: 160,
+      render: (value: number) => formatCurrency(value ?? 0),
     },
   ]
 

@@ -11,6 +11,10 @@ import type {
   GajiImportResult,
   GajiTemp,
   Karyawan,
+  Koreksi,
+  KoreksiImportResult,
+  TunjanganObat,
+  TunjanganObatImportResult,
   StateClearResult,
   StateImportResult,
   StateModelOption,
@@ -146,6 +150,10 @@ export function useKaryawanImport() {
 
 export function useKaryawanUpdateImport() {
   return useKaryawanCsvImport('/admin/karyawan/import-update/')
+}
+
+export function useBaseGajiImport() {
+  return useKaryawanCsvImport('/admin/karyawan/import-base-gaji/')
 }
 
 function useKaryawanCsvImport(path: string) {
@@ -956,6 +964,206 @@ export function useGajiImport() {
         qc.invalidateQueries({ queryKey: ['admin-gaji'] })
         qc.invalidateQueries({ queryKey: ['karyawan'] })
         qc.invalidateQueries({ queryKey: ['lokasi'] })
+      }
+    },
+  })
+}
+
+// ---- Koreksi ----
+
+export function useKoreksi(filters?: RecordFilters) {
+  return useQuery({
+    queryKey: ['admin-koreksi', filters],
+    queryFn: async () =>
+      (await api.get<Koreksi[]>('/admin/koreksi/', { params: filterParams(filters) })).data,
+  })
+}
+
+function normalizeKoreksiImportResult(
+  data: Partial<KoreksiImportResult> & { ok?: boolean },
+): KoreksiImportResult {
+  const errors = Array.isArray(data.errors)
+    ? data.errors.map((e) => ({
+        row: typeof e?.row === 'number' ? e.row : 0,
+        message: String(e?.message ?? 'Error tidak diketahui.'),
+      }))
+    : []
+
+  return {
+    ok: Boolean(data.ok),
+    total_rows: data.total_rows ?? 0,
+    created: data.created ?? 0,
+    errors,
+    received_headers: Array.isArray(data.received_headers) ? data.received_headers : [],
+    required_columns: Array.isArray(data.required_columns) ? data.required_columns : [],
+  }
+}
+
+function isKoreksiImportResult(data: unknown): data is KoreksiImportResult {
+  return typeof data === 'object' && data !== null && 'errors' in data && 'created' in data
+}
+
+function koreksiImportFailure(message: string): KoreksiImportResult {
+  return normalizeKoreksiImportResult({
+    ok: false,
+    errors: [{ row: 0, message }],
+  })
+}
+
+function parseKoreksiImportError(err: unknown): KoreksiImportResult {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data
+    if (isKoreksiImportResult(data)) {
+      return normalizeKoreksiImportResult(data)
+    }
+    if (typeof data === 'string' && data.trim()) {
+      return koreksiImportFailure(data)
+    }
+    if (typeof data === 'object' && data !== null) {
+      const record = data as Record<string, unknown>
+      if (typeof record.detail === 'string' && record.detail) {
+        return koreksiImportFailure(record.detail)
+      }
+      if (Array.isArray(record.detail)) {
+        return koreksiImportFailure(record.detail.map(String).join(' '))
+      }
+      if (typeof record.message === 'string' && record.message) {
+        return koreksiImportFailure(record.message)
+      }
+    }
+    if (err.response?.status) {
+      return koreksiImportFailure(
+        `Server mengembalikan status ${err.response.status}. Periksa koneksi atau hubungi admin.`,
+      )
+    }
+    if (err.message) {
+      return koreksiImportFailure(err.message)
+    }
+  }
+  return koreksiImportFailure('Gagal mengunggah file CSV. Periksa koneksi atau coba lagi.')
+}
+
+export function useKoreksiImport() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ file }: { file: File }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      try {
+        const response = await api.post<KoreksiImportResult>(
+          '/admin/koreksi/import/',
+          formData,
+        )
+        return normalizeKoreksiImportResult(response.data)
+      } catch (err) {
+        return parseKoreksiImportError(err)
+      }
+    },
+    onSuccess: (result) => {
+      if (result.ok) {
+        qc.invalidateQueries({ queryKey: ['admin-koreksi'] })
+      }
+    },
+  })
+}
+
+// ---- Tunjangan Obat ----
+
+export function useTunjanganObat(filters?: RecordFilters) {
+  return useQuery({
+    queryKey: ['admin-tunjangan-obat', filters],
+    queryFn: async () =>
+      (
+        await api.get<TunjanganObat[]>('/admin/tunjangan-obat/', {
+          params: filterParams(filters),
+        })
+      ).data,
+  })
+}
+
+function normalizeTunjanganObatImportResult(
+  data: Partial<TunjanganObatImportResult> & { ok?: boolean },
+): TunjanganObatImportResult {
+  const errors = Array.isArray(data.errors)
+    ? data.errors.map((e) => ({
+        row: typeof e?.row === 'number' ? e.row : 0,
+        message: String(e?.message ?? 'Error tidak diketahui.'),
+      }))
+    : []
+
+  return {
+    ok: Boolean(data.ok),
+    total_rows: data.total_rows ?? 0,
+    created: data.created ?? 0,
+    errors,
+    received_headers: Array.isArray(data.received_headers) ? data.received_headers : [],
+    required_columns: Array.isArray(data.required_columns) ? data.required_columns : [],
+  }
+}
+
+function isTunjanganObatImportResult(data: unknown): data is TunjanganObatImportResult {
+  return typeof data === 'object' && data !== null && 'errors' in data && 'created' in data
+}
+
+function tunjanganObatImportFailure(message: string): TunjanganObatImportResult {
+  return normalizeTunjanganObatImportResult({
+    ok: false,
+    errors: [{ row: 0, message }],
+  })
+}
+
+function parseTunjanganObatImportError(err: unknown): TunjanganObatImportResult {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data
+    if (isTunjanganObatImportResult(data)) {
+      return normalizeTunjanganObatImportResult(data)
+    }
+    if (typeof data === 'string' && data.trim()) {
+      return tunjanganObatImportFailure(data)
+    }
+    if (typeof data === 'object' && data !== null) {
+      const record = data as Record<string, unknown>
+      if (typeof record.detail === 'string' && record.detail) {
+        return tunjanganObatImportFailure(record.detail)
+      }
+      if (Array.isArray(record.detail)) {
+        return tunjanganObatImportFailure(record.detail.map(String).join(' '))
+      }
+      if (typeof record.message === 'string' && record.message) {
+        return tunjanganObatImportFailure(record.message)
+      }
+    }
+    if (err.response?.status) {
+      return tunjanganObatImportFailure(
+        `Server mengembalikan status ${err.response.status}. Periksa koneksi atau hubungi admin.`,
+      )
+    }
+    if (err.message) {
+      return tunjanganObatImportFailure(err.message)
+    }
+  }
+  return tunjanganObatImportFailure('Gagal mengunggah file CSV. Periksa koneksi atau coba lagi.')
+}
+
+export function useTunjanganObatImport() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ file }: { file: File }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      try {
+        const response = await api.post<TunjanganObatImportResult>(
+          '/admin/tunjangan-obat/import/',
+          formData,
+        )
+        return normalizeTunjanganObatImportResult(response.data)
+      } catch (err) {
+        return parseTunjanganObatImportError(err)
+      }
+    },
+    onSuccess: (result) => {
+      if (result.ok) {
+        qc.invalidateQueries({ queryKey: ['admin-tunjangan-obat'] })
       }
     },
   })

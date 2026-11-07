@@ -29,8 +29,11 @@ from lembur.admin_views import (
 )
 from lembur.views import PortalLemburViewSet
 from gaji.admin_views import AdminGajiImportView, AdminGajiViewSet
+from koreksi.admin_views import AdminKoreksiImportView, AdminKoreksiViewSet
+from obat.admin_views import AdminTunjanganObatImportView, AdminTunjanganObatViewSet
 from gaji.views import PortalGajiView
 from karyawan.admin_views import (
+    AdminBaseGajiImportView,
     AdminKaryawanCreateView,
     AdminKaryawanDetailView,
     AdminKaryawanImportView,
@@ -75,6 +78,10 @@ admin_router = DefaultRouter()
 admin_router.register('cuti', AdminCutiViewSet, basename='admin-cuti')
 admin_router.register('lembur', AdminLemburViewSet, basename='admin-lembur')
 admin_router.register('gaji', AdminGajiViewSet, basename='admin-gaji')
+admin_router.register('koreksi', AdminKoreksiViewSet, basename='admin-koreksi')
+admin_router.register(
+    'tunjangan-obat', AdminTunjanganObatViewSet, basename='admin-tunjangan-obat'
+)
 admin_router.register('liburan', AdminLiburanViewSet, basename='admin-liburan')
 admin_router.register('lokasi', AdminLokasiViewSet, basename='admin-lokasi')
 
@@ -135,6 +142,11 @@ admin_api_urlpatterns = [
         name='admin-karyawan-import-update',
     ),
     path(
+        'admin/karyawan/import-base-gaji/',
+        AdminBaseGajiImportView.as_view(),
+        name='admin-karyawan-import-base-gaji',
+    ),
+    path(
         'admin/karyawan/',
         AdminKaryawanCreateView.as_view(),
         name='admin-karyawan-create',
@@ -150,6 +162,16 @@ admin_api_urlpatterns = [
         name='admin-reset-password',
     ),
     path('admin/gaji/import/', AdminGajiImportView.as_view(), name='admin-gaji-import'),
+    path(
+        'admin/koreksi/import/',
+        AdminKoreksiImportView.as_view(),
+        name='admin-koreksi-import',
+    ),
+    path(
+        'admin/tunjangan-obat/import/',
+        AdminTunjanganObatImportView.as_view(),
+        name='admin-tunjangan-obat-import',
+    ),
     path(
         'admin/absensi/import/',
         AdminAbsensiImportView.as_view(),

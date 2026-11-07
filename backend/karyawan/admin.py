@@ -13,6 +13,7 @@ class KaryawanAdmin(admin.ModelAdmin):
         'wilayah',
         'level',
         'cuti_tahunan',
+        'base_gaji',
         'user',
         'must_change_password',
     ]

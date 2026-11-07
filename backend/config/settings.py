@@ -60,6 +60,8 @@ INSTALLED_APPS = [
     'kalender_bersama',
     'lembur',
     'gaji',
+    'koreksi',
+    'obat',
     'liburan',
     'state_manager',
 ]

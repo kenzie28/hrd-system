@@ -15,6 +15,8 @@ TABLE_NOTIFIKASI_DISMISS = 'notifikasi_dismiss'
 TABLE_CUTI = 'cuti'
 TABLE_PERMOHONAN_LEMBUR = 'permohonan_lembur'
 TABLE_GAJI = 'gaji'
+TABLE_KOREKSI = 'koreksi'
+TABLE_TUNJANGAN_OBAT = 'tunjangan_obat'
 
 TABLE_COLUMNS = {
     TABLE_LOKASI: ('id', 'nama'),
@@ -39,6 +41,7 @@ TABLE_COLUMNS = {
         'user_id',
         'must_change_password',
         'cuti_tahunan',
+        'base_gaji',
     ),
     TABLE_LANGGANAN: (
         'id',
@@ -114,6 +117,19 @@ TABLE_COLUMNS = {
         'created_at',
         'updated_at',
     ),
+    TABLE_KOREKSI: (
+        'id',
+        'karyawan_id',
+        'tipe',
+        'nominal',
+        'bulan',
+    ),
+    TABLE_TUNJANGAN_OBAT: (
+        'id',
+        'karyawan_id',
+        'nominal',
+        'bulan',
+    ),
 }
 
 TABLE_ORDER = tuple(TABLE_COLUMNS.keys())
@@ -121,7 +137,11 @@ TABLE_ORDER = tuple(TABLE_COLUMNS.keys())
 # Older snapshots may omit these columns. Missing values default during parse.
 OPTIONAL_TABLE_COLUMNS = {
     TABLE_PERMOHONAN_LEMBUR: frozenset({'tipe'}),
+    TABLE_KARYAWAN: frozenset({'base_gaji'}),
 }
+
+# Older snapshots may omit these tables. A missing table imports as no rows.
+OPTIONAL_TABLES = frozenset({TABLE_KOREKSI, TABLE_TUNJANGAN_OBAT})
 
 TABLE_KEHADIRAN = 'kehadiran'
 TABLE_REKAP_ABSENSI = 'rekap_absensi'
@@ -140,6 +160,8 @@ CLEARABLE_MODELS: tuple[tuple[str, str], ...] = (
     (TABLE_CUTI, 'Hari cuti'),
     (TABLE_PERMOHONAN_LEMBUR, 'Permohonan lembur'),
     (TABLE_GAJI, 'Gaji'),
+    (TABLE_KOREKSI, 'Koreksi'),
+    (TABLE_TUNJANGAN_OBAT, 'Tunjangan obat'),
     (TABLE_KEHADIRAN, 'Kehadiran'),
     (TABLE_REKAP_ABSENSI, 'Rekap absensi'),
 )
@@ -151,6 +173,8 @@ CLEAR_ORDER = (
     TABLE_REKAP_ABSENSI,
     TABLE_KEHADIRAN,
     TABLE_GAJI,
+    TABLE_KOREKSI,
+    TABLE_TUNJANGAN_OBAT,
     TABLE_PERMOHONAN_LEMBUR,
     TABLE_NOTIFIKASI_DISMISS,
     TABLE_LANGGANAN,

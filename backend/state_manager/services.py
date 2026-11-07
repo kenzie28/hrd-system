@@ -32,6 +32,8 @@ from absensi.models import Absensi, Kehadiran, RekapAbsensi, absensi_minute_key
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from gaji.models import GajiTemp
 from kalender_bersama.models import Langganan, NotifikasiDismiss
+from koreksi.models import Koreksi, TipeKoreksi
+from obat.models import TunjanganObat
 from karyawan.models import Karyawan
 from karyawan.signals import ensure_portal_login
 from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
@@ -44,6 +46,7 @@ from .constants import (
     CLEARABLE_LABELS,
     CLEARABLE_MODELS,
     OPTIONAL_TABLE_COLUMNS,
+    OPTIONAL_TABLES,
     STATE_FORMAT_MARKER,
     STATE_FORMAT_VERSION,
     STATE_MANAGER_PASSWORD,
@@ -54,6 +57,7 @@ from .constants import (
     TABLE_GAJI,
     TABLE_KEHADIRAN,
     TABLE_KARYAWAN,
+    TABLE_KOREKSI,
     TABLE_LANGGANAN,
     TABLE_LIBURAN,
     TABLE_LOKASI,
@@ -63,6 +67,7 @@ from .constants import (
     TABLE_PERMOHONAN_LEMBUR,
     TABLE_REKAP_ABSENSI,
     TABLE_SHIFT,
+    TABLE_TUNJANGAN_OBAT,
 )
 
 RESET_ADMIN_KARYAWAN_ID = '0000003'
@@ -205,6 +210,7 @@ def export_state_csv() -> str:
                 _cell(obj.user_id),
                 _cell(obj.must_change_password),
                 _cell(obj.cuti_tahunan),
+                _cell(obj.base_gaji),
             ]
         )
     _write_table(writer, TABLE_KARYAWAN, TABLE_COLUMNS[TABLE_KARYAWAN], karyawan_rows)
@@ -328,6 +334,34 @@ def export_state_csv() -> str:
         gaji_rows.append([_cell(getattr(obj, col)) for col in gaji_cols])
     _write_table(writer, TABLE_GAJI, gaji_cols, gaji_rows)
 
+    koreksi_rows = [
+        [
+            _cell(obj.id),
+            _cell(obj.karyawan_id),
+            _cell(obj.tipe),
+            _cell(obj.nominal),
+            _cell(obj.bulan),
+        ]
+        for obj in Koreksi.objects.order_by('id')
+    ]
+    _write_table(writer, TABLE_KOREKSI, TABLE_COLUMNS[TABLE_KOREKSI], koreksi_rows)
+
+    tunjangan_obat_rows = [
+        [
+            _cell(obj.id),
+            _cell(obj.karyawan_id),
+            _cell(obj.nominal),
+            _cell(obj.bulan),
+        ]
+        for obj in TunjanganObat.objects.order_by('id')
+    ]
+    _write_table(
+        writer,
+        TABLE_TUNJANGAN_OBAT,
+        TABLE_COLUMNS[TABLE_TUNJANGAN_OBAT],
+        tunjangan_obat_rows,
+    )
+
     return buf.getvalue()
 
 
@@ -443,7 +477,7 @@ def parse_state_csv(text: str) -> tuple[dict[str, list[dict]], list[StateError]]
         )
 
     for name in TABLE_ORDER:
-        if name not in tables:
+        if name not in tables and name not in OPTIONAL_TABLES:
             errors.append(StateError(0, f'Tabel "{name}" tidak ada di file.'))
 
     return tables, errors
@@ -677,9 +711,15 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
         cuti_tahunan = _parse_int(
             _opt(row, 'cuti_tahunan') or '12', line, 'cuti_tahunan', errors
         )
+        base_gaji = _parse_int(
+            _opt(row, 'base_gaji') or '0', line, 'base_gaji', errors
+        )
+        if base_gaji is not None and base_gaji < 0:
+            errors.append(StateError(line, 'base_gaji harus non-negatif.'))
+            base_gaji = None
         lokasi_kerja_id = _opt(row, 'lokasi_kerja_id') or None
         user_id = _parse_opt_int(_opt(row, 'user_id'), line, 'user_id', errors)
-        if None in (kid, nama, level, must_change, cuti_tahunan):
+        if None in (kid, nama, level, must_change, cuti_tahunan, base_gaji):
             continue
         if kid in karyawan_ids:
             errors.append(StateError(line, f'karyawan_id duplikat: {kid}.'))
@@ -709,6 +749,7 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
                 'user_id': user_id,
                 'must_change_password': must_change,
                 'cuti_tahunan': cuti_tahunan,
+                'base_gaji': base_gaji,
                 '_line': line,
             }
         )
@@ -1075,6 +1116,79 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
         record.update(ints)
         typed[TABLE_GAJI].append(record)
 
+    koreksi_ids: set[int] = set()
+    for row in tables.get(TABLE_KOREKSI, []):
+        line = _line_of(row)
+        pk = _parse_int(_opt(row, 'id'), line, 'koreksi.id', errors)
+        karyawan_id = _req(row, 'karyawan_id', errors, TABLE_KOREKSI)
+        tipe = _choice(
+            _opt(row, 'tipe'),
+            {TipeKoreksi.ADMIN, TipeKoreksi.ABSENSI},
+            line,
+            'koreksi.tipe',
+            errors,
+        )
+        nominal = _parse_int(_opt(row, 'nominal'), line, 'koreksi.nominal', errors)
+        bulan = _parse_date(_opt(row, 'bulan'), line, 'koreksi.bulan', errors)
+        if bulan is not None and bulan.day != 1:
+            errors.append(StateError(line, 'koreksi.bulan harus tanggal 1.'))
+            bulan = None
+        if None in (pk, karyawan_id, tipe, nominal, bulan):
+            continue
+        if pk in koreksi_ids:
+            errors.append(StateError(line, f'koreksi.id duplikat: {pk}.'))
+            continue
+        if karyawan_id not in karyawan_ids:
+            errors.append(StateError(line, f'karyawan_id tidak ada: {karyawan_id}.'))
+            continue
+        koreksi_ids.add(pk)
+        typed[TABLE_KOREKSI].append(
+            {
+                'id': pk,
+                'karyawan_id': karyawan_id,
+                'tipe': tipe,
+                'nominal': nominal,
+                'bulan': bulan,
+                '_line': line,
+            }
+        )
+
+    tunjangan_obat_ids: set[int] = set()
+    for row in tables.get(TABLE_TUNJANGAN_OBAT, []):
+        line = _line_of(row)
+        pk = _parse_int(_opt(row, 'id'), line, 'tunjangan_obat.id', errors)
+        karyawan_id = _req(row, 'karyawan_id', errors, TABLE_TUNJANGAN_OBAT)
+        nominal = _parse_int(
+            _opt(row, 'nominal'), line, 'tunjangan_obat.nominal', errors
+        )
+        if nominal is not None and nominal < 0:
+            errors.append(
+                StateError(line, 'tunjangan_obat.nominal harus non-negatif.')
+            )
+            nominal = None
+        bulan = _parse_date(_opt(row, 'bulan'), line, 'tunjangan_obat.bulan', errors)
+        if bulan is not None and bulan.day != 1:
+            errors.append(StateError(line, 'tunjangan_obat.bulan harus tanggal 1.'))
+            bulan = None
+        if None in (pk, karyawan_id, nominal, bulan):
+            continue
+        if pk in tunjangan_obat_ids:
+            errors.append(StateError(line, f'tunjangan_obat.id duplikat: {pk}.'))
+            continue
+        if karyawan_id not in karyawan_ids:
+            errors.append(StateError(line, f'karyawan_id tidak ada: {karyawan_id}.'))
+            continue
+        tunjangan_obat_ids.add(pk)
+        typed[TABLE_TUNJANGAN_OBAT].append(
+            {
+                'id': pk,
+                'karyawan_id': karyawan_id,
+                'nominal': nominal,
+                'bulan': bulan,
+                '_line': line,
+            }
+        )
+
     karyawan_user_ids = set(
         Karyawan.objects.exclude(user_id=None).values_list('user_id', flat=True)
     )
@@ -1106,6 +1220,8 @@ def _wipe_hrd_state() -> list[int]:
         Karyawan.objects.exclude(user_id=None).values_list('user_id', flat=True)
     )
     GajiTemp.objects.all().delete()
+    Koreksi.objects.all().delete()
+    TunjanganObat.objects.all().delete()
     PermohonanLembur.objects.all().delete()
     NotifikasiDismiss.objects.all().delete()
     Langganan.objects.all().delete()
@@ -1200,6 +1316,8 @@ def reset_hrd_state() -> None:
         )
         with suppress_signal_invalidation():
             GajiTemp.objects.all().delete()
+            Koreksi.objects.all().delete()
+            TunjanganObat.objects.all().delete()
             PermohonanLembur.objects.all().delete()
             NotifikasiDismiss.objects.all().delete()
             Langganan.objects.all().delete()
@@ -1257,6 +1375,10 @@ def _missing_clear_dependencies(selected: set[str]) -> list[str]:
             needed.add(TABLE_ABSENSI)
         if GajiTemp.objects.filter(_non_admin_fk('karyawan_id')).exists():
             needed.add(TABLE_GAJI)
+        if Koreksi.objects.filter(_non_admin_fk('karyawan_id')).exists():
+            needed.add(TABLE_KOREKSI)
+        if TunjanganObat.objects.filter(_non_admin_fk('karyawan_id')).exists():
+            needed.add(TABLE_TUNJANGAN_OBAT)
         if Langganan.objects.filter(
             _non_admin_fk('subscriber_id') | _non_admin_fk('target_id')
         ).exists():
@@ -1312,6 +1434,14 @@ def _delete_table(name: str, auth_user_ids: list[int]) -> int:
     if name == TABLE_GAJI:
         count = GajiTemp.objects.count()
         GajiTemp.objects.all().delete()
+        return count
+    if name == TABLE_KOREKSI:
+        count = Koreksi.objects.count()
+        Koreksi.objects.all().delete()
+        return count
+    if name == TABLE_TUNJANGAN_OBAT:
+        count = TunjanganObat.objects.count()
+        TunjanganObat.objects.all().delete()
         return count
     if name == TABLE_PERMOHONAN_LEMBUR:
         count = PermohonanLembur.objects.count()
@@ -1437,6 +1567,7 @@ def _insert_state(typed: dict[str, list[dict]]) -> None:
             user_id=row['user_id'],
             must_change_password=row['must_change_password'],
             cuti_tahunan=row['cuti_tahunan'],
+            base_gaji=row['base_gaji'],
         )
 
     for row in typed[TABLE_LANGGANAN]:
@@ -1554,6 +1685,23 @@ def _insert_state(typed: dict[str, list[dict]]) -> None:
             update_fields.append('updated_at')
         if update_fields:
             obj.save(update_fields=update_fields)
+
+    for row in typed[TABLE_KOREKSI]:
+        Koreksi.objects.create(
+            id=row['id'],
+            karyawan_id=row['karyawan_id'],
+            tipe=row['tipe'],
+            nominal=row['nominal'],
+            bulan=row['bulan'],
+        )
+
+    for row in typed[TABLE_TUNJANGAN_OBAT]:
+        TunjanganObat.objects.create(
+            id=row['id'],
+            karyawan_id=row['karyawan_id'],
+            nominal=row['nominal'],
+            bulan=row['bulan'],
+        )
 
 
 def import_state_csv(text: str) -> StateImportResult:

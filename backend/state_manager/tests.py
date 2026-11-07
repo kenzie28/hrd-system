@@ -14,6 +14,8 @@ from gaji.models import GajiTemp
 from kalender_bersama.models import Langganan, NotifikasiDismiss
 from karyawan.models import Karyawan
 from karyawan.services import import_karyawan_update_csv
+from koreksi.models import Koreksi, TipeKoreksi
+from obat.models import TunjanganObat
 from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
 from liburan.models import Liburan
 from lokasi.models import Lokasi
@@ -41,6 +43,45 @@ def _without_lembur_tipe(csv_text: str) -> str:
             continue
         if in_lembur and tipe_index is not None:
             writer.writerow([cell for index, cell in enumerate(row) if index != tipe_index])
+            continue
+        writer.writerow(row)
+    return out.getvalue()
+
+
+def _without_column(csv_text: str, table: str, column: str) -> str:
+    """Drop one column from a table section, as an older snapshot would."""
+    rows = list(csv.reader(StringIO(csv_text)))
+    out = StringIO()
+    writer = csv.writer(out, lineterminator='\n')
+    in_table = False
+    column_index = None
+    for row in rows:
+        if row and row[0] == '__table__':
+            in_table = len(row) > 1 and row[1] == table
+            column_index = None
+            writer.writerow(row)
+            continue
+        if in_table and column_index is None:
+            column_index = row.index(column)
+            writer.writerow([cell for index, cell in enumerate(row) if index != column_index])
+            continue
+        if in_table and column_index is not None:
+            writer.writerow([cell for index, cell in enumerate(row) if index != column_index])
+            continue
+        writer.writerow(row)
+    return out.getvalue()
+
+
+def _without_table(csv_text: str, table: str) -> str:
+    """Drop one __table__ section, as an older snapshot would."""
+    rows = list(csv.reader(StringIO(csv_text)))
+    out = StringIO()
+    writer = csv.writer(out, lineterminator='\n')
+    skipping = False
+    for row in rows:
+        if row and row[0] == '__table__':
+            skipping = len(row) > 1 and row[1] == table
+        if skipping:
             continue
         writer.writerow(row)
     return out.getvalue()
@@ -127,6 +168,17 @@ class StateManagerApiTests(TestCase):
             freq_lembur_6_jam=Decimal('0.68'),
             total_gaji=5_000_000,
         )
+        Koreksi.objects.create(
+            karyawan=self.worker,
+            tipe=TipeKoreksi.ABSENSI,
+            nominal=-150_000,
+            bulan=date(2026, 2, 1),
+        )
+        TunjanganObat.objects.create(
+            karyawan=self.worker,
+            nominal=250_000,
+            bulan=date(2026, 2, 1),
+        )
         self.superuser = User.objects.create_superuser(
             username='djangoadmin',
             password='secret',
@@ -208,6 +260,9 @@ class StateManagerApiTests(TestCase):
         self.assertIn('__table__,cuti', body)
         self.assertIn('__table__,langganan', body)
         self.assertIn('__table__,notifikasi_dismiss', body)
+        self.assertIn('__table__,koreksi', body)
+        self.assertIn('ABSENSI', body)
+        self.assertIn('__table__,tunjangan_obat', body)
         self.assertNotIn('djangoadmin', body)
 
     def test_round_trip_restore(self):
@@ -220,6 +275,8 @@ class StateManagerApiTests(TestCase):
         self.worker.nama = 'CHANGED'
         self.worker.save(update_fields=['nama'])
         PermohonanCuti.objects.filter(pk=self.pending_cuti.pk).delete()
+        Koreksi.objects.update(nominal=1)
+        TunjanganObat.objects.update(nominal=1)
         self.assertTrue(Lokasi.objects.filter(id='XX').exists())
         self.assertEqual(Karyawan.objects.get(pk='1000001').nama, 'CHANGED')
 
@@ -266,6 +323,36 @@ class StateManagerApiTests(TestCase):
         gaji = GajiTemp.objects.get(karyawan_id='1000001', periode=date(2026, 2, 1))
         self.assertEqual(gaji.freq_lembur_6_jam, Decimal('0.68'))
         self.assertEqual(gaji.hadir, '19/0/0')
+        koreksi = Koreksi.objects.get(karyawan_id='1000001')
+        self.assertEqual(koreksi.tipe, TipeKoreksi.ABSENSI)
+        self.assertEqual(koreksi.nominal, -150_000)
+        self.assertEqual(koreksi.bulan, date(2026, 2, 1))
+        tunjangan = TunjanganObat.objects.get(karyawan_id='1000001')
+        self.assertEqual(tunjangan.nominal, 250_000)
+        self.assertEqual(tunjangan.bulan, date(2026, 2, 1))
+
+    def test_snapshot_without_koreksi_section_imports_as_empty(self):
+        self.assertTrue(Koreksi.objects.exists())
+        csv_text = export_state_csv()
+        legacy = _without_table(csv_text, 'koreksi')
+        self.assertNotIn('__table__,koreksi', legacy)
+
+        result = import_state_csv(legacy)
+        self.assertTrue(result.ok, result.errors)
+        self.assertFalse(Koreksi.objects.exists())
+        self.assertTrue(TunjanganObat.objects.exists())
+        self.assertTrue(GajiTemp.objects.filter(karyawan_id='1000001').exists())
+
+    def test_snapshot_without_tunjangan_obat_section_imports_as_empty(self):
+        self.assertTrue(TunjanganObat.objects.exists())
+        csv_text = export_state_csv()
+        legacy = _without_table(csv_text, 'tunjangan_obat')
+        self.assertNotIn('__table__,tunjangan_obat', legacy)
+
+        result = import_state_csv(legacy)
+        self.assertTrue(result.ok, result.errors)
+        self.assertFalse(TunjanganObat.objects.exists())
+        self.assertTrue(Koreksi.objects.filter(karyawan_id='1000001').exists())
 
     def test_lembur_tipe_round_trips_and_legacy_snapshot_defaults_biasa(self):
         PermohonanLembur.objects.create(
@@ -298,6 +385,23 @@ class StateManagerApiTests(TestCase):
             PermohonanLembur.objects.get(tanggal=date(2026, 3, 16)).tipe,
             TipeLembur.BIASA,
         )
+
+    def test_base_gaji_round_trips_and_legacy_snapshot_defaults_zero(self):
+        self.worker.base_gaji = 4_500_000
+        self.worker.save(update_fields=['base_gaji'])
+        csv_text = export_state_csv()
+        self.assertIn(
+            'karyawan_id,nama,lokasi_kerja_id,jabatan,wilayah,level,user_id,must_change_password,cuti_tahunan,base_gaji',
+            csv_text,
+        )
+
+        result = import_state_csv(csv_text)
+        self.assertTrue(result.ok, result.errors)
+        self.assertEqual(Karyawan.objects.get(pk='1000001').base_gaji, 4_500_000)
+
+        legacy = import_state_csv(_without_column(csv_text, 'karyawan', 'base_gaji'))
+        self.assertTrue(legacy.ok, legacy.errors)
+        self.assertEqual(Karyawan.objects.get(pk='1000001').base_gaji, 0)
 
     def test_invalid_csv_writes_nothing(self):
         Karyawan.objects.filter(pk='1000001').update(nama='CHANGED')
@@ -349,6 +453,8 @@ class StateManagerApiTests(TestCase):
         self.assertEqual(payload['counts']['permohonan_lembur'], 1)
         self.assertEqual(payload['counts']['langganan'], 1)
         self.assertEqual(payload['counts']['notifikasi_dismiss'], 1)
+        self.assertEqual(payload['counts']['koreksi'], 1)
+        self.assertEqual(payload['counts']['tunjangan_obat'], 1)
 
     def test_reset_requires_password_and_does_not_write(self):
         response = self.client.post(
@@ -389,6 +495,8 @@ class StateManagerApiTests(TestCase):
         self.assertFalse(Cuti.objects.exists())
         self.assertFalse(PermohonanLembur.objects.exists())
         self.assertFalse(GajiTemp.objects.exists())
+        self.assertFalse(Koreksi.objects.exists())
+        self.assertFalse(TunjanganObat.objects.exists())
         self.assertFalse(Langganan.objects.exists())
         self.assertFalse(NotifikasiDismiss.objects.exists())
 
@@ -412,6 +520,8 @@ class StateManagerApiTests(TestCase):
         ids = [row['id'] for row in response.json()['models']]
         self.assertIn('absensi', ids)
         self.assertIn('gaji', ids)
+        self.assertIn('koreksi', ids)
+        self.assertIn('tunjangan_obat', ids)
         self.assertIn('kehadiran', ids)
         self.assertIn('rekap_absensi', ids)
         self.assertTrue(all(row['label'] for row in response.json()['models']))
@@ -504,6 +614,8 @@ class StateManagerApiTests(TestCase):
         self.assertEqual(response.status_code, 400, response.content)
         detail = response.json()['detail']
         self.assertIn('Gaji', detail)
+        self.assertIn('Koreksi', detail)
+        self.assertIn('Tunjangan obat', detail)
         self.assertIn('Akun login', detail)
         self.assertIn('Permohonan cuti', detail)
         self.assertEqual(Karyawan.objects.count(), 2)
@@ -517,6 +629,8 @@ class StateManagerApiTests(TestCase):
                 'auth_user',
                 'absensi',
                 'gaji',
+                'koreksi',
+                'tunjangan_obat',
                 'langganan',
                 'notifikasi_dismiss',
                 'permohonan_cuti',
@@ -539,6 +653,8 @@ class StateManagerApiTests(TestCase):
         self.assertTrue(Liburan.objects.exists())
         self.assertFalse(Absensi.objects.exists())
         self.assertFalse(GajiTemp.objects.exists())
+        self.assertFalse(Koreksi.objects.exists())
+        self.assertFalse(TunjanganObat.objects.exists())
         self.assertFalse(PermohonanCuti.objects.exists())
         self.assertFalse(Cuti.objects.exists())
         self.assertFalse(PermohonanLembur.objects.exists())

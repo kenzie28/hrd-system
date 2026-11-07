@@ -29,6 +29,7 @@ from .services import (
     KaryawanImportError,
     KaryawanImportResult,
     create_portal_login,
+    import_base_gaji_csv,
     import_karyawan_csv,
     import_karyawan_update_csv,
     serialize_karyawan_import_result,
@@ -251,6 +252,28 @@ class AdminKaryawanImportView(APIView):
             request,
             import_karyawan_csv,
             log_event='karyawan_import_post',
+        )
+
+
+class AdminBaseGajiImportView(APIView):
+    """Temporary CSV upload: set base_gaji for every karyawan with that jabatan."""
+
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        return _karyawan_csv_import_response(
+            request,
+            import_base_gaji_csv,
+            log_event='base_gaji_import_post',
+            empty_result=KaryawanImportResult(
+                errors=[
+                    KaryawanImportError(0, 'File CSV wajib diunggah.'),
+                ],
+                required_columns=['jabatan', 'base_gaji'],
+                optional_columns=[],
+            ),
         )
 
 

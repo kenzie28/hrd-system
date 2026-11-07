@@ -627,3 +627,117 @@ def import_karyawan_update_csv(upload) -> KaryawanImportResult:
         enqueue_location_changes(location_changes)
     result.updated = len(to_update)
     return result
+
+
+COL_BASE_GAJI = 'base_gaji'
+BASE_GAJI_COLUMNS = [COL_JABATAN, COL_BASE_GAJI]
+_BASE_GAJI_MAX = (1 << 63) - 1
+
+
+def _parse_base_gaji(raw: str) -> tuple[int | None, str | None]:
+    value = (raw or '').strip()
+    if value.startswith("'"):
+        value = value[1:].strip()
+    if not value:
+        return None, 'Kolom base_gaji wajib diisi.'
+    if not value.isdigit():
+        return None, f'base_gaji tidak valid: {raw.strip()!r}.'
+    number = int(value)
+    if number > _BASE_GAJI_MAX:
+        return None, f'base_gaji di luar batas bilangan bulat: {value}.'
+    return number, None
+
+
+def import_base_gaji_csv(upload) -> KaryawanImportResult:
+    """Set Karyawan.base_gaji from a CSV of jabatan,base_gaji.
+
+    ``jabatan`` must match the stored value exactly (surrounding space is
+    stripped). Every employee with that jabatan is updated. Validation
+    covers the whole file before any write.
+    """
+    result = KaryawanImportResult(
+        required_columns=list(BASE_GAJI_COLUMNS),
+        optional_columns=[],
+    )
+    text = _decode_upload(upload, result)
+    if text is None:
+        return result
+
+    reader = _csv_reader(text, result)
+    if reader is None:
+        return result
+
+    header_set = set(reader.fieldnames or [])
+    missing = [c for c in BASE_GAJI_COLUMNS if c not in header_set]
+    if missing:
+        result.errors.append(
+            KaryawanImportError(
+                0,
+                f'Kolom wajib tidak ditemukan: {", ".join(missing)}.',
+            )
+        )
+        return result
+
+    seen: dict[str, int] = {}
+    pending: list[tuple[int, str, int]] = []
+    for row_num, row in enumerate(reader, start=2):
+        result.total_rows += 1
+        jabatan = (row.get(COL_JABATAN) or '').strip()
+        if not jabatan:
+            result.errors.append(
+                KaryawanImportError(row_num, 'Kolom jabatan wajib diisi.')
+            )
+            continue
+        if len(jabatan) > 128:
+            result.errors.append(
+                KaryawanImportError(row_num, 'jabatan maksimal 128 karakter.')
+            )
+            continue
+        if jabatan in seen:
+            result.errors.append(
+                KaryawanImportError(
+                    row_num,
+                    f'Jabatan duplikat: {jabatan} (baris {seen[jabatan]}).',
+                )
+            )
+            continue
+        seen[jabatan] = row_num
+
+        nominal, nominal_error = _parse_base_gaji(row.get(COL_BASE_GAJI) or '')
+        if nominal_error:
+            result.errors.append(KaryawanImportError(row_num, nominal_error))
+            continue
+        pending.append((row_num, jabatan, nominal))
+
+    if result.errors:
+        return result
+    if not pending:
+        result.errors.append(
+            KaryawanImportError(0, 'File CSV tidak memiliki baris data.')
+        )
+        return result
+
+    existing = set(Karyawan.objects.values_list('jabatan', flat=True).distinct())
+    matched: list[tuple[str, int]] = []
+    for row_num, jabatan, nominal in pending:
+        if jabatan not in existing:
+            result.errors.append(
+                KaryawanImportError(
+                    row_num,
+                    f'Jabatan tidak ditemukan: {jabatan}.',
+                )
+            )
+            continue
+        matched.append((jabatan, nominal))
+
+    if result.errors:
+        return result
+
+    with transaction.atomic():
+        updated = 0
+        for jabatan, nominal in matched:
+            updated += Karyawan.objects.filter(jabatan=jabatan).update(
+                base_gaji=nominal
+            )
+    result.updated = updated
+    return result

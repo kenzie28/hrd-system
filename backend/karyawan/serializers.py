@@ -14,6 +14,7 @@ class KaryawanSerializer(serializers.ModelSerializer):
             'wilayah',
             'level',
             'cuti_tahunan',
+            'base_gaji',
         ]
 
 

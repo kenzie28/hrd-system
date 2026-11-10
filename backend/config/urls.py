@@ -12,6 +12,7 @@ from cuti.admin_views import (
     AdminCutiSakitImportView,
     AdminCutiTahunanImportView,
     AdminCutiViewSet,
+    AdminIzinOffImportView,
 )
 from cuti.views import CutiViewSet, PortalCutiViewSet
 from kalender_bersama.views import (
@@ -186,6 +187,11 @@ admin_api_urlpatterns = [
         'admin/cuti-sakit/import/',
         AdminCutiSakitImportView.as_view(),
         name='admin-cuti-sakit-import',
+    ),
+    path(
+        'admin/izin-off/import/',
+        AdminIzinOffImportView.as_view(),
+        name='admin-izin-off-import',
     ),
     path(
         'admin/lembur/import/',

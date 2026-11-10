@@ -8,6 +8,7 @@ import {
   ImportCutiTab,
   ImportLemburDinasTab,
   ImportLemburTab,
+  ImportOffTab,
   ImportSakitTab,
 } from '../tabs/ImportCutiTab'
 import { RekapAbsensiTab } from '../tabs/RekapAbsensiTab'
@@ -55,6 +56,7 @@ export default function AbsensiPage() {
     },
     { key: 'import-absensi', label: 'Import CSV Absensi', children: <ImportAbsensiTab /> },
     { key: 'import-cuti', label: 'Import CSV Cuti', children: <ImportCutiTab /> },
+    { key: 'import-off', label: 'Import CSV Off', children: <ImportOffTab /> },
     { key: 'import-sakit', label: 'Import CSV Sakit', children: <ImportSakitTab /> },
     { key: 'import-lembur', label: 'Import CSV Lembur', children: <ImportLemburTab /> },
     {

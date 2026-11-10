@@ -73,13 +73,13 @@ def _parse_import_date(value: str) -> date | None:
 
 
 def import_cuti_csv(upload, tipe: str) -> CutiImportResult:
-    """Create approved one-day annual or sick leave requests from CSV.
+    """Create approved one-day annual, sick, or off leave requests from CSV.
 
     Duplicate rows, and dates already registered for the same employee and
     leave type, are skipped. Annual leave consumes the employee's remaining
-    annual quota. Validation is all-or-nothing.
+    annual quota. Izin Off does not. Validation is all-or-nothing.
     """
-    if tipe not in (TipeCuti.TAHUNAN, TipeCuti.SAKIT):
+    if tipe not in (TipeCuti.TAHUNAN, TipeCuti.SAKIT, TipeCuti.IZIN_OFF):
         raise ValueError('Tipe import cuti tidak didukung.')
 
     result = CutiImportResult()

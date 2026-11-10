@@ -23,7 +23,7 @@ from .services import (
 
 
 class AdminCutiImportView(APIView):
-    """Import approved one-day annual or sick leave requests."""
+    """Import approved one-day annual, sick, or off leave requests."""
 
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAdminAllowed]
@@ -81,6 +81,10 @@ class AdminCutiTahunanImportView(AdminCutiImportView):
 
 class AdminCutiSakitImportView(AdminCutiImportView):
     tipe_cuti = TipeCuti.SAKIT
+
+
+class AdminIzinOffImportView(AdminCutiImportView):
+    tipe_cuti = TipeCuti.IZIN_OFF
 
 
 class AdminCutiViewSet(viewsets.ReadOnlyModelViewSet):

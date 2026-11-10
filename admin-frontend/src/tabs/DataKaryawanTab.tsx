@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import {
   EditOutlined,
   FilterOutlined,
   PlusOutlined,
   SearchOutlined,
+  SettingOutlined,
 } from '@ant-design/icons'
 import {
   App,
+  Badge,
   Button,
   Checkbox,
   Dropdown,
@@ -15,9 +17,11 @@ import {
   InputNumber,
   Modal,
   Popconfirm,
+  Popover,
   Select,
   Space,
   Table,
+  Tag,
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -71,6 +75,264 @@ const LEVEL_OPTIONS = Array.from({ length: 8 }, (_, i) => ({
   label: String(i + 1),
 }))
 
+const NO_LOKASI = '__none__'
+
+interface KaryawanFilters {
+  karyawan_id: string
+  nama: string
+  lokasi: string[]
+  jabatan: string
+  wilayah: string
+  level: number[]
+  cutiMin: number | null
+  cutiMax: number | null
+  gajiMin: number | null
+  gajiMax: number | null
+}
+
+function emptyFilters(): KaryawanFilters {
+  return {
+    karyawan_id: '',
+    nama: '',
+    lokasi: [],
+    jabatan: '',
+    wilayah: '',
+    level: [],
+    cutiMin: null,
+    cutiMax: null,
+    gajiMin: null,
+    gajiMax: null,
+  }
+}
+
+function includesText(value: string, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return value.toLowerCase().includes(q)
+}
+
+function inRange(value: number, min: number | null, max: number | null) {
+  if (min != null && value < min) return false
+  if (max != null && value > max) return false
+  return true
+}
+
+function rangeInvalid(min: number | null, max: number | null) {
+  return min != null && max != null && min > max
+}
+
+function rangeLabel(
+  min: number | null,
+  max: number | null,
+  format: (value: number) => string = String,
+) {
+  if (min != null && max != null) return `${format(min)} – ${format(max)}`
+  if (min != null) return `≥ ${format(min)}`
+  if (max != null) return `≤ ${format(max)}`
+  return ''
+}
+
+function countActiveFilters(filters: KaryawanFilters) {
+  let count = 0
+  if (filters.karyawan_id.trim()) count += 1
+  if (filters.nama.trim()) count += 1
+  if (filters.lokasi.length > 0) count += 1
+  if (filters.jabatan.trim()) count += 1
+  if (filters.wilayah.trim()) count += 1
+  if (filters.level.length > 0) count += 1
+  if (filters.cutiMin != null || filters.cutiMax != null) count += 1
+  if (filters.gajiMin != null || filters.gajiMax != null) count += 1
+  return count
+}
+
+function LokasiFilter({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: string; label: string }[]
+  value: string[]
+  onChange: (value: string[]) => void
+}) {
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const visible = q
+    ? options.filter((opt) => opt.label.toLowerCase().includes(q))
+    : options
+
+  return (
+    <div>
+      <Typography.Text style={{ fontSize: 12 }}>{COLUMN_LABELS.lokasi_kerja}</Typography.Text>
+      {options.length > 6 ? (
+        <Input
+          size="small"
+          allowClear
+          placeholder="Cari lokasi"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          style={{ marginTop: 4 }}
+        />
+      ) : null}
+      <div style={{ maxHeight: 140, overflow: 'auto', marginTop: 6 }}>
+        {visible.length === 0 ? (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Tidak ada lokasi
+          </Typography.Text>
+        ) : (
+          <Checkbox.Group
+            style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+            value={value}
+            options={visible}
+            onChange={(vals) => {
+              const visibleValues = new Set(visible.map((opt) => opt.value))
+              const kept = value.filter((id) => !visibleValues.has(id))
+              onChange([...kept, ...(vals as string[])])
+            }}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function FilterFields({
+  filters,
+  setFilters,
+  lokasiOptions,
+}: {
+  filters: KaryawanFilters
+  setFilters: Dispatch<SetStateAction<KaryawanFilters>>
+  lokasiOptions: { value: string; label: string }[]
+}) {
+  const patch = (partial: Partial<KaryawanFilters>) => {
+    setFilters((prev) => ({ ...prev, ...partial }))
+  }
+  const active = countActiveFilters(filters)
+
+  return (
+    <div style={{ width: 280, maxHeight: 'min(70vh, 520px)', overflowY: 'auto' }}>
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        Saring data
+      </Typography.Text>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+        <div>
+          <Typography.Text style={{ fontSize: 12 }}>{COLUMN_LABELS.karyawan_id}</Typography.Text>
+          <Input
+            size="small"
+            allowClear
+            placeholder="Mengandung"
+            value={filters.karyawan_id}
+            onChange={(e) => patch({ karyawan_id: e.target.value })}
+            style={{ marginTop: 4 }}
+          />
+        </div>
+        <div>
+          <Typography.Text style={{ fontSize: 12 }}>{COLUMN_LABELS.nama}</Typography.Text>
+          <Input
+            size="small"
+            allowClear
+            placeholder="Mengandung"
+            value={filters.nama}
+            onChange={(e) => patch({ nama: e.target.value })}
+            style={{ marginTop: 4 }}
+          />
+        </div>
+        <LokasiFilter
+          options={lokasiOptions}
+          value={filters.lokasi}
+          onChange={(lokasi) => patch({ lokasi })}
+        />
+        <div>
+          <Typography.Text style={{ fontSize: 12 }}>{COLUMN_LABELS.jabatan}</Typography.Text>
+          <Input
+            size="small"
+            allowClear
+            placeholder="Mengandung"
+            value={filters.jabatan}
+            onChange={(e) => patch({ jabatan: e.target.value })}
+            style={{ marginTop: 4 }}
+          />
+        </div>
+        <div>
+          <Typography.Text style={{ fontSize: 12 }}>{COLUMN_LABELS.wilayah}</Typography.Text>
+          <Input
+            size="small"
+            allowClear
+            placeholder="Mengandung"
+            value={filters.wilayah}
+            onChange={(e) => patch({ wilayah: e.target.value })}
+            style={{ marginTop: 4 }}
+          />
+        </div>
+        <div>
+          <Typography.Text style={{ fontSize: 12 }}>{COLUMN_LABELS.level}</Typography.Text>
+          <Checkbox.Group
+            style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', marginTop: 4 }}
+            value={filters.level}
+            options={LEVEL_OPTIONS}
+            onChange={(vals) => patch({ level: vals as number[] })}
+          />
+        </div>
+        <div>
+          <Typography.Text style={{ fontSize: 12 }}>{COLUMN_LABELS.cuti_tahunan}</Typography.Text>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <InputNumber
+              size="small"
+              min={0}
+              placeholder="Min"
+              value={filters.cutiMin}
+              onChange={(value) => patch({ cutiMin: value })}
+              style={{ flex: 1, width: '100%' }}
+            />
+            <InputNumber
+              size="small"
+              min={0}
+              placeholder="Maks"
+              value={filters.cutiMax}
+              onChange={(value) => patch({ cutiMax: value })}
+              style={{ flex: 1, width: '100%' }}
+            />
+          </div>
+          {rangeInvalid(filters.cutiMin, filters.cutiMax) ? (
+            <Typography.Text type="danger" style={{ fontSize: 12 }}>
+              Minimum melebihi maksimum.
+            </Typography.Text>
+          ) : null}
+        </div>
+        <div>
+          <Typography.Text style={{ fontSize: 12 }}>{COLUMN_LABELS.base_gaji}</Typography.Text>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <InputNumber
+              size="small"
+              min={0}
+              placeholder="Min"
+              value={filters.gajiMin}
+              onChange={(value) => patch({ gajiMin: value })}
+              style={{ flex: 1, width: '100%' }}
+            />
+            <InputNumber
+              size="small"
+              min={0}
+              placeholder="Maks"
+              value={filters.gajiMax}
+              onChange={(value) => patch({ gajiMax: value })}
+              style={{ flex: 1, width: '100%' }}
+            />
+          </div>
+          {rangeInvalid(filters.gajiMin, filters.gajiMax) ? (
+            <Typography.Text type="danger" style={{ fontSize: 12 }}>
+              Minimum melebihi maksimum.
+            </Typography.Text>
+          ) : null}
+        </div>
+        <Button size="small" disabled={active === 0} onClick={() => setFilters(emptyFilters())}>
+          Reset
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function loadVisibleColumns(): ColumnKey[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -110,6 +372,7 @@ export function DataKaryawanTab() {
   const remove = useKaryawanDelete()
 
   const [search, setSearch] = useState('')
+  const [filters, setFilters] = useState<KaryawanFilters>(emptyFilters)
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(loadVisibleColumns)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -124,16 +387,40 @@ export function DataKaryawanTab() {
     return map
   }, [lokasiList])
 
+  const lokasiOptions = useMemo(() => {
+    const options = [...(lokasiList ?? [])]
+      .sort((a, b) => a.nama.localeCompare(b.nama, 'id'))
+      .map((loc) => ({ value: loc.id, label: loc.nama }))
+    options.push({ value: NO_LOKASI, label: 'Tanpa lokasi' })
+    return options
+  }, [lokasiList])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return karyawan ?? []
-    return (karyawan ?? []).filter(
-      (k) =>
-        k.nama.toLowerCase().includes(q) ||
-        k.karyawan_id.toLowerCase().includes(q) ||
-        (k.jabatan ?? '').toLowerCase().includes(q),
-    )
-  }, [karyawan, search])
+    return (karyawan ?? []).filter((k) => {
+      if (q) {
+        const hit =
+          k.nama.toLowerCase().includes(q) ||
+          k.karyawan_id.toLowerCase().includes(q) ||
+          (k.jabatan ?? '').toLowerCase().includes(q)
+        if (!hit) return false
+      }
+      if (!includesText(k.karyawan_id, filters.karyawan_id)) return false
+      if (!includesText(k.nama, filters.nama)) return false
+      if (filters.lokasi.length > 0) {
+        const key = k.lokasi_kerja ?? NO_LOKASI
+        if (!filters.lokasi.includes(key)) return false
+      }
+      if (!includesText(k.jabatan ?? '', filters.jabatan)) return false
+      if (!includesText(k.wilayah ?? '', filters.wilayah)) return false
+      if (filters.level.length > 0 && !filters.level.includes(k.level)) return false
+      if (!inRange(k.cuti_tahunan, filters.cutiMin, filters.cutiMax)) return false
+      if (!inRange(k.base_gaji ?? 0, filters.gajiMin, filters.gajiMax)) return false
+      return true
+    })
+  }, [karyawan, search, filters])
+
+  const activeFilters = countActiveFilters(filters)
 
   const setColumns = (keys: ColumnKey[]) => {
     const next = keys.length > 0 ? keys : [...ALL_COLUMN_KEYS]
@@ -311,9 +598,24 @@ export function DataKaryawanTab() {
           style={{ width: '100%', maxWidth: 280 }}
         />
         <Space wrap>
+          <Badge count={activeFilters} size="small">
+            <Popover
+              trigger="click"
+              placement="bottomRight"
+              content={
+                <FilterFields
+                  filters={filters}
+                  setFilters={setFilters}
+                  lokasiOptions={lokasiOptions}
+                />
+              }
+            >
+              <Button icon={<FilterOutlined />}>Filter</Button>
+            </Popover>
+          </Badge>
           <Dropdown
             trigger={['click']}
-            dropdownRender={() => (
+            popupRender={() => (
               <div
                 style={{
                   padding: 12,
@@ -338,13 +640,81 @@ export function DataKaryawanTab() {
               </div>
             )}
           >
-            <Button icon={<FilterOutlined />}>Kolom</Button>
+            <Button icon={<SettingOutlined />}>Kolom</Button>
           </Dropdown>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             Tambah Karyawan
           </Button>
         </Space>
       </Space>
+
+      {activeFilters > 0 ? (
+        <Space wrap size={[4, 8]} style={{ marginTop: -8, marginBottom: 16 }}>
+          {filters.karyawan_id.trim() ? (
+            <Tag
+              closable
+              onClose={() => setFilters((prev) => ({ ...prev, karyawan_id: '' }))}
+            >
+              {COLUMN_LABELS.karyawan_id}: {filters.karyawan_id.trim()}
+            </Tag>
+          ) : null}
+          {filters.nama.trim() ? (
+            <Tag closable onClose={() => setFilters((prev) => ({ ...prev, nama: '' }))}>
+              {COLUMN_LABELS.nama}: {filters.nama.trim()}
+            </Tag>
+          ) : null}
+          {filters.lokasi.length > 0 ? (
+            <Tag closable onClose={() => setFilters((prev) => ({ ...prev, lokasi: [] }))}>
+              {COLUMN_LABELS.lokasi_kerja}:{' '}
+              {filters.lokasi
+                .map((id) =>
+                  id === NO_LOKASI ? 'Tanpa lokasi' : (lokasiMap.get(id) ?? id),
+                )
+                .join(', ')}
+            </Tag>
+          ) : null}
+          {filters.jabatan.trim() ? (
+            <Tag closable onClose={() => setFilters((prev) => ({ ...prev, jabatan: '' }))}>
+              {COLUMN_LABELS.jabatan}: {filters.jabatan.trim()}
+            </Tag>
+          ) : null}
+          {filters.wilayah.trim() ? (
+            <Tag closable onClose={() => setFilters((prev) => ({ ...prev, wilayah: '' }))}>
+              {COLUMN_LABELS.wilayah}: {filters.wilayah.trim()}
+            </Tag>
+          ) : null}
+          {filters.level.length > 0 ? (
+            <Tag closable onClose={() => setFilters((prev) => ({ ...prev, level: [] }))}>
+              {COLUMN_LABELS.level}:{' '}
+              {[...filters.level].sort((a, b) => a - b).join(', ')}
+            </Tag>
+          ) : null}
+          {filters.cutiMin != null || filters.cutiMax != null ? (
+            <Tag
+              closable
+              onClose={() =>
+                setFilters((prev) => ({ ...prev, cutiMin: null, cutiMax: null }))
+              }
+            >
+              {COLUMN_LABELS.cuti_tahunan}: {rangeLabel(filters.cutiMin, filters.cutiMax)}
+            </Tag>
+          ) : null}
+          {filters.gajiMin != null || filters.gajiMax != null ? (
+            <Tag
+              closable
+              onClose={() =>
+                setFilters((prev) => ({ ...prev, gajiMin: null, gajiMax: null }))
+              }
+            >
+              {COLUMN_LABELS.base_gaji}:{' '}
+              {rangeLabel(filters.gajiMin, filters.gajiMax, formatCurrency)}
+            </Tag>
+          ) : null}
+          <Button type="link" size="small" onClick={() => setFilters(emptyFilters())}>
+            Reset
+          </Button>
+        </Space>
+      ) : null}
 
       <Table<Karyawan>
         rowKey="karyawan_id"
@@ -354,6 +724,12 @@ export function DataKaryawanTab() {
         columns={columns}
         scroll={{ x: true }}
         pagination={{ pageSize: 20, showSizeChanger: false }}
+        locale={{
+          emptyText:
+            (karyawan?.length ?? 0) > 0
+              ? 'Tidak ada karyawan yang cocok.'
+              : 'Tidak ada data',
+        }}
       />
 
       <Modal

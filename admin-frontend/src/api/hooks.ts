@@ -718,6 +718,14 @@ export function useCutiSakitImport() {
   ])
 }
 
+export function useIzinOffImport() {
+  return useCsvImport('/admin/izin-off/import/', [
+    ['cuti'],
+    ['pending-cuti'],
+    ['karyawan'],
+  ])
+}
+
 export function useLemburImport() {
   return useCsvImport('/admin/lembur/import/', [
     ['admin-lembur'],

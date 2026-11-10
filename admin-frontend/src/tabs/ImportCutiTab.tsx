@@ -5,6 +5,7 @@ import { useState, type CSSProperties } from 'react'
 import {
   useCutiImport,
   useCutiSakitImport,
+  useIzinOffImport,
   useLemburDinasImport,
   useLemburImport,
 } from '../api/hooks'
@@ -80,7 +81,7 @@ function ImportCutiForm({
   importAction,
   note,
 }: {
-  label: 'Cuti' | 'Sakit' | 'Lembur' | 'Lembur Dinas'
+  label: 'Cuti' | 'Izin Off' | 'Sakit' | 'Lembur' | 'Lembur Dinas'
   importAction: ImportAction
   note?: string
 }) {
@@ -160,6 +161,11 @@ function ImportCutiForm({
 export function ImportCutiTab() {
   const importAction = useCutiImport()
   return <ImportCutiForm label="Cuti" importAction={importAction} />
+}
+
+export function ImportOffTab() {
+  const importAction = useIzinOffImport()
+  return <ImportCutiForm label="Izin Off" importAction={importAction} />
 }
 
 export function ImportSakitTab() {

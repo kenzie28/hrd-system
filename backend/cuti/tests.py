@@ -118,6 +118,31 @@ class CutiCsvImportTests(TestCase):
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.cuti_tahunan, 2)
 
+    def test_izin_off_does_not_deduct_quota_and_duplicate_is_skipped(self):
+        first = self._upload(
+            '1000001,2026-11-02\n1000001,2026-11-03\n1000001,2026-11-02\n',
+            TipeCuti.IZIN_OFF,
+        )
+        second = self._upload('1000001,2026-11-02\n', TipeCuti.IZIN_OFF)
+
+        self.assertTrue(first.ok)
+        self.assertEqual(first.created, 2)
+        self.assertTrue(second.ok)
+        self.assertEqual(second.created, 0)
+        requests = PermohonanCuti.objects.order_by('tanggal_mulai')
+        self.assertEqual(requests.count(), 2)
+        self.assertTrue(
+            all(
+                request.tipe == TipeCuti.IZIN_OFF
+                and request.status == StatusPermohonanCuti.APPROVED
+                and request.tanggal_mulai == request.tanggal_selesai
+                for request in requests
+            )
+        )
+        self.assertEqual(Cuti.objects.count(), 2)
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.cuti_tahunan, 2)
+
     def test_insufficient_tahunan_quota_writes_nothing(self):
         result = self._upload(
             '1000001,2026-11-02\n'

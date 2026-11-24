@@ -3,6 +3,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from absensi.admin_views import AdminAbsensiImportView
+from gaji.admin_views import AdminProsesGajiDetailView, AdminProsesGajiView
 from absensi.views import AbsensiViewSet, PortalAbsensiViewSet, PortalKehadiranViewSet
 from shift.admin_views import AdminShiftImportView
 from shift.views import ShiftViewSet
@@ -163,6 +164,16 @@ admin_api_urlpatterns = [
         'admin/gaji/import-gaji-bulanan/',
         AdminGajiBulananImportView.as_view(),
         name='admin-gaji-import-gaji-bulanan',
+    ),
+    path(
+        'admin/gaji/proses/',
+        AdminProsesGajiView.as_view(),
+        name='admin-gaji-proses',
+    ),
+    path(
+        'admin/gaji/proses/<int:pk>/',
+        AdminProsesGajiDetailView.as_view(),
+        name='admin-gaji-proses-detail',
     ),
     path(
         'admin/koreksi/import/',

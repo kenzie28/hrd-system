@@ -1,4 +1,4 @@
 """Django admin hooks for payroll.
 
-``Gaji`` is not registered here. Process Gaji is not implemented yet.
+``Gaji`` is not registered here. Payroll rows are written by Proses Gaji.
 """

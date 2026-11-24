@@ -306,6 +306,18 @@ export interface KoreksiImportResult {
   required_columns: string[]
 }
 
+export type ProsesGajiStatus = 'pending' | 'running' | 'succeeded' | 'failed'
+
+export interface ProsesGajiJob {
+  id: number
+  periode: string
+  bulan: string
+  status: ProsesGajiStatus
+  total: number
+  processed: number
+  message: string
+}
+
 export interface TunjanganObat {
   id: number
   karyawan_id: string

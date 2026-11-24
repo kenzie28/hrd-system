@@ -13,6 +13,7 @@ import type {
   KoreksiImportResult,
   TunjanganObat,
   TunjanganObatImportResult,
+  ProsesGajiJob,
   StateClearResult,
   StateImportResult,
   StateModelOption,
@@ -156,6 +157,31 @@ export function useBaseGajiImport() {
 
 export function useGajiBulananImport() {
   return useKaryawanCsvImport('/admin/gaji/import-gaji-bulanan/')
+}
+
+export function useProsesGaji() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (bulan: string) =>
+      api.post<ProsesGajiJob>('/admin/gaji/proses/', { bulan }).then((response) => response.data),
+    onSuccess: (job) => {
+      qc.setQueryData(['proses-gaji', job.id], job)
+    },
+  })
+}
+
+export function useProsesGajiJob(jobId: number | null) {
+  return useQuery({
+    queryKey: ['proses-gaji', jobId],
+    queryFn: async () =>
+      (await api.get<ProsesGajiJob>(`/admin/gaji/proses/${jobId}/`)).data,
+    enabled: jobId != null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      if (status === 'succeeded' || status === 'failed') return false
+      return 1000
+    },
+  })
 }
 
 function useKaryawanCsvImport(path: string) {
@@ -859,6 +885,35 @@ export function useLemburApprovalMutations() {
 export interface LemburDayPayload {
   karyawan_id: string
   tanggal: string
+}
+
+export interface LemburDinasRangePayload {
+  karyawan_id: string
+  tanggal_mulai: string
+  tanggal_selesai: string
+}
+
+export interface LemburDinasRangeResult {
+  created: number
+  skipped: number
+  tanggal_mulai: string
+  tanggal_selesai: string
+}
+
+export function useCreateLemburDinas() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: LemburDinasRangePayload) =>
+      api
+        .post<LemburDinasRangeResult>('/admin/lembur/add-dinas/', data)
+        .then((response) => response.data),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ['admin-lembur'] }),
+        qc.invalidateQueries({ queryKey: ['admin-lembur-list'] }),
+        qc.invalidateQueries({ queryKey: ['rekap-absensi'] }),
+      ]),
+  })
 }
 
 export function useLemburDayMutations() {

@@ -2,13 +2,21 @@
 import csv
 import io
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from django.db import transaction
 
 from karyawan.models import Karyawan
 
 from .models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
+
+
+# One request per calendar day. A year is enough for a single admin action.
+MAX_LEMBUR_DINAS_RANGE_DAYS = 366
+
+
+class LemburDinasRangeError(Exception):
+    """The requested Lembur Dinas date range cannot be created."""
 
 
 LEMBUR_IMPORT_REQUIRED_COLUMNS = ['karyawan_id', 'tanggal']
@@ -197,6 +205,54 @@ def create_approved_lembur(karyawan, tanggal, tipe=TipeLembur.BIASA) -> Permohon
         supervisor=None,
         hrd_approver=None,
     )
+
+
+@transaction.atomic
+def create_approved_lembur_dinas_range(karyawan, start: date, end: date) -> tuple[int, int]:
+    """Create approved Lembur Dinas for each day in ``[start, end]``.
+
+    A day that already has an approved request of either type is left as-is.
+    Returns ``(created, skipped)``.
+    """
+    if end < start:
+        raise LemburDinasRangeError(
+            'tanggal_selesai harus pada atau setelah tanggal_mulai.'
+        )
+    span = (end - start).days + 1
+    if span > MAX_LEMBUR_DINAS_RANGE_DAYS:
+        raise LemburDinasRangeError(
+            f'Rentang maksimal {MAX_LEMBUR_DINAS_RANGE_DAYS} hari (diterima: {span}).'
+        )
+
+    locked = Karyawan.objects.select_for_update().filter(pk=karyawan.pk).first()
+    if locked is None:
+        raise LemburDinasRangeError('Karyawan tidak ditemukan.')
+
+    existing = set(
+        PermohonanLembur.objects.filter(
+            karyawan=locked,
+            status=StatusPermohonanLembur.APPROVED,
+            tanggal__gte=start,
+            tanggal__lte=end,
+        ).values_list('tanggal', flat=True)
+    )
+    to_create = []
+    current = start
+    while current <= end:
+        if current not in existing:
+            to_create.append(
+                PermohonanLembur(
+                    karyawan=locked,
+                    tanggal=current,
+                    alasan='',
+                    tipe=TipeLembur.DINAS,
+                    status=StatusPermohonanLembur.APPROVED,
+                )
+            )
+        current += timedelta(days=1)
+
+    PermohonanLembur.objects.bulk_create(to_create)
+    return len(to_create), span - len(to_create)
 
 
 @transaction.atomic

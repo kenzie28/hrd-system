@@ -16,49 +16,72 @@ from karyawan.portal_views import _karyawan_for
 from .models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
 from .serializers import PermohonanLemburSerializer
 from .services import (
+    LemburDinasRangeError,
     LemburImportError,
     LemburImportResult,
     approve_by_hrd,
     clear_approved_lembur,
+    create_approved_lembur_dinas_range,
     ensure_approved_lembur,
     import_lembur_csv,
     serialize_lembur_import_result,
 )
 
 
-def _lembur_day(data):
-    """Return ``(karyawan, tanggal, error_response)`` for an add/remove body."""
+def _lembur_body(data):
+    """Return ``(data, error_response)`` when the body is a JSON object."""
     if not isinstance(data, dict):
-        return None, None, Response(
+        return None, Response(
             {'detail': 'Body harus berupa objek.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
+    return data, None
 
+
+def _lembur_karyawan(data):
+    """Return ``(karyawan, error_response)`` for a ``karyawan_id`` field."""
     karyawan_id = data.get('karyawan_id')
     if not isinstance(karyawan_id, str) or not karyawan_id.strip():
-        return None, None, Response(
+        return None, Response(
             {'karyawan_id': 'karyawan_id wajib diisi.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
     karyawan = Karyawan.objects.filter(pk=karyawan_id.strip()).first()
     if karyawan is None:
-        return None, None, Response(
+        return None, Response(
             {'karyawan_id': 'Karyawan tidak ditemukan.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
+    return karyawan, None
 
-    tanggal_raw = data.get('tanggal')
-    tanggal = None
-    if isinstance(tanggal_raw, str):
+
+def _parse_lembur_date(value, field):
+    """Return ``(date, error_response)`` for one ``yyyy-mm-dd`` field."""
+    parsed = None
+    if isinstance(value, str):
         try:
-            tanggal = datetime.strptime(tanggal_raw.strip(), '%Y-%m-%d').date()
+            parsed = datetime.strptime(value.strip(), '%Y-%m-%d').date()
         except ValueError:
-            tanggal = None
-    if tanggal is None:
-        return None, None, Response(
-            {'tanggal': 'tanggal harus format yyyy-mm-dd.'},
+            parsed = None
+    if parsed is None:
+        return None, Response(
+            {field: f'{field} harus format yyyy-mm-dd.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
+    return parsed, None
+
+
+def _lembur_day(data):
+    """Return ``(karyawan, tanggal, error_response)`` for an add/remove body."""
+    data, error = _lembur_body(data)
+    if error is not None:
+        return None, None, error
+    karyawan, error = _lembur_karyawan(data)
+    if error is not None:
+        return None, None, error
+    tanggal, error = _parse_lembur_date(data.get('tanggal'), 'tanggal')
+    if error is not None:
+        return None, None, error
     return karyawan, tanggal, None
 
 
@@ -156,6 +179,41 @@ class AdminLemburViewSet(viewsets.ReadOnlyModelViewSet):
         permohonan, created = ensure_approved_lembur(karyawan, tanggal)
         return Response(
             PermohonanLemburSerializer(permohonan).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['post'], url_path='add-dinas')
+    def add_dinas(self, request):
+        """Create approved Lembur Dinas for every day in a date range."""
+        data, error = _lembur_body(request.data)
+        if error is not None:
+            return error
+        karyawan, error = _lembur_karyawan(data)
+        if error is not None:
+            return error
+        tanggal_mulai, error = _parse_lembur_date(
+            data.get('tanggal_mulai'), 'tanggal_mulai'
+        )
+        if error is not None:
+            return error
+        tanggal_selesai, error = _parse_lembur_date(
+            data.get('tanggal_selesai'), 'tanggal_selesai'
+        )
+        if error is not None:
+            return error
+        try:
+            created, skipped = create_approved_lembur_dinas_range(
+                karyawan, tanggal_mulai, tanggal_selesai
+            )
+        except LemburDinasRangeError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {
+                'created': created,
+                'skipped': skipped,
+                'tanggal_mulai': tanggal_mulai.isoformat(),
+                'tanggal_selesai': tanggal_selesai.isoformat(),
+            },
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 

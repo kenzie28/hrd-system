@@ -2,6 +2,17 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
+class StatusKTk(models.TextChoices):
+    TK = 'TK', 'TK'
+    TK1 = 'TK1', 'TK1'
+    TK2 = 'TK2', 'TK2'
+    TK3 = 'TK3', 'TK3'
+    K0 = 'K0', 'K0'
+    K1 = 'K1', 'K1'
+    K2 = 'K2', 'K2'
+    K3 = 'K3', 'K3'
+
+
 class Karyawan(models.Model):
     karyawan_id = models.CharField(max_length=7, primary_key=True)
     nama = models.CharField(max_length=128)
@@ -33,6 +44,10 @@ class Karyawan(models.Model):
     gaji_bulanan = models.PositiveBigIntegerField(default=0)
     jumlah_anak = models.PositiveSmallIntegerField(default=0)
     nikah = models.BooleanField(default=False)
+    status_k_tk = models.CharField(
+        max_length=3, choices=StatusKTk.choices, blank=True, default=''
+    )
+    lembur_dibayar = models.BooleanField(default=False)
     akumulasi_lembur = models.PositiveIntegerField(default=0)
 
     class Meta:

@@ -8,7 +8,7 @@ import secrets
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.db import transaction
@@ -30,7 +30,7 @@ from absensi.invalidation import (
 )
 from absensi.models import Absensi, Kehadiran, RekapAbsensi, absensi_minute_key
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
-from gaji.models import GajiTemp
+from gaji.models import Gaji
 from kalender_bersama.models import Langganan, NotifikasiDismiss
 from koreksi.models import Koreksi, TipeKoreksi
 from obat.models import TunjanganObat
@@ -45,6 +45,7 @@ from .constants import (
     CLEAR_ORDER,
     CLEARABLE_LABELS,
     CLEARABLE_MODELS,
+    LEGACY_SKIPPED_TABLES,
     OPTIONAL_TABLE_COLUMNS,
     OPTIONAL_TABLES,
     STATE_FORMAT_MARKER,
@@ -54,7 +55,6 @@ from .constants import (
     TABLE_AUTH_USER,
     TABLE_COLUMNS,
     TABLE_CUTI,
-    TABLE_GAJI,
     TABLE_KEHADIRAN,
     TABLE_KARYAWAN,
     TABLE_KOREKSI,
@@ -211,6 +211,10 @@ def export_state_csv() -> str:
                 _cell(obj.must_change_password),
                 _cell(obj.cuti_tahunan),
                 _cell(obj.base_gaji),
+                _cell(obj.gaji_bulanan),
+                _cell(obj.jumlah_anak),
+                _cell(obj.nikah),
+                _cell(obj.akumulasi_lembur),
             ]
         )
     _write_table(writer, TABLE_KARYAWAN, TABLE_COLUMNS[TABLE_KARYAWAN], karyawan_rows)
@@ -328,12 +332,6 @@ def export_state_csv() -> str:
         permohonan_lembur_rows,
     )
 
-    gaji_rows = []
-    gaji_cols = TABLE_COLUMNS[TABLE_GAJI]
-    for obj in GajiTemp.objects.order_by('id'):
-        gaji_rows.append([_cell(getattr(obj, col)) for col in gaji_cols])
-    _write_table(writer, TABLE_GAJI, gaji_cols, gaji_rows)
-
     koreksi_rows = [
         [
             _cell(obj.id),
@@ -380,6 +378,7 @@ def parse_state_csv(text: str) -> tuple[dict[str, list[dict]], list[StateError]]
     current_table: str | None = None
     current_headers: list[str] | None = None
     expecting_headers = False
+    skipping_legacy = False
 
     for line_no, raw_row in enumerate(reader, start=1):
         if _blank_row(raw_row):
@@ -401,6 +400,7 @@ def parse_state_csv(text: str) -> tuple[dict[str, list[dict]], list[StateError]]
             continue
 
         if row and row[0] == '__table__':
+            skipping_legacy = False
             if expecting_headers:
                 errors.append(
                     StateError(
@@ -414,6 +414,12 @@ def parse_state_csv(text: str) -> tuple[dict[str, list[dict]], list[StateError]]
                 current_table = None
                 current_headers = None
                 expecting_headers = False
+                continue
+            if name in LEGACY_SKIPPED_TABLES:
+                current_table = None
+                current_headers = None
+                expecting_headers = False
+                skipping_legacy = True
                 continue
             if name not in TABLE_COLUMNS:
                 errors.append(StateError(line_no, f'Tabel tidak dikenal: "{name}".'))
@@ -431,6 +437,9 @@ def parse_state_csv(text: str) -> tuple[dict[str, list[dict]], list[StateError]]
             current_table = name
             current_headers = None
             expecting_headers = True
+            continue
+
+        if skipping_legacy:
             continue
 
         if expecting_headers:
@@ -611,18 +620,6 @@ def _parse_datetime(raw: str, line: int, field: str, errors: list[StateError], *
     return dt
 
 
-def _parse_decimal(raw: str, line: int, field: str, errors: list[StateError]) -> Decimal | None:
-    value = raw.strip()
-    if not value:
-        errors.append(StateError(line, f'{field} wajib diisi.'))
-        return None
-    try:
-        return Decimal(value)
-    except (InvalidOperation, ValueError):
-        errors.append(StateError(line, f'{field} harus berupa angka.'))
-        return None
-
-
 def _choice(raw: str, allowed: set[str], line: int, field: str, errors: list[StateError]) -> str | None:
     value = raw.strip()
     if value not in allowed:
@@ -717,9 +714,41 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
         if base_gaji is not None and base_gaji < 0:
             errors.append(StateError(line, 'base_gaji harus non-negatif.'))
             base_gaji = None
+        gaji_bulanan = _parse_int(
+            _opt(row, 'gaji_bulanan') or '0', line, 'gaji_bulanan', errors
+        )
+        if gaji_bulanan is not None and gaji_bulanan < 0:
+            errors.append(StateError(line, 'gaji_bulanan harus non-negatif.'))
+            gaji_bulanan = None
+        jumlah_anak = _parse_int(
+            _opt(row, 'jumlah_anak') or '0', line, 'jumlah_anak', errors
+        )
+        if jumlah_anak is not None and jumlah_anak < 0:
+            errors.append(StateError(line, 'jumlah_anak harus non-negatif.'))
+            jumlah_anak = None
+        nikah = _parse_bool(
+            _opt(row, 'nikah') or 'false', line, 'nikah', errors
+        )
+        akumulasi_lembur = _parse_int(
+            _opt(row, 'akumulasi_lembur') or '0', line, 'akumulasi_lembur', errors
+        )
+        if akumulasi_lembur is not None and akumulasi_lembur < 0:
+            errors.append(StateError(line, 'akumulasi_lembur harus non-negatif.'))
+            akumulasi_lembur = None
         lokasi_kerja_id = _opt(row, 'lokasi_kerja_id') or None
         user_id = _parse_opt_int(_opt(row, 'user_id'), line, 'user_id', errors)
-        if None in (kid, nama, level, must_change, cuti_tahunan, base_gaji):
+        if None in (
+            kid,
+            nama,
+            level,
+            must_change,
+            cuti_tahunan,
+            base_gaji,
+            gaji_bulanan,
+            jumlah_anak,
+            nikah,
+            akumulasi_lembur,
+        ):
             continue
         if kid in karyawan_ids:
             errors.append(StateError(line, f'karyawan_id duplikat: {kid}.'))
@@ -750,6 +779,10 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
                 'must_change_password': must_change,
                 'cuti_tahunan': cuti_tahunan,
                 'base_gaji': base_gaji,
+                'gaji_bulanan': gaji_bulanan,
+                'jumlah_anak': jumlah_anak,
+                'nikah': nikah,
+                'akumulasi_lembur': akumulasi_lembur,
                 '_line': line,
             }
         )
@@ -1047,75 +1080,6 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
             }
         )
 
-    gaji_ids: set[int] = set()
-    gaji_keys: set[tuple] = set()
-    int_gaji_fields = (
-        'total_hadir',
-        'hari_sakit',
-        'hari_cuti',
-        'hari_cuti_tambahan',
-        'freq_pencapaian_target',
-        'rate_target',
-        'rate_non_target',
-        'gaji_pokok',
-        'rate_uang_makan',
-        'rate_lembur_6_jam',
-        'freq_hari_raya',
-        'tunjangan_lama_kerja',
-        'tunjangan_obat',
-        'freq_alpa',
-        'pot_bpjs_jht',
-        'pot_bpjs_jp',
-        'pot_bpjs_kesehatan',
-        'pot_pph21',
-        'pot_kehilangan',
-        'koreksi_absensi',
-        'total_gaji',
-    )
-    for row in tables.get(TABLE_GAJI, []):
-        line = _line_of(row)
-        pk = _parse_int(_opt(row, 'id'), line, 'gaji.id', errors)
-        karyawan_id = _req(row, 'karyawan_id', errors, TABLE_GAJI)
-        periode = _parse_date(_opt(row, 'periode'), line, 'periode', errors)
-        freq_lembur = _parse_decimal(
-            _opt(row, 'freq_lembur_6_jam') or '0', line, 'freq_lembur_6_jam', errors
-        )
-        created_at = _parse_datetime(
-            _opt(row, 'created_at'), line, 'created_at', errors, required=False
-        )
-        updated_at = _parse_datetime(
-            _opt(row, 'updated_at'), line, 'updated_at', errors, required=False
-        )
-        ints: dict[str, int | None] = {}
-        for fname in int_gaji_fields:
-            ints[fname] = _parse_int(_opt(row, fname) or '0', line, fname, errors)
-        if None in (pk, karyawan_id, periode, freq_lembur) or any(v is None for v in ints.values()):
-            continue
-        if pk in gaji_ids:
-            errors.append(StateError(line, f'gaji.id duplikat: {pk}.'))
-            continue
-        if karyawan_id not in karyawan_ids:
-            errors.append(StateError(line, f'karyawan_id tidak ada: {karyawan_id}.'))
-            continue
-        key = (karyawan_id, periode)
-        if key in gaji_keys:
-            errors.append(StateError(line, f'gaji duplikat untuk {karyawan_id} periode {periode}.'))
-            continue
-        gaji_ids.add(pk)
-        gaji_keys.add(key)
-        record = {
-            'id': pk,
-            'karyawan_id': karyawan_id,
-            'periode': periode,
-            'hadir': _opt(row, 'hadir'),
-            'freq_lembur_6_jam': freq_lembur,
-            'created_at': created_at,
-            'updated_at': updated_at,
-            '_line': line,
-        }
-        record.update(ints)
-        typed[TABLE_GAJI].append(record)
-
     koreksi_ids: set[int] = set()
     for row in tables.get(TABLE_KOREKSI, []):
         line = _line_of(row)
@@ -1219,7 +1183,7 @@ def _wipe_hrd_state() -> list[int]:
     linked_user_ids = list(
         Karyawan.objects.exclude(user_id=None).values_list('user_id', flat=True)
     )
-    GajiTemp.objects.all().delete()
+    Gaji.objects.all().delete()
     Koreksi.objects.all().delete()
     TunjanganObat.objects.all().delete()
     PermohonanLembur.objects.all().delete()
@@ -1315,7 +1279,7 @@ def reset_hrd_state() -> None:
             expand_employee_months([admin.pk], tracked_months())
         )
         with suppress_signal_invalidation():
-            GajiTemp.objects.all().delete()
+            Gaji.objects.all().delete()
             Koreksi.objects.all().delete()
             TunjanganObat.objects.all().delete()
             PermohonanLembur.objects.all().delete()
@@ -1373,8 +1337,6 @@ def _missing_clear_dependencies(selected: set[str]) -> list[str]:
     if TABLE_KARYAWAN in selected:
         if Absensi.objects.filter(_non_admin_fk('karyawan_id')).exists():
             needed.add(TABLE_ABSENSI)
-        if GajiTemp.objects.filter(_non_admin_fk('karyawan_id')).exists():
-            needed.add(TABLE_GAJI)
         if Koreksi.objects.filter(_non_admin_fk('karyawan_id')).exists():
             needed.add(TABLE_KOREKSI)
         if TunjanganObat.objects.filter(_non_admin_fk('karyawan_id')).exists():
@@ -1431,10 +1393,6 @@ def _delete_table(name: str, auth_user_ids: list[int]) -> int:
         count = Kehadiran.objects.count()
         Kehadiran.objects.all().delete()
         return count
-    if name == TABLE_GAJI:
-        count = GajiTemp.objects.count()
-        GajiTemp.objects.all().delete()
-        return count
     if name == TABLE_KOREKSI:
         count = Koreksi.objects.count()
         Koreksi.objects.all().delete()
@@ -1477,6 +1435,7 @@ def _delete_table(name: str, auth_user_ids: list[int]) -> int:
         return count
     if name == TABLE_KARYAWAN:
         qs = Karyawan.objects.exclude(pk=RESET_ADMIN_KARYAWAN_ID)
+        Gaji.objects.filter(karyawan__in=qs).delete()
         count = qs.count()
         qs.delete()
         return count
@@ -1568,6 +1527,10 @@ def _insert_state(typed: dict[str, list[dict]]) -> None:
             must_change_password=row['must_change_password'],
             cuti_tahunan=row['cuti_tahunan'],
             base_gaji=row['base_gaji'],
+            gaji_bulanan=row['gaji_bulanan'],
+            jumlah_anak=row['jumlah_anak'],
+            nikah=row['nikah'],
+            akumulasi_lembur=row['akumulasi_lembur'],
         )
 
     for row in typed[TABLE_LANGGANAN]:
@@ -1645,46 +1608,6 @@ def _insert_state(typed: dict[str, list[dict]]) -> None:
             supervisor_id=row['supervisor_id'],
             hrd_approver_id=row['hrd_approver_id'],
         )
-
-    for row in typed[TABLE_GAJI]:
-        obj = GajiTemp(
-            id=row['id'],
-            karyawan_id=row['karyawan_id'],
-            periode=row['periode'],
-            hadir=row['hadir'],
-            total_hadir=row['total_hadir'],
-            hari_sakit=row['hari_sakit'],
-            hari_cuti=row['hari_cuti'],
-            hari_cuti_tambahan=row['hari_cuti_tambahan'],
-            freq_pencapaian_target=row['freq_pencapaian_target'],
-            rate_target=row['rate_target'],
-            rate_non_target=row['rate_non_target'],
-            gaji_pokok=row['gaji_pokok'],
-            rate_uang_makan=row['rate_uang_makan'],
-            freq_lembur_6_jam=row['freq_lembur_6_jam'],
-            rate_lembur_6_jam=row['rate_lembur_6_jam'],
-            freq_hari_raya=row['freq_hari_raya'],
-            tunjangan_lama_kerja=row['tunjangan_lama_kerja'],
-            tunjangan_obat=row['tunjangan_obat'],
-            freq_alpa=row['freq_alpa'],
-            pot_bpjs_jht=row['pot_bpjs_jht'],
-            pot_bpjs_jp=row['pot_bpjs_jp'],
-            pot_bpjs_kesehatan=row['pot_bpjs_kesehatan'],
-            pot_pph21=row['pot_pph21'],
-            pot_kehilangan=row['pot_kehilangan'],
-            koreksi_absensi=row['koreksi_absensi'],
-            total_gaji=row['total_gaji'],
-        )
-        obj.save()
-        update_fields = []
-        if row.get('created_at') is not None:
-            obj.created_at = row['created_at']
-            update_fields.append('created_at')
-        if row.get('updated_at') is not None:
-            obj.updated_at = row['updated_at']
-            update_fields.append('updated_at')
-        if update_fields:
-            obj.save(update_fields=update_fields)
 
     for row in typed[TABLE_KOREKSI]:
         Koreksi.objects.create(

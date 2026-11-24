@@ -14,7 +14,6 @@ TABLE_PERMOHONAN_CUTI = 'permohonan_cuti'
 TABLE_NOTIFIKASI_DISMISS = 'notifikasi_dismiss'
 TABLE_CUTI = 'cuti'
 TABLE_PERMOHONAN_LEMBUR = 'permohonan_lembur'
-TABLE_GAJI = 'gaji'
 TABLE_KOREKSI = 'koreksi'
 TABLE_TUNJANGAN_OBAT = 'tunjangan_obat'
 
@@ -42,6 +41,10 @@ TABLE_COLUMNS = {
         'must_change_password',
         'cuti_tahunan',
         'base_gaji',
+        'gaji_bulanan',
+        'jumlah_anak',
+        'nikah',
+        'akumulasi_lembur',
     ),
     TABLE_LANGGANAN: (
         'id',
@@ -87,36 +90,6 @@ TABLE_COLUMNS = {
         'hrd_approver_id',
         'tipe',
     ),
-    TABLE_GAJI: (
-        'id',
-        'karyawan_id',
-        'periode',
-        'hadir',
-        'total_hadir',
-        'hari_sakit',
-        'hari_cuti',
-        'hari_cuti_tambahan',
-        'freq_pencapaian_target',
-        'rate_target',
-        'rate_non_target',
-        'gaji_pokok',
-        'rate_uang_makan',
-        'freq_lembur_6_jam',
-        'rate_lembur_6_jam',
-        'freq_hari_raya',
-        'tunjangan_lama_kerja',
-        'tunjangan_obat',
-        'freq_alpa',
-        'pot_bpjs_jht',
-        'pot_bpjs_jp',
-        'pot_bpjs_kesehatan',
-        'pot_pph21',
-        'pot_kehilangan',
-        'koreksi_absensi',
-        'total_gaji',
-        'created_at',
-        'updated_at',
-    ),
     TABLE_KOREKSI: (
         'id',
         'karyawan_id',
@@ -137,8 +110,17 @@ TABLE_ORDER = tuple(TABLE_COLUMNS.keys())
 # Older snapshots may omit these columns. Missing values default during parse.
 OPTIONAL_TABLE_COLUMNS = {
     TABLE_PERMOHONAN_LEMBUR: frozenset({'tipe'}),
-    TABLE_KARYAWAN: frozenset({'base_gaji'}),
+    TABLE_KARYAWAN: frozenset({
+        'base_gaji',
+        'gaji_bulanan',
+        'jumlah_anak',
+        'nikah',
+        'akumulasi_lembur',
+    }),
 }
+
+# Older snapshots may include these tables. Their sections are ignored on import.
+LEGACY_SKIPPED_TABLES = frozenset({'gaji'})
 
 # Older snapshots may omit these tables. A missing table imports as no rows.
 OPTIONAL_TABLES = frozenset({TABLE_KOREKSI, TABLE_TUNJANGAN_OBAT})
@@ -159,7 +141,6 @@ CLEARABLE_MODELS: tuple[tuple[str, str], ...] = (
     (TABLE_NOTIFIKASI_DISMISS, 'Notifikasi ditutup'),
     (TABLE_CUTI, 'Hari cuti'),
     (TABLE_PERMOHONAN_LEMBUR, 'Permohonan lembur'),
-    (TABLE_GAJI, 'Gaji'),
     (TABLE_KOREKSI, 'Koreksi'),
     (TABLE_TUNJANGAN_OBAT, 'Tunjangan obat'),
     (TABLE_KEHADIRAN, 'Kehadiran'),
@@ -172,7 +153,6 @@ CLEARABLE_LABELS = dict(CLEARABLE_MODELS)
 CLEAR_ORDER = (
     TABLE_REKAP_ABSENSI,
     TABLE_KEHADIRAN,
-    TABLE_GAJI,
     TABLE_KOREKSI,
     TABLE_TUNJANGAN_OBAT,
     TABLE_PERMOHONAN_LEMBUR,

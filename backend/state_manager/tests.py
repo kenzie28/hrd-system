@@ -1,6 +1,5 @@
 import csv
 from datetime import date, time, timedelta
-from decimal import Decimal
 from io import BytesIO, StringIO
 
 from django.contrib.auth.models import User
@@ -10,7 +9,7 @@ from rest_framework.test import APIClient
 
 from absensi.models import Absensi, Kehadiran, RekapAbsensi, StatusKehadiran
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
-from gaji.models import GajiTemp
+from gaji.models import Gaji
 from kalender_bersama.models import Langganan, NotifikasiDismiss
 from karyawan.models import Karyawan
 from karyawan.services import import_karyawan_update_csv
@@ -159,14 +158,6 @@ class StateManagerApiTests(TestCase):
             tanggal=date(2026, 3, 15),
             status=StatusPermohonanLembur.MENUNGGU_HRD,
             supervisor=self.admin,
-        )
-        GajiTemp.objects.create(
-            karyawan=self.worker,
-            periode=date(2026, 2, 1),
-            hadir='19/0/0',
-            total_hadir=19,
-            freq_lembur_6_jam=Decimal('0.68'),
-            total_gaji=5_000_000,
         )
         Koreksi.objects.create(
             karyawan=self.worker,
@@ -320,9 +311,6 @@ class StateManagerApiTests(TestCase):
         admin = Karyawan.objects.get(pk='0000003')
         self.assertEqual(admin.user.password, original_hash)
         self.assertTrue(User.objects.filter(username='djangoadmin').exists())
-        gaji = GajiTemp.objects.get(karyawan_id='1000001', periode=date(2026, 2, 1))
-        self.assertEqual(gaji.freq_lembur_6_jam, Decimal('0.68'))
-        self.assertEqual(gaji.hadir, '19/0/0')
         koreksi = Koreksi.objects.get(karyawan_id='1000001')
         self.assertEqual(koreksi.tipe, TipeKoreksi.ABSENSI)
         self.assertEqual(koreksi.nominal, -150_000)
@@ -341,7 +329,6 @@ class StateManagerApiTests(TestCase):
         self.assertTrue(result.ok, result.errors)
         self.assertFalse(Koreksi.objects.exists())
         self.assertTrue(TunjanganObat.objects.exists())
-        self.assertTrue(GajiTemp.objects.filter(karyawan_id='1000001').exists())
 
     def test_snapshot_without_tunjangan_obat_section_imports_as_empty(self):
         self.assertTrue(TunjanganObat.objects.exists())
@@ -391,7 +378,7 @@ class StateManagerApiTests(TestCase):
         self.worker.save(update_fields=['base_gaji'])
         csv_text = export_state_csv()
         self.assertIn(
-            'karyawan_id,nama,lokasi_kerja_id,jabatan,wilayah,level,user_id,must_change_password,cuti_tahunan,base_gaji',
+            'karyawan_id,nama,lokasi_kerja_id,jabatan,wilayah,level,user_id,must_change_password,cuti_tahunan,base_gaji,gaji_bulanan,jumlah_anak,nikah,akumulasi_lembur',
             csv_text,
         )
 
@@ -403,17 +390,62 @@ class StateManagerApiTests(TestCase):
         self.assertTrue(legacy.ok, legacy.errors)
         self.assertEqual(Karyawan.objects.get(pk='1000001').base_gaji, 0)
 
+    def test_payroll_fields_round_trip_and_legacy_snapshot_defaults(self):
+        self.worker.gaji_bulanan = 5_000_000
+        self.worker.jumlah_anak = 2
+        self.worker.nikah = True
+        self.worker.akumulasi_lembur = 3
+        self.worker.save(
+            update_fields=['gaji_bulanan', 'jumlah_anak', 'nikah', 'akumulasi_lembur']
+        )
+        csv_text = export_state_csv()
+
+        result = import_state_csv(csv_text)
+        self.assertTrue(result.ok, result.errors)
+        worker = Karyawan.objects.get(pk='1000001')
+        self.assertEqual(worker.gaji_bulanan, 5_000_000)
+        self.assertEqual(worker.jumlah_anak, 2)
+        self.assertTrue(worker.nikah)
+        self.assertEqual(worker.akumulasi_lembur, 3)
+
+        legacy_text = csv_text
+        for column in ('gaji_bulanan', 'jumlah_anak', 'nikah', 'akumulasi_lembur'):
+            legacy_text = _without_column(legacy_text, 'karyawan', column)
+        legacy = import_state_csv(legacy_text)
+        self.assertTrue(legacy.ok, legacy.errors)
+        worker = Karyawan.objects.get(pk='1000001')
+        self.assertEqual(worker.gaji_bulanan, 0)
+        self.assertEqual(worker.jumlah_anak, 0)
+        self.assertFalse(worker.nikah)
+        self.assertEqual(worker.akumulasi_lembur, 0)
+
+    def test_legacy_gaji_section_is_skipped(self):
+        csv_text = export_state_csv()
+        legacy = csv_text.replace(
+            '__table__,koreksi',
+            '__table__,gaji\n'
+            'id,karyawan_id,periode\n'
+            '1,1000001,2026-02-01\n'
+            '__table__,koreksi',
+            1,
+        )
+        self.assertIn('__table__,gaji', legacy)
+
+        result = import_state_csv(legacy)
+        self.assertTrue(result.ok, result.errors)
+        self.assertFalse(Gaji.objects.exists())
+        self.assertTrue(Koreksi.objects.filter(karyawan_id='1000001').exists())
+
     def test_invalid_csv_writes_nothing(self):
         Karyawan.objects.filter(pk='1000001').update(nama='CHANGED')
         csv_text = export_state_csv()
-        # Drop the gaji section so restore must reject the file.
-        chopped = csv_text.split('__table__,gaji')[0]
+        chopped = csv_text.split('__table__,absensi')[0]
         self.assertIn('CHANGED', chopped)
 
         result = import_state_csv(chopped)
         self.assertFalse(result.ok)
         self.assertTrue(
-            any('gaji' in e.message for e in result.errors),
+            any('absensi' in e.message for e in result.errors),
             result.errors,
         )
         self.assertEqual(Karyawan.objects.get(pk='1000001').nama, 'CHANGED')
@@ -469,6 +501,9 @@ class StateManagerApiTests(TestCase):
         self.assertTrue(User.objects.filter(username='djangoadmin').exists())
 
     def test_reset_clears_state_and_preserves_seed_admin_login(self):
+        Gaji.objects.create(
+            karyawan=self.worker, level=1, periode=date(2026, 2, 1)
+        )
         with self.captureOnCommitCallbacks(execute=False) as callbacks:
             response = self.client.post(
                 '/api/admin/state/reset/',
@@ -494,7 +529,7 @@ class StateManagerApiTests(TestCase):
         self.assertFalse(PermohonanCuti.objects.exists())
         self.assertFalse(Cuti.objects.exists())
         self.assertFalse(PermohonanLembur.objects.exists())
-        self.assertFalse(GajiTemp.objects.exists())
+        self.assertFalse(Gaji.objects.exists())
         self.assertFalse(Koreksi.objects.exists())
         self.assertFalse(TunjanganObat.objects.exists())
         self.assertFalse(Langganan.objects.exists())
@@ -519,7 +554,7 @@ class StateManagerApiTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         ids = [row['id'] for row in response.json()['models']]
         self.assertIn('absensi', ids)
-        self.assertIn('gaji', ids)
+        self.assertNotIn('gaji', ids)
         self.assertIn('koreksi', ids)
         self.assertIn('tunjangan_obat', ids)
         self.assertIn('kehadiran', ids)
@@ -540,7 +575,7 @@ class StateManagerApiTests(TestCase):
 
         empty = self._clear([])
         self.assertEqual(empty.status_code, 400)
-        self.assertTrue(GajiTemp.objects.exists())
+        self.assertTrue(Koreksi.objects.exists())
 
     def test_clear_selected_models_only(self):
         punch = Absensi.objects.get()
@@ -580,7 +615,7 @@ class StateManagerApiTests(TestCase):
         self.assertTrue(RekapAbsensi.objects.exists())
         self.assertEqual(Karyawan.objects.count(), 2)
         self.assertTrue(Shift.objects.exists())
-        self.assertTrue(GajiTemp.objects.exists())
+        self.assertTrue(Koreksi.objects.exists())
         self.assertTrue(PermohonanCuti.objects.exists())
         self.assertTrue(Cuti.objects.exists())
         self.assertTrue(PermohonanLembur.objects.exists())
@@ -607,28 +642,28 @@ class StateManagerApiTests(TestCase):
         self.assertFalse(Kehadiran.objects.exists())
         self.assertFalse(RekapAbsensi.objects.exists())
         self.assertTrue(Absensi.objects.filter(pk=punch.pk).exists())
-        self.assertTrue(GajiTemp.objects.exists())
+        self.assertTrue(Koreksi.objects.exists())
 
     def test_clear_karyawan_refuses_when_dependents_remain(self):
         response = self._clear(['karyawan'])
         self.assertEqual(response.status_code, 400, response.content)
         detail = response.json()['detail']
-        self.assertIn('Gaji', detail)
         self.assertIn('Koreksi', detail)
         self.assertIn('Tunjangan obat', detail)
         self.assertIn('Akun login', detail)
         self.assertIn('Permohonan cuti', detail)
         self.assertEqual(Karyawan.objects.count(), 2)
-        self.assertTrue(GajiTemp.objects.exists())
         self.assertTrue(self.worker.user_id)
 
     def test_clear_karyawan_keeps_seed_admin_and_other_models(self):
+        Gaji.objects.create(
+            karyawan=self.worker, level=1, periode=date(2026, 2, 1)
+        )
         response = self._clear(
             [
                 'karyawan',
                 'auth_user',
                 'absensi',
-                'gaji',
                 'koreksi',
                 'tunjangan_obat',
                 'langganan',
@@ -652,7 +687,7 @@ class StateManagerApiTests(TestCase):
         self.assertTrue(Shift.objects.exists())
         self.assertTrue(Liburan.objects.exists())
         self.assertFalse(Absensi.objects.exists())
-        self.assertFalse(GajiTemp.objects.exists())
+        self.assertFalse(Gaji.objects.exists())
         self.assertFalse(Koreksi.objects.exists())
         self.assertFalse(TunjanganObat.objects.exists())
         self.assertFalse(PermohonanCuti.objects.exists())
@@ -675,7 +710,7 @@ class StateManagerApiTests(TestCase):
         self.assertFalse(Absensi.objects.exists())
         self.assertEqual(Karyawan.objects.count(), 2)
         self.assertIsNone(Karyawan.objects.get(pk='1000001').lokasi_kerja_id)
-        self.assertTrue(GajiTemp.objects.exists())
+        self.assertTrue(Koreksi.objects.exists())
         self.assertTrue(Liburan.objects.exists())
 
     def test_clear_permohonan_cuti_requires_days_and_dismissals(self):
@@ -700,4 +735,4 @@ class StateManagerApiTests(TestCase):
         self.assertEqual(admin.user.password, self.admin_password_hash)
         self.assertTrue(Token.objects.filter(key=self.token.key).exists())
         self.assertTrue(User.objects.filter(username='djangoadmin').exists())
-        self.assertTrue(GajiTemp.objects.exists())
+        self.assertTrue(Koreksi.objects.exists())

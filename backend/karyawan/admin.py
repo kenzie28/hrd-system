@@ -14,6 +14,10 @@ class KaryawanAdmin(admin.ModelAdmin):
         'level',
         'cuti_tahunan',
         'base_gaji',
+        'gaji_bulanan',
+        'jumlah_anak',
+        'nikah',
+        'akumulasi_lembur',
         'user',
         'must_change_password',
     ]

@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import AdminLayout from './components/AdminLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 import AbsensiPage from './pages/AbsensiPage'
-import BaseGajiPage from './pages/BaseGajiPage'
 import CutiPage from './pages/CutiPage'
 import GajiPage from './pages/GajiPage'
 import HomePage from './pages/HomePage'
@@ -40,7 +39,6 @@ export default function App() {
         <Route path="/gaji" element={<GajiPage />} />
         <Route path="/koreksi" element={<KoreksiPage />} />
         <Route path="/tunjangan-obat" element={<TunjanganObatPage />} />
-        <Route path="/base-gaji" element={<BaseGajiPage />} />
         <Route path="/state-manager" element={<StateManagerPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

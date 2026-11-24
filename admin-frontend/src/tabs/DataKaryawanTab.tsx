@@ -20,6 +20,7 @@ import {
   Popover,
   Select,
   Space,
+  Switch,
   Table,
   Tag,
   Typography,
@@ -45,6 +46,10 @@ type ColumnKey =
   | 'level'
   | 'cuti_tahunan'
   | 'base_gaji'
+  | 'gaji_bulanan'
+  | 'jumlah_anak'
+  | 'nikah'
+  | 'akumulasi_lembur'
 
 const ALL_COLUMN_KEYS: ColumnKey[] = [
   'karyawan_id',
@@ -55,6 +60,10 @@ const ALL_COLUMN_KEYS: ColumnKey[] = [
   'level',
   'cuti_tahunan',
   'base_gaji',
+  'gaji_bulanan',
+  'jumlah_anak',
+  'nikah',
+  'akumulasi_lembur',
 ]
 
 const COLUMN_LABELS: Record<ColumnKey, string> = {
@@ -66,7 +75,19 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   level: 'Level',
   cuti_tahunan: 'Cuti',
   base_gaji: 'Base Gaji',
+  gaji_bulanan: 'Gaji Bulanan',
+  jumlah_anak: 'Jumlah Anak',
+  nikah: 'Nikah',
+  akumulasi_lembur: 'Akumulasi Lembur',
 }
+
+const ADDED_COLUMN_KEYS: ColumnKey[] = [
+  'base_gaji',
+  'gaji_bulanan',
+  'jumlah_anak',
+  'nikah',
+  'akumulasi_lembur',
+]
 
 const STORAGE_KEY = 'master-karyawan-columns'
 
@@ -88,6 +109,8 @@ interface KaryawanFilters {
   cutiMax: number | null
   gajiMin: number | null
   gajiMax: number | null
+  bulananMin: number | null
+  bulananMax: number | null
 }
 
 function emptyFilters(): KaryawanFilters {
@@ -102,6 +125,8 @@ function emptyFilters(): KaryawanFilters {
     cutiMax: null,
     gajiMin: null,
     gajiMax: null,
+    bulananMin: null,
+    bulananMax: null,
   }
 }
 
@@ -142,6 +167,7 @@ function countActiveFilters(filters: KaryawanFilters) {
   if (filters.level.length > 0) count += 1
   if (filters.cutiMin != null || filters.cutiMax != null) count += 1
   if (filters.gajiMin != null || filters.gajiMax != null) count += 1
+  if (filters.bulananMin != null || filters.bulananMax != null) count += 1
   return count
 }
 
@@ -325,6 +351,32 @@ function FilterFields({
             </Typography.Text>
           ) : null}
         </div>
+        <div>
+          <Typography.Text style={{ fontSize: 12 }}>{COLUMN_LABELS.gaji_bulanan}</Typography.Text>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <InputNumber
+              size="small"
+              min={0}
+              placeholder="Min"
+              value={filters.bulananMin}
+              onChange={(value) => patch({ bulananMin: value })}
+              style={{ flex: 1, width: '100%' }}
+            />
+            <InputNumber
+              size="small"
+              min={0}
+              placeholder="Maks"
+              value={filters.bulananMax}
+              onChange={(value) => patch({ bulananMax: value })}
+              style={{ flex: 1, width: '100%' }}
+            />
+          </div>
+          {rangeInvalid(filters.bulananMin, filters.bulananMax) ? (
+            <Typography.Text type="danger" style={{ fontSize: 12 }}>
+              Minimum melebihi maksimum.
+            </Typography.Text>
+          ) : null}
+        </div>
         <Button size="small" disabled={active === 0} onClick={() => setFilters(emptyFilters())}>
           Reset
         </Button>
@@ -343,9 +395,11 @@ function loadVisibleColumns(): ColumnKey[] {
       ALL_COLUMN_KEYS.includes(k as ColumnKey),
     )
     if (valid.length === 0) return [...ALL_COLUMN_KEYS]
-    if (!valid.includes('base_gaji')) {
-      const previous = ALL_COLUMN_KEYS.filter((k) => k !== 'base_gaji')
-      if (previous.every((k) => valid.includes(k))) valid.push('base_gaji')
+    const previous = ALL_COLUMN_KEYS.filter((k) => !ADDED_COLUMN_KEYS.includes(k))
+    if (previous.every((k) => valid.includes(k))) {
+      for (const key of ADDED_COLUMN_KEYS) {
+        if (!valid.includes(key)) valid.push(key)
+      }
     }
     return valid
   } catch {
@@ -361,6 +415,8 @@ interface KaryawanFormValues {
   wilayah?: string
   lokasi_kerja?: string | null
   cuti_tahunan: number
+  jumlah_anak: number
+  nikah: boolean
 }
 
 export function DataKaryawanTab() {
@@ -416,6 +472,7 @@ export function DataKaryawanTab() {
       if (filters.level.length > 0 && !filters.level.includes(k.level)) return false
       if (!inRange(k.cuti_tahunan, filters.cutiMin, filters.cutiMax)) return false
       if (!inRange(k.base_gaji ?? 0, filters.gajiMin, filters.gajiMax)) return false
+      if (!inRange(k.gaji_bulanan ?? 0, filters.bulananMin, filters.bulananMax)) return false
       return true
     })
   }, [karyawan, search, filters])
@@ -482,6 +539,34 @@ export function DataKaryawanTab() {
       width: 160,
       render: (value: number) => formatCurrency(value ?? 0),
     },
+    {
+      key: 'gaji_bulanan',
+      title: COLUMN_LABELS.gaji_bulanan,
+      dataIndex: 'gaji_bulanan',
+      width: 160,
+      render: (value: number) => formatCurrency(value ?? 0),
+    },
+    {
+      key: 'jumlah_anak',
+      title: COLUMN_LABELS.jumlah_anak,
+      dataIndex: 'jumlah_anak',
+      width: 120,
+      render: (value: number) => value ?? 0,
+    },
+    {
+      key: 'nikah',
+      title: COLUMN_LABELS.nikah,
+      dataIndex: 'nikah',
+      width: 90,
+      render: (value: boolean) => (value ? 'Ya' : 'Tidak'),
+    },
+    {
+      key: 'akumulasi_lembur',
+      title: COLUMN_LABELS.akumulasi_lembur,
+      dataIndex: 'akumulasi_lembur',
+      width: 150,
+      render: (value: number) => value ?? 0,
+    },
   ]
 
   const columns: ColumnsType<Karyawan> = [
@@ -515,6 +600,8 @@ export function DataKaryawanTab() {
       wilayah: '',
       lokasi_kerja: null,
       cuti_tahunan: 12,
+      jumlah_anak: 0,
+      nikah: false,
     })
     setModalOpen(true)
   }
@@ -530,6 +617,8 @@ export function DataKaryawanTab() {
       wilayah: record.wilayah,
       lokasi_kerja: record.lokasi_kerja,
       cuti_tahunan: record.cuti_tahunan,
+      jumlah_anak: record.jumlah_anak ?? 0,
+      nikah: record.nikah ?? false,
     })
     setModalOpen(true)
   }
@@ -552,6 +641,8 @@ export function DataKaryawanTab() {
       wilayah: (values.wilayah ?? '').trim(),
       lokasi_kerja: values.lokasi_kerja || null,
       cuti_tahunan: values.cuti_tahunan,
+      jumlah_anak: values.jumlah_anak,
+      nikah: values.nikah,
     }
     try {
       if (isEditing) {
@@ -710,6 +801,17 @@ export function DataKaryawanTab() {
               {rangeLabel(filters.gajiMin, filters.gajiMax, formatCurrency)}
             </Tag>
           ) : null}
+          {filters.bulananMin != null || filters.bulananMax != null ? (
+            <Tag
+              closable
+              onClose={() =>
+                setFilters((prev) => ({ ...prev, bulananMin: null, bulananMax: null }))
+              }
+            >
+              {COLUMN_LABELS.gaji_bulanan}:{' '}
+              {rangeLabel(filters.bulananMin, filters.bulananMax, formatCurrency)}
+            </Tag>
+          ) : null}
           <Button type="link" size="small" onClick={() => setFilters(emptyFilters())}>
             Reset
           </Button>
@@ -820,6 +922,16 @@ export function DataKaryawanTab() {
             rules={[{ required: true, message: 'Jatah cuti tahunan wajib diisi' }]}
           >
             <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="jumlah_anak"
+            label="Jumlah Anak"
+            rules={[{ required: true, message: 'Jumlah anak wajib diisi' }]}
+          >
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="nikah" label="Nikah" valuePropName="checked">
+            <Switch />
           </Form.Item>
           <Form.Item name="lokasi_kerja" label="Lokasi Kerja">
             <Select

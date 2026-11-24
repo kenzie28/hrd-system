@@ -8,8 +8,6 @@ import type {
   CutiImportResult,
   RekapAbsensi,
   Cuti,
-  GajiImportResult,
-  GajiTemp,
   Karyawan,
   Koreksi,
   KoreksiImportResult,
@@ -153,7 +151,11 @@ export function useKaryawanUpdateImport() {
 }
 
 export function useBaseGajiImport() {
-  return useKaryawanCsvImport('/admin/karyawan/import-base-gaji/')
+  return useKaryawanCsvImport('/admin/gaji/import-base-gaji/')
+}
+
+export function useGajiBulananImport() {
+  return useKaryawanCsvImport('/admin/gaji/import-gaji-bulanan/')
 }
 
 function useKaryawanCsvImport(path: string) {
@@ -877,104 +879,6 @@ export function useLemburDayMutations() {
     onSuccess: invalidate,
   })
   return { add, remove }
-}
-
-// ---- Gaji ----
-
-export function useGajiTemp(filters?: RecordFilters) {
-  return useQuery({
-    queryKey: ['admin-gaji', filters],
-    queryFn: async () =>
-      (await api.get<GajiTemp[]>('/admin/gaji/', { params: filterParams(filters) })).data,
-  })
-}
-
-function normalizeGajiImportResult(data: Partial<GajiImportResult> & { ok?: boolean }): GajiImportResult {
-  const errors = Array.isArray(data.errors)
-    ? data.errors.map((e) => ({
-        row: typeof e?.row === 'number' ? e.row : 0,
-        message: String(e?.message ?? 'Error tidak diketahui.'),
-      }))
-    : []
-
-  return {
-    ok: Boolean(data.ok),
-    total_rows: data.total_rows ?? 0,
-    created: data.created ?? 0,
-    updated: data.updated ?? 0,
-    karyawan_created: data.karyawan_created ?? 0,
-    errors,
-    received_headers: Array.isArray(data.received_headers) ? data.received_headers : [],
-    required_columns: Array.isArray(data.required_columns) ? data.required_columns : [],
-  }
-}
-
-function isGajiImportResult(data: unknown): data is GajiImportResult {
-  return typeof data === 'object' && data !== null && 'errors' in data
-}
-
-function gajiImportFailure(message: string): GajiImportResult {
-  return normalizeGajiImportResult({
-    ok: false,
-    errors: [{ row: 0, message }],
-  })
-}
-
-function parseImportError(err: unknown): GajiImportResult {
-  if (axios.isAxiosError(err)) {
-    const data = err.response?.data
-    if (isGajiImportResult(data)) {
-      return normalizeGajiImportResult(data)
-    }
-    if (typeof data === 'string' && data.trim()) {
-      return gajiImportFailure(data)
-    }
-    if (typeof data === 'object' && data !== null) {
-      const record = data as Record<string, unknown>
-      if (typeof record.detail === 'string' && record.detail) {
-        return gajiImportFailure(record.detail)
-      }
-      if (Array.isArray(record.detail)) {
-        return gajiImportFailure(record.detail.map(String).join(' '))
-      }
-      if (typeof record.message === 'string' && record.message) {
-        return gajiImportFailure(record.message)
-      }
-    }
-    if (err.response?.status) {
-      return gajiImportFailure(
-        `Server mengembalikan status ${err.response.status}. Periksa koneksi atau hubungi admin.`,
-      )
-    }
-    if (err.message) {
-      return gajiImportFailure(err.message)
-    }
-  }
-  return gajiImportFailure('Gagal mengunggah file CSV. Periksa koneksi atau coba lagi.')
-}
-
-export function useGajiImport() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ file, upsertKaryawan }: { file: File; upsertKaryawan: boolean }) => {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('upsert_karyawan', String(upsertKaryawan))
-      try {
-        const response = await api.post<GajiImportResult>('/admin/gaji/import/', formData)
-        return normalizeGajiImportResult(response.data)
-      } catch (err) {
-        return parseImportError(err)
-      }
-    },
-    onSuccess: (result) => {
-      if (result.ok) {
-        qc.invalidateQueries({ queryKey: ['admin-gaji'] })
-        qc.invalidateQueries({ queryKey: ['karyawan'] })
-        qc.invalidateQueries({ queryKey: ['lokasi'] })
-      }
-    },
-  })
 }
 
 // ---- Koreksi ----

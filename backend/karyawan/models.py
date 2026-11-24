@@ -30,6 +30,10 @@ class Karyawan(models.Model):
         help_text='Sisa jatah cuti tahunan (hari) yang masih bisa diambil.',
     )
     base_gaji = models.PositiveBigIntegerField(default=0)
+    gaji_bulanan = models.PositiveBigIntegerField(default=0)
+    jumlah_anak = models.PositiveSmallIntegerField(default=0)
+    nikah = models.BooleanField(default=False)
+    akumulasi_lembur = models.PositiveIntegerField(default=0)
 
     class Meta:
         verbose_name_plural = 'Karyawan'

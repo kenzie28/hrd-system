@@ -11,7 +11,7 @@ import {
   Upload,
 } from 'antd'
 import type { UploadFile, UploadProps } from 'antd'
-import { useBaseGajiImport } from '../api/hooks'
+import { useBaseGajiImport, useGajiBulananImport } from '../api/hooks'
 import type { KaryawanImportResult } from '../api/types'
 import { ImportErrorCsvDownload } from '../components/ImportErrorCsvDownload'
 
@@ -121,11 +121,27 @@ function ImportResultPanel({ result }: { result: KaryawanImportResult }) {
   )
 }
 
-export default function BaseGajiPage() {
+interface WageImport {
+  isPending: boolean
+  mutateAsync: (vars: { file: File }) => Promise<KaryawanImportResult>
+}
+
+interface WageCsvImportTabProps {
+  description: string
+  example: string
+  columnName: string
+  wageImport: WageImport
+}
+
+function WageCsvImportTab({
+  description,
+  example,
+  columnName,
+  wageImport,
+}: WageCsvImportTabProps) {
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [result, setResult] = useState<KaryawanImportResult | null>(null)
-  const baseGajiImport = useBaseGajiImport()
   const { message } = AntApp.useApp()
 
   const uploadProps: UploadProps = {
@@ -152,7 +168,7 @@ export default function BaseGajiPage() {
     if (!selectedFile) return
 
     setResult(null)
-    const data = await baseGajiImport.mutateAsync({ file: selectedFile })
+    const data = await wageImport.mutateAsync({ file: selectedFile })
     setResult(data)
     if (data.ok) {
       message.success(`Import berhasil: ${data.updated} karyawan diperbarui.`)
@@ -161,23 +177,17 @@ export default function BaseGajiPage() {
 
   return (
     <div>
-      <Typography.Title level={3}>Base Gaji</Typography.Title>
-      <Typography.Paragraph type="secondary">
-        Modul sementara. Unggah CSV dengan kolom <Typography.Text code>jabatan</Typography.Text>{' '}
-        dan <Typography.Text code>base_gaji</Typography.Text>. Jabatan dicocokkan persis
-        (huruf besar/kecil dan spasi di tengah harus sama). Setiap karyawan dengan jabatan itu
-        diisi <Typography.Text code>base_gaji</Typography.Text>-nya. Jabatan yang tidak ada,
-        atau yang muncul dua kali, membuat seluruh file ditolak.
+      <Typography.Paragraph type="secondary">{description}</Typography.Paragraph>
+      <Typography.Paragraph>
+        Setiap baris mengisi <Typography.Text code>{columnName}</Typography.Text> untuk satu
+        karyawan. <Typography.Text code>karyawan_id</Typography.Text> yang tidak ada, atau yang
+        muncul dua kali, membuat seluruh file ditolak.
       </Typography.Paragraph>
       <Typography.Paragraph>
-        <pre style={{ margin: 0 }}>
-          {`jabatan,base_gaji
-Staff,4500000
-Staff Senior,8000000`}
-        </pre>
+        <pre style={{ margin: 0 }}>{example}</pre>
       </Typography.Paragraph>
 
-      <Upload.Dragger {...uploadProps} disabled={baseGajiImport.isPending}>
+      <Upload.Dragger {...uploadProps} disabled={wageImport.isPending}>
         <p className="ant-upload-drag-icon">
           <InboxOutlined />
         </p>
@@ -190,7 +200,7 @@ Staff Senior,8000000`}
           icon={<UploadOutlined />}
           onClick={handleUpload}
           disabled={!selectedFile}
-          loading={baseGajiImport.isPending}
+          loading={wageImport.isPending}
         >
           Unggah
         </Button>
@@ -202,5 +212,29 @@ Staff Senior,8000000`}
         </div>
       )}
     </div>
+  )
+}
+
+export function ImportBaseGajiTab() {
+  const wageImport = useBaseGajiImport()
+  return (
+    <WageCsvImportTab
+      columnName="base_gaji"
+      description="Unggah CSV untuk mengisi base gaji tiap karyawan."
+      example={'karyawan_id,base_gaji\n1000001,4500000\n1000002,8000000'}
+      wageImport={wageImport}
+    />
+  )
+}
+
+export function ImportGajiBulananTab() {
+  const wageImport = useGajiBulananImport()
+  return (
+    <WageCsvImportTab
+      columnName="gaji_bulanan"
+      description="Unggah CSV untuk mengisi gaji bulanan tiap karyawan."
+      example={'karyawan_id,gaji_bulanan\n1000001,5000000\n1000002,9000000'}
+      wageImport={wageImport}
+    />
   )
 }

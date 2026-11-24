@@ -1,18 +1,4 @@
-from django.contrib import admin
+"""Django admin hooks for payroll.
 
-from .models import GajiTemp
-
-
-@admin.register(GajiTemp)
-class GajiTempAdmin(admin.ModelAdmin):
-    list_display = [
-        'id',
-        'karyawan',
-        'periode',
-        'hadir',
-        'total_hadir',
-        'gaji_pokok',
-        'total_gaji',
-    ]
-    list_filter = ['periode']
-    search_fields = ['karyawan__nama', 'karyawan__karyawan_id']
+``Gaji`` is not registered here. Process Gaji is not implemented yet.
+"""

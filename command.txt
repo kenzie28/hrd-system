@@ -1,0 +1,35 @@
+Remove the Import CSV Gaji and Data Gaji and the TempGaji model and all things that are linked and reliant on it.
+
+Create a new field in Karyawan called
+gaji_bulanan
+jumlah_anak
+nikah (boolean)
+akumulasi_lembur (default 0)
+
+Remove Base Gaji as a module in admin frontend.
+
+Create a new Gaji module in the frontend that is password blocked with password bears
+
+This will have two tabs
+Import CSV Base Gaji
+Import CSV Gaji Bulanan
+Which will allow the user to set the base gaji and gaji bulanan for each employee
+
+Create another tab in the Gaji module in the admin frontend called Process Gaji. This should be the first tab
+
+The user can select a month to process the gaji for the employees. Then they will click "Proses Gaji"
+Make this a job so that in case it takes long, the user wont receive a 504 error. Make sure to add a progress bar
+
+The attendance fields should be self explanatory. hari_sakit is days with cuti_sakit
+hari_cuti is cuti_tahunan
+hari_cuti_tambahan is all other cuti_*
+hari_off is izin_off
+
+base_gaji and gaji bulanan should be a screenshot of that employee's wage at that time
+
+tunjangan_obat, koreksi_absensi, koreksi_admin should just take from their respective models for that month but make sure to sum if there are more than one for one type
+
+Now this is the tricky part:
+for bpjs jht jp and kesehatan, it will be 2, 1, 1 % of the BASE GAJI respectively
+
+

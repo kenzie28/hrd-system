@@ -630,33 +630,33 @@ def import_karyawan_update_csv(upload) -> KaryawanImportResult:
 
 
 COL_BASE_GAJI = 'base_gaji'
-BASE_GAJI_COLUMNS = [COL_JABATAN, COL_BASE_GAJI]
-_BASE_GAJI_MAX = (1 << 63) - 1
+COL_GAJI_BULANAN = 'gaji_bulanan'
+_WAGE_MAX = (1 << 63) - 1
 
 
-def _parse_base_gaji(raw: str) -> tuple[int | None, str | None]:
+def _parse_non_negative_int(raw: str, column: str) -> tuple[int | None, str | None]:
     value = (raw or '').strip()
     if value.startswith("'"):
         value = value[1:].strip()
     if not value:
-        return None, 'Kolom base_gaji wajib diisi.'
+        return None, f'Kolom {column} wajib diisi.'
     if not value.isdigit():
-        return None, f'base_gaji tidak valid: {raw.strip()!r}.'
+        return None, f'{column} tidak valid: {raw.strip()!r}.'
     number = int(value)
-    if number > _BASE_GAJI_MAX:
-        return None, f'base_gaji di luar batas bilangan bulat: {value}.'
+    if number > _WAGE_MAX:
+        return None, f'{column} di luar batas bilangan bulat: {value}.'
     return number, None
 
 
-def import_base_gaji_csv(upload) -> KaryawanImportResult:
-    """Set Karyawan.base_gaji from a CSV of jabatan,base_gaji.
+def _import_karyawan_amount_csv(upload, column: str) -> KaryawanImportResult:
+    """Set one wage field from a CSV of karyawan_id,<column>.
 
-    ``jabatan`` must match the stored value exactly (surrounding space is
-    stripped). Every employee with that jabatan is updated. Validation
-    covers the whole file before any write.
+    Each row updates that employee only. The whole file is validated before
+    any write. An unknown or duplicate karyawan_id rejects the file.
     """
+    required = [COL_KARYAWAN_ID, column]
     result = KaryawanImportResult(
-        required_columns=list(BASE_GAJI_COLUMNS),
+        required_columns=list(required),
         optional_columns=[],
     )
     text = _decode_upload(upload, result)
@@ -668,7 +668,7 @@ def import_base_gaji_csv(upload) -> KaryawanImportResult:
         return result
 
     header_set = set(reader.fieldnames or [])
-    missing = [c for c in BASE_GAJI_COLUMNS if c not in header_set]
+    missing = [c for c in required if c not in header_set]
     if missing:
         result.errors.append(
             KaryawanImportError(
@@ -682,32 +682,32 @@ def import_base_gaji_csv(upload) -> KaryawanImportResult:
     pending: list[tuple[int, str, int]] = []
     for row_num, row in enumerate(reader, start=2):
         result.total_rows += 1
-        jabatan = (row.get(COL_JABATAN) or '').strip()
-        if not jabatan:
+        karyawan_id = (row.get(COL_KARYAWAN_ID) or '').strip()
+        if not karyawan_id:
             result.errors.append(
-                KaryawanImportError(row_num, 'Kolom jabatan wajib diisi.')
+                KaryawanImportError(row_num, 'Kolom karyawan_id wajib diisi.')
             )
             continue
-        if len(jabatan) > 128:
+        if len(karyawan_id) > 7:
             result.errors.append(
-                KaryawanImportError(row_num, 'jabatan maksimal 128 karakter.')
+                KaryawanImportError(row_num, 'karyawan_id maksimal 7 karakter.')
             )
             continue
-        if jabatan in seen:
+        if karyawan_id in seen:
             result.errors.append(
                 KaryawanImportError(
                     row_num,
-                    f'Jabatan duplikat: {jabatan} (baris {seen[jabatan]}).',
+                    f'karyawan_id "{karyawan_id}" duplikat di file CSV (baris {seen[karyawan_id]}).',
                 )
             )
             continue
-        seen[jabatan] = row_num
+        seen[karyawan_id] = row_num
 
-        nominal, nominal_error = _parse_base_gaji(row.get(COL_BASE_GAJI) or '')
+        nominal, nominal_error = _parse_non_negative_int(row.get(column) or '', column)
         if nominal_error:
             result.errors.append(KaryawanImportError(row_num, nominal_error))
             continue
-        pending.append((row_num, jabatan, nominal))
+        pending.append((row_num, karyawan_id, nominal))
 
     if result.errors:
         return result
@@ -717,27 +717,40 @@ def import_base_gaji_csv(upload) -> KaryawanImportResult:
         )
         return result
 
-    existing = set(Karyawan.objects.values_list('jabatan', flat=True).distinct())
-    matched: list[tuple[str, int]] = []
-    for row_num, jabatan, nominal in pending:
-        if jabatan not in existing:
+    found = {
+        karyawan.karyawan_id: karyawan
+        for karyawan in Karyawan.objects.filter(
+            karyawan_id__in=[karyawan_id for _, karyawan_id, _ in pending]
+        )
+    }
+    to_update: list[Karyawan] = []
+    for row_num, karyawan_id, nominal in pending:
+        karyawan = found.get(karyawan_id)
+        if karyawan is None:
             result.errors.append(
                 KaryawanImportError(
                     row_num,
-                    f'Jabatan tidak ditemukan: {jabatan}.',
+                    f'karyawan_id "{karyawan_id}" tidak ditemukan.',
                 )
             )
             continue
-        matched.append((jabatan, nominal))
+        setattr(karyawan, column, nominal)
+        to_update.append(karyawan)
 
     if result.errors:
         return result
 
     with transaction.atomic():
-        updated = 0
-        for jabatan, nominal in matched:
-            updated += Karyawan.objects.filter(jabatan=jabatan).update(
-                base_gaji=nominal
-            )
-    result.updated = updated
+        Karyawan.objects.bulk_update(to_update, [column])
+    result.updated = len(to_update)
     return result
+
+
+def import_base_gaji_csv(upload) -> KaryawanImportResult:
+    """Set Karyawan.base_gaji from a CSV of karyawan_id,base_gaji."""
+    return _import_karyawan_amount_csv(upload, COL_BASE_GAJI)
+
+
+def import_gaji_bulanan_csv(upload) -> KaryawanImportResult:
+    """Set Karyawan.gaji_bulanan from a CSV of karyawan_id,gaji_bulanan."""
+    return _import_karyawan_amount_csv(upload, COL_GAJI_BULANAN)

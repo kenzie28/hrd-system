@@ -40,6 +40,10 @@ export interface Karyawan {
   level: number
   cuti_tahunan: number
   base_gaji: number
+  gaji_bulanan: number
+  jumlah_anak: number
+  nikah: boolean
+  akumulasi_lembur: number
 }
 
 export interface KaryawanWrite {
@@ -50,6 +54,8 @@ export interface KaryawanWrite {
   wilayah?: string
   level: number
   cuti_tahunan?: number
+  jumlah_anak?: number
+  nikah?: boolean
 }
 
 export interface KaryawanImportError {
@@ -277,44 +283,6 @@ export interface PermohonanLembur {
   hrd_approver_nama: string | null
 }
 
-export interface GajiTemp {
-  id: number
-  karyawan_id: string
-  karyawan_nama: string
-  periode: string
-  hadir: string
-  total_hadir: number
-  hari_sakit: number
-  hari_cuti: number
-  hari_cuti_tambahan: number
-  freq_pencapaian_target: number
-  rate_target: number
-  nominal_target: number
-  freq_hari_non_target: number
-  rate_non_target: number
-  nominal_non_target: number
-  gaji_pokok: number
-  rate_uang_makan: number
-  nominal_uang_makan: number
-  freq_lembur_6_jam: string
-  rate_lembur_6_jam: number
-  nominal_lembur: number
-  freq_hari_raya: number
-  rate_hari_raya: number
-  nominal_hari_raya: number
-  tunjangan_lama_kerja: number
-  tunjangan_obat: number
-  freq_alpa: number
-  pengurang_alpa: number
-  pot_bpjs_jht: number
-  pot_bpjs_jp: number
-  pot_bpjs_kesehatan: number
-  pot_pph21: number
-  pot_kehilangan: number
-  koreksi_absensi: number
-  total_gaji: number
-}
-
 export interface Koreksi {
   id: number
   karyawan_id: string
@@ -356,22 +324,6 @@ export interface TunjanganObatImportResult {
   total_rows: number
   created: number
   errors: TunjanganObatImportError[]
-  received_headers: string[]
-  required_columns: string[]
-}
-
-export interface GajiImportError {
-  row: number
-  message: string
-}
-
-export interface GajiImportResult {
-  ok: boolean
-  total_rows: number
-  created: number
-  updated: number
-  karyawan_created: number
-  errors: GajiImportError[]
   received_headers: string[]
   required_columns: string[]
 }

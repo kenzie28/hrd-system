@@ -29,12 +29,11 @@ from lembur.admin_views import (
     AdminLemburViewSet,
 )
 from lembur.views import PortalLemburViewSet
-from gaji.admin_views import AdminGajiImportView, AdminGajiViewSet
 from koreksi.admin_views import AdminKoreksiImportView, AdminKoreksiViewSet
 from obat.admin_views import AdminTunjanganObatImportView, AdminTunjanganObatViewSet
-from gaji.views import PortalGajiView
 from karyawan.admin_views import (
     AdminBaseGajiImportView,
+    AdminGajiBulananImportView,
     AdminKaryawanCreateView,
     AdminKaryawanDetailView,
     AdminKaryawanImportView,
@@ -78,7 +77,6 @@ portal_router.register('kehadiran', PortalKehadiranViewSet, basename='portal-keh
 admin_router = DefaultRouter()
 admin_router.register('cuti', AdminCutiViewSet, basename='admin-cuti')
 admin_router.register('lembur', AdminLemburViewSet, basename='admin-lembur')
-admin_router.register('gaji', AdminGajiViewSet, basename='admin-gaji')
 admin_router.register('koreksi', AdminKoreksiViewSet, basename='admin-koreksi')
 admin_router.register(
     'tunjangan-obat', AdminTunjanganObatViewSet, basename='admin-tunjangan-obat'
@@ -95,7 +93,6 @@ portal_urlpatterns = [
         PortalChangePasswordView.as_view(),
         name='portal-change-password',
     ),
-    path('portal/gaji/', PortalGajiView.as_view(), name='portal-gaji'),
     path(
         'portal/kalender-bersama/langganan/',
         LanggananListCreateView.as_view(),
@@ -143,11 +140,6 @@ admin_api_urlpatterns = [
         name='admin-karyawan-import-update',
     ),
     path(
-        'admin/karyawan/import-base-gaji/',
-        AdminBaseGajiImportView.as_view(),
-        name='admin-karyawan-import-base-gaji',
-    ),
-    path(
         'admin/karyawan/',
         AdminKaryawanCreateView.as_view(),
         name='admin-karyawan-create',
@@ -162,7 +154,16 @@ admin_api_urlpatterns = [
         AdminResetPasswordView.as_view(),
         name='admin-reset-password',
     ),
-    path('admin/gaji/import/', AdminGajiImportView.as_view(), name='admin-gaji-import'),
+    path(
+        'admin/gaji/import-base-gaji/',
+        AdminBaseGajiImportView.as_view(),
+        name='admin-gaji-import-base-gaji',
+    ),
+    path(
+        'admin/gaji/import-gaji-bulanan/',
+        AdminGajiBulananImportView.as_view(),
+        name='admin-gaji-import-gaji-bulanan',
+    ),
     path(
         'admin/koreksi/import/',
         AdminKoreksiImportView.as_view(),

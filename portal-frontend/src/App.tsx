@@ -4,8 +4,6 @@ import PortalLayout from './components/PortalLayout'
 import LoginPage from './pages/LoginPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import HomePage from './pages/HomePage'
-import GajiPage from './pages/GajiPage'
-import GajiBreakdownPage from './pages/GajiBreakdownPage'
 import CutiPage from './pages/CutiPage'
 import LemburPage from './pages/LemburPage'
 import AbsensiPage from './pages/AbsensiPage'
@@ -24,8 +22,6 @@ export default function App() {
         }
       >
         <Route path="/" element={<HomePage />} />
-        <Route path="/gaji" element={<GajiPage />} />
-        <Route path="/gaji/:bulan" element={<GajiBreakdownPage />} />
         <Route path="/cuti" element={<CutiPage />} />
         <Route path="/lembur" element={<LemburPage />} />
         <Route path="/absensi" element={<AbsensiPage />} />

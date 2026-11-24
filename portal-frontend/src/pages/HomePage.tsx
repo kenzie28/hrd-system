@@ -3,7 +3,6 @@ import {
   ClockCircleOutlined,
   SolutionOutlined,
   TeamOutlined,
-  WalletOutlined,
 } from '@ant-design/icons'
 import { Card, Col, Row, Typography } from 'antd'
 import { useNavigate } from 'react-router-dom'
@@ -31,13 +30,6 @@ export default function HomePage() {
   const { data: notifikasi } = useNotifikasi()
 
   const modules: ModuleCard[] = [
-    {
-      key: 'gaji',
-      title: 'Gaji',
-      description: 'Lihat rincian komponen gaji per bulan.',
-      icon: <WalletOutlined className="home-module-icon" />,
-      path: '/gaji',
-    },
     {
       key: 'cuti',
       title: 'Cuti & Izin',

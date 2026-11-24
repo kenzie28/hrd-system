@@ -241,30 +241,6 @@ body {
   box-sizing: border-box;
 }
 
-.gaji-row,
-.gaji-total {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  padding: 4px 0;
-}
-
-.gaji-total {
-  padding: 8px 0;
-}
-
-.gaji-row-label {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.gaji-row-value {
-  flex-shrink: 0;
-  text-align: right;
-  white-space: nowrap;
-}
-
 .page-title {
   overflow-wrap: anywhere;
   word-break: break-word;

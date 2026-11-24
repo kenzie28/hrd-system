@@ -3,6 +3,7 @@ import { DataKaryawanTab } from '../tabs/DataKaryawanTab'
 import { ImportKaryawanTab } from '../tabs/ImportKaryawanTab'
 import { ResetPasswordKaryawanTab } from '../tabs/ResetPasswordKaryawanTab'
 import { UpdateKaryawanTab } from '../tabs/UpdateKaryawanTab'
+import { UpsertKaryawanTab } from '../tabs/UpsertKaryawanTab'
 
 export default function KaryawanPage() {
   return (
@@ -22,6 +23,11 @@ export default function KaryawanPage() {
             key: 'update',
             label: 'Update Karyawan (CSV)',
             children: <UpdateKaryawanTab />,
+          },
+          {
+            key: 'import-upsert',
+            label: 'Impor Data Karyawan (CSV)',
+            children: <UpsertKaryawanTab />,
           },
           {
             key: 'reset-password',

@@ -26,6 +26,8 @@ from .services import (
     OPTIONAL_COLUMNS,
     REQUIRED_COLUMNS,
     UPDATE_OPTIONAL_COLUMNS,
+    UPSERT_OPTIONAL_COLUMNS,
+    UPSERT_REQUIRED_COLUMNS,
     KaryawanImportError,
     KaryawanImportResult,
     create_portal_login,
@@ -33,6 +35,7 @@ from .services import (
     import_gaji_bulanan_csv,
     import_karyawan_csv,
     import_karyawan_update_csv,
+    import_karyawan_upsert_csv,
     serialize_karyawan_import_result,
 )
 
@@ -296,6 +299,28 @@ class AdminGajiBulananImportView(APIView):
                 ],
                 required_columns=['karyawan_id', 'gaji_bulanan'],
                 optional_columns=[],
+            ),
+        )
+
+
+class AdminKaryawanUpsertImportView(APIView):
+    """CSV upload that creates missing karyawan and updates existing ones."""
+
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        return _karyawan_csv_import_response(
+            request,
+            import_karyawan_upsert_csv,
+            log_event='karyawan_upsert_import_post',
+            empty_result=KaryawanImportResult(
+                errors=[
+                    KaryawanImportError(0, 'File CSV wajib diunggah.'),
+                ],
+                required_columns=list(UPSERT_REQUIRED_COLUMNS),
+                optional_columns=list(UPSERT_OPTIONAL_COLUMNS),
             ),
         )
 

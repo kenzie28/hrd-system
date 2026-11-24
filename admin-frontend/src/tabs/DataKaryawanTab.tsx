@@ -15,17 +15,20 @@ import {
   Form,
   Input,
   InputNumber,
+  DatePicker,
   Modal,
   Popconfirm,
   Popover,
   Select,
   Space,
+  Switch,
   Table,
   Tag,
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import axios from 'axios'
+import dayjs, { type Dayjs } from 'dayjs'
 import {
   useKaryawan,
   useKaryawanCreate,
@@ -38,6 +41,13 @@ import type { Karyawan } from '../api/types'
 type ColumnKey =
   | 'karyawan_id'
   | 'nama'
+  | 'jenis_kelamin'
+  | 'tanggal_lahir'
+  | 'tanggal_awal'
+  | 'tanggal_kontrak_awal'
+  | 'tanggal_kontrak_akhir'
+  | 'status_kontrak'
+  | 'percobaan_jabatan'
   | 'lokasi_kerja'
   | 'jabatan'
   | 'wilayah'
@@ -45,8 +55,11 @@ type ColumnKey =
   | 'cuti_tahunan'
   | 'status_k_tk'
   | 'akumulasi_lembur'
+  | 'npwp'
+  | 'kpj'
+  | 'tanggal_kpj'
 
-const ALL_COLUMN_KEYS: ColumnKey[] = [
+const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = [
   'karyawan_id',
   'nama',
   'lokasi_kerja',
@@ -58,9 +71,30 @@ const ALL_COLUMN_KEYS: ColumnKey[] = [
   'akumulasi_lembur',
 ]
 
+const ALL_COLUMN_KEYS: ColumnKey[] = [
+  ...DEFAULT_VISIBLE_COLUMNS,
+  'jenis_kelamin',
+  'tanggal_lahir',
+  'tanggal_awal',
+  'tanggal_kontrak_awal',
+  'tanggal_kontrak_akhir',
+  'status_kontrak',
+  'percobaan_jabatan',
+  'npwp',
+  'kpj',
+  'tanggal_kpj',
+]
+
 const COLUMN_LABELS: Record<ColumnKey, string> = {
   karyawan_id: 'ID Karyawan',
   nama: 'Nama',
+  jenis_kelamin: 'Jenis Kelamin',
+  tanggal_lahir: 'Tanggal Lahir',
+  tanggal_awal: 'Tanggal Awal',
+  tanggal_kontrak_awal: 'Kontrak Awal',
+  tanggal_kontrak_akhir: 'Kontrak Akhir',
+  status_kontrak: 'Status Kontrak',
+  percobaan_jabatan: 'Percobaan Jabatan',
   lokasi_kerja: 'Lokasi Kerja',
   jabatan: 'Jabatan',
   wilayah: 'Wilayah',
@@ -68,19 +102,39 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   cuti_tahunan: 'Cuti',
   status_k_tk: 'Status K/TK',
   akumulasi_lembur: 'Akumulasi Lembur',
+  npwp: 'NPWP',
+  kpj: 'KPJ',
+  tanggal_kpj: 'Tanggal KPJ',
 }
 
 const STATUS_K_TK_OPTIONS = ['TK', 'TK1', 'TK2', 'TK3', 'K0', 'K1', 'K2', 'K3'].map(
   (value) => ({ value, label: value }),
 )
 
+const JENIS_KELAMIN_OPTIONS = [
+  { value: 'Perempuan', label: 'Perempuan' },
+  { value: 'Laki-Laki', label: 'Laki-Laki' },
+]
+
+function toDayjs(value: string | null | undefined): Dayjs | null {
+  return value ? dayjs(value) : null
+}
+
+function datePayload(value: Dayjs | null | undefined): string | null {
+  return value ? value.format('YYYY-MM-DD') : null
+}
+
+function showDate(value: string | null) {
+  return value || '—'
+}
+
 const ADDED_COLUMN_KEYS: ColumnKey[] = ['status_k_tk', 'akumulasi_lembur']
 
 const STORAGE_KEY = 'master-karyawan-columns'
 
-const LEVEL_OPTIONS = Array.from({ length: 8 }, (_, i) => ({
-  value: i + 1,
-  label: String(i + 1),
+const LEVEL_OPTIONS = Array.from({ length: 10 }, (_, i) => ({
+  value: i,
+  label: String(i),
 }))
 
 const NO_LOKASI = '__none__'
@@ -313,14 +367,14 @@ function FilterFields({
 function loadVisibleColumns(): ColumnKey[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return [...ALL_COLUMN_KEYS]
+    if (!raw) return [...DEFAULT_VISIBLE_COLUMNS]
     const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return [...ALL_COLUMN_KEYS]
+    if (!Array.isArray(parsed)) return [...DEFAULT_VISIBLE_COLUMNS]
     const valid = parsed.filter((k): k is ColumnKey =>
       ALL_COLUMN_KEYS.includes(k as ColumnKey),
     )
-    if (valid.length === 0) return [...ALL_COLUMN_KEYS]
-    const previous = ALL_COLUMN_KEYS.filter((k) => !ADDED_COLUMN_KEYS.includes(k))
+    if (valid.length === 0) return [...DEFAULT_VISIBLE_COLUMNS]
+    const previous = DEFAULT_VISIBLE_COLUMNS.filter((k) => !ADDED_COLUMN_KEYS.includes(k))
     if (previous.every((k) => valid.includes(k))) {
       for (const key of ADDED_COLUMN_KEYS) {
         if (!valid.includes(key)) valid.push(key)
@@ -328,19 +382,29 @@ function loadVisibleColumns(): ColumnKey[] {
     }
     return valid
   } catch {
-    return [...ALL_COLUMN_KEYS]
+    return [...DEFAULT_VISIBLE_COLUMNS]
   }
 }
 
 interface KaryawanFormValues {
   karyawan_id: string
   nama: string
+  jenis_kelamin?: string
+  tanggal_lahir?: Dayjs | null
+  tanggal_awal?: Dayjs | null
+  tanggal_kontrak_awal?: Dayjs | null
+  tanggal_kontrak_akhir?: Dayjs | null
+  status_kontrak?: string
+  percobaan_jabatan?: boolean
   level: number
   jabatan?: string
   wilayah?: string
   lokasi_kerja?: string | null
   cuti_tahunan: number
   status_k_tk?: string
+  npwp?: string
+  kpj?: string
+  tanggal_kpj?: Dayjs | null
 }
 
 export function DataKaryawanTab() {
@@ -468,6 +532,76 @@ export function DataKaryawanTab() {
       width: 150,
       render: (value: number) => value ?? 0,
     },
+    {
+      key: 'jenis_kelamin',
+      title: COLUMN_LABELS.jenis_kelamin,
+      dataIndex: 'jenis_kelamin',
+      width: 130,
+      render: (value: string) => value || '—',
+    },
+    {
+      key: 'tanggal_lahir',
+      title: COLUMN_LABELS.tanggal_lahir,
+      dataIndex: 'tanggal_lahir',
+      width: 130,
+      render: (value: string | null) => showDate(value),
+    },
+    {
+      key: 'tanggal_awal',
+      title: COLUMN_LABELS.tanggal_awal,
+      dataIndex: 'tanggal_awal',
+      width: 130,
+      render: (value: string | null) => showDate(value),
+    },
+    {
+      key: 'tanggal_kontrak_awal',
+      title: COLUMN_LABELS.tanggal_kontrak_awal,
+      dataIndex: 'tanggal_kontrak_awal',
+      width: 130,
+      render: (value: string | null) => showDate(value),
+    },
+    {
+      key: 'tanggal_kontrak_akhir',
+      title: COLUMN_LABELS.tanggal_kontrak_akhir,
+      dataIndex: 'tanggal_kontrak_akhir',
+      width: 130,
+      render: (value: string | null) => showDate(value),
+    },
+    {
+      key: 'status_kontrak',
+      title: COLUMN_LABELS.status_kontrak,
+      dataIndex: 'status_kontrak',
+      width: 130,
+      render: (value: string) => value || '—',
+    },
+    {
+      key: 'percobaan_jabatan',
+      title: COLUMN_LABELS.percobaan_jabatan,
+      dataIndex: 'percobaan_jabatan',
+      width: 150,
+      render: (value: boolean) => (value ? 'Ya' : 'Tidak'),
+    },
+    {
+      key: 'npwp',
+      title: COLUMN_LABELS.npwp,
+      dataIndex: 'npwp',
+      width: 180,
+      render: (value: string) => value || '—',
+    },
+    {
+      key: 'kpj',
+      title: COLUMN_LABELS.kpj,
+      dataIndex: 'kpj',
+      width: 140,
+      render: (value: string) => value || '—',
+    },
+    {
+      key: 'tanggal_kpj',
+      title: COLUMN_LABELS.tanggal_kpj,
+      dataIndex: 'tanggal_kpj',
+      width: 130,
+      render: (value: string | null) => showDate(value),
+    },
   ]
 
   const columns: ColumnsType<Karyawan> = [
@@ -502,6 +636,16 @@ export function DataKaryawanTab() {
       lokasi_kerja: null,
       cuti_tahunan: 12,
       status_k_tk: undefined,
+      jenis_kelamin: undefined,
+      tanggal_lahir: null,
+      tanggal_awal: null,
+      tanggal_kontrak_awal: null,
+      tanggal_kontrak_akhir: null,
+      status_kontrak: '',
+      percobaan_jabatan: false,
+      npwp: '',
+      kpj: '',
+      tanggal_kpj: null,
     })
     setModalOpen(true)
   }
@@ -518,6 +662,16 @@ export function DataKaryawanTab() {
       lokasi_kerja: record.lokasi_kerja,
       cuti_tahunan: record.cuti_tahunan,
       status_k_tk: record.status_k_tk || undefined,
+      jenis_kelamin: record.jenis_kelamin || undefined,
+      tanggal_lahir: toDayjs(record.tanggal_lahir),
+      tanggal_awal: toDayjs(record.tanggal_awal),
+      tanggal_kontrak_awal: toDayjs(record.tanggal_kontrak_awal),
+      tanggal_kontrak_akhir: toDayjs(record.tanggal_kontrak_akhir),
+      status_kontrak: record.status_kontrak,
+      percobaan_jabatan: record.percobaan_jabatan,
+      npwp: record.npwp,
+      kpj: record.kpj,
+      tanggal_kpj: toDayjs(record.tanggal_kpj),
     })
     setModalOpen(true)
   }
@@ -541,6 +695,16 @@ export function DataKaryawanTab() {
       lokasi_kerja: values.lokasi_kerja || null,
       cuti_tahunan: values.cuti_tahunan,
       status_k_tk: values.status_k_tk || '',
+      jenis_kelamin: values.jenis_kelamin || '',
+      tanggal_lahir: datePayload(values.tanggal_lahir),
+      tanggal_awal: datePayload(values.tanggal_awal),
+      tanggal_kontrak_awal: datePayload(values.tanggal_kontrak_awal),
+      tanggal_kontrak_akhir: datePayload(values.tanggal_kontrak_akhir),
+      status_kontrak: (values.status_kontrak ?? '').trim(),
+      percobaan_jabatan: Boolean(values.percobaan_jabatan),
+      npwp: (values.npwp ?? '').trim(),
+      kpj: (values.kpj ?? '').trim(),
+      tanggal_kpj: datePayload(values.tanggal_kpj),
     }
     try {
       if (isEditing) {
@@ -715,7 +879,8 @@ export function DataKaryawanTab() {
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         destroyOnHidden
-        width={480}
+        width={640}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
         footer={
           <div
             style={{
@@ -815,6 +980,48 @@ export function DataKaryawanTab() {
                 label: `${l.id} — ${l.nama}`,
               }))}
             />
+          </Form.Item>
+          <Form.Item name="jenis_kelamin" label="Jenis Kelamin">
+            <Select
+              allowClear
+              placeholder="Pilih jenis kelamin"
+              options={JENIS_KELAMIN_OPTIONS}
+            />
+          </Form.Item>
+          <Form.Item name="tanggal_lahir" label="Tanggal Lahir">
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+          </Form.Item>
+          <Form.Item name="tanggal_awal" label="Tanggal Awal">
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+          </Form.Item>
+          <Form.Item name="tanggal_kontrak_awal" label="Kontrak Awal">
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+          </Form.Item>
+          <Form.Item name="tanggal_kontrak_akhir" label="Kontrak Akhir">
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+          </Form.Item>
+          <Form.Item
+            name="status_kontrak"
+            label="Status Kontrak"
+            rules={[{ max: 2, message: 'Maksimal 2 karakter' }]}
+          >
+            <Input maxLength={2} />
+          </Form.Item>
+          <Form.Item
+            name="percobaan_jabatan"
+            label="Percobaan Jabatan"
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item name="npwp" label="NPWP" rules={[{ max: 20, message: 'Maksimal 20 karakter' }]}>
+            <Input maxLength={20} />
+          </Form.Item>
+          <Form.Item name="kpj" label="KPJ" rules={[{ max: 16, message: 'Maksimal 16 karakter' }]}>
+            <Input maxLength={16} />
+          </Form.Item>
+          <Form.Item name="tanggal_kpj" label="Tanggal KPJ">
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
           </Form.Item>
         </Form>
       </Modal>

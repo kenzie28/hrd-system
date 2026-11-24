@@ -1,14 +1,23 @@
+from datetime import date, timedelta
+from pathlib import Path
+
+from django.conf import settings
+from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from karyawan.models import Karyawan
+from karyawan.serializers import KaryawanSerializer
 from karyawan.services import (
     import_base_gaji_csv,
     import_gaji_bulanan_csv,
     import_karyawan_update_csv,
+    import_karyawan_upsert_csv,
 )
+from lokasi.models import Lokasi
 
 
 class KaryawanWageCsvImportTests(TestCase):
@@ -253,3 +262,146 @@ class KaryawanUpdateStatusCsvTests(TestCase):
         self.assertNotIn('gaji_bulanan', row)
         self.assertNotIn('jumlah_anak', row)
         self.assertNotIn('nikah', row)
+
+
+class KaryawanActiveTests(TestCase):
+    def test_active_through_exit_date(self):
+        today = timezone.localdate()
+        staying = Karyawan.objects.create(
+            karyawan_id='1000001', nama='Budi', level=1
+        )
+        leaving_today = Karyawan.objects.create(
+            karyawan_id='1000002',
+            nama='Ani',
+            level=1,
+            tanggal_keluar=today,
+        )
+        left = Karyawan.objects.create(
+            karyawan_id='1000003',
+            nama='Citra',
+            level=1,
+            tanggal_keluar=today - timedelta(days=1),
+        )
+
+        self.assertTrue(staying.active)
+        self.assertTrue(leaving_today.active)
+        self.assertFalse(left.active)
+
+    def test_umur_and_lama_kerja_count_completed_years(self):
+        today = timezone.localdate()
+        person = Karyawan(
+            karyawan_id='1000001',
+            nama='Budi',
+            level=1,
+            tanggal_lahir=_years_before(today, 30),
+            tanggal_awal=_years_before(today, 8),
+        )
+        self.assertEqual(person.umur, 30)
+        self.assertEqual(person.lama_kerja, 8)
+
+        person.tanggal_lahir = _years_before(today + timedelta(days=1), 30)
+        self.assertEqual(person.umur, 29)
+
+    def test_lama_kerja_stops_on_exit_and_is_empty_without_a_start(self):
+        today = timezone.localdate()
+        person = Karyawan(
+            karyawan_id='1000001',
+            nama='Budi',
+            level=1,
+            tanggal_awal=_years_before(today, 10),
+            tanggal_keluar=_years_before(today, 2),
+        )
+        self.assertEqual(person.lama_kerja, 8)
+        person.tanggal_awal = None
+        person.tanggal_lahir = None
+        self.assertIsNone(person.lama_kerja)
+        self.assertIsNone(person.umur)
+
+
+class KaryawanUpsertCsvTests(TestCase):
+    def test_ho_file_creates_then_updates_without_clearing_wages(self):
+        Lokasi.objects.create(id='99', nama='Headquarters')
+        payload = (Path(settings.BASE_DIR).parent / 'HO Employee Data.csv').read_bytes()
+
+        created = import_karyawan_upsert_csv(
+            SimpleUploadedFile('HO Employee Data.csv', payload, content_type='text/csv')
+        )
+        self.assertTrue(created.ok, created.errors)
+        self.assertEqual(created.created, 87)
+        self.assertEqual(created.updated, 0)
+        self.assertEqual(created.errors, [])
+        self.assertEqual(Karyawan.objects.count(), 87)
+        self.assertEqual(User.objects.count(), 87)
+
+        suparni = Karyawan.objects.get(pk='9400143')
+        self.assertEqual(suparni.nama, 'SUPARNI')
+        self.assertEqual(suparni.level, 2)
+        self.assertEqual(suparni.jabatan, 'Adm F Penj Jr')
+        self.assertEqual(suparni.status_kontrak, 'A9')
+        self.assertFalse(suparni.percobaan_jabatan)
+        self.assertEqual(suparni.tanggal_kontrak_awal, date(1994, 11, 24))
+        self.assertIsNone(suparni.tanggal_kontrak_akhir)
+        self.assertEqual(suparni.tanggal_awal, date(1994, 11, 24))
+        self.assertEqual(suparni.tanggal_lahir, date(1974, 12, 24))
+        self.assertEqual(suparni.jenis_kelamin, 'Perempuan')
+        self.assertEqual(suparni.status_k_tk, 'K1')
+        self.assertEqual(suparni.lokasi_kerja_id, '80')
+        self.assertEqual(suparni.npwp, '55.042.174.7-044.000')
+        self.assertEqual(suparni.kpj, '10000740943')
+        self.assertEqual(suparni.tanggal_kpj, date(2010, 1, 1))
+        self.assertIsNotNone(suparni.user_id)
+        serialized = KaryawanSerializer(suparni).data
+        self.assertEqual(serialized['jenis_kelamin'], 'Perempuan')
+        self.assertEqual(serialized['tanggal_lahir'], '1974-12-24')
+        self.assertEqual(serialized['npwp'], '55.042.174.7-044.000')
+        self.assertEqual(serialized['kpj'], '10000740943')
+        self.assertNotIn('base_gaji', serialized)
+        self.assertNotIn('gaji_bulanan', serialized)
+
+        wah = Karyawan.objects.get(pk='2406021')
+        self.assertIsNone(wah.tanggal_lahir)
+        self.assertIsNone(wah.tanggal_kontrak_akhir)
+        self.assertIsNone(wah.tanggal_kpj)
+        self.assertEqual(wah.jenis_kelamin, 'Laki-Laki')
+
+        self.assertEqual(Karyawan.objects.get(pk='2508001').level, 0)
+        self.assertEqual(Karyawan.objects.get(pk='0000002').level, 9)
+        self.assertEqual(Karyawan.objects.get(pk='1604021').npwp, '99')
+        self.assertEqual(Karyawan.objects.get(pk='2610001').lokasi_kerja_id, '81')
+        self.assertEqual(Lokasi.objects.get(pk='80').nama, '80')
+        self.assertEqual(Lokasi.objects.get(pk='81').nama, '81')
+        self.assertEqual(Lokasi.objects.get(pk='99').nama, 'Headquarters')
+
+        suparni.base_gaji = 12_345
+        suparni.gaji_bulanan = 67_890
+        suparni.cuti_tahunan = 3
+        suparni.wilayah = 'BDG'
+        suparni.save(
+            update_fields=['base_gaji', 'gaji_bulanan', 'cuti_tahunan', 'wilayah']
+        )
+        user_id = suparni.user_id
+
+        updated = import_karyawan_upsert_csv(
+            SimpleUploadedFile('HO Employee Data.csv', payload, content_type='text/csv')
+        )
+        self.assertTrue(updated.ok, updated.errors)
+        self.assertEqual(updated.created, 0)
+        self.assertEqual(updated.updated, 87)
+        self.assertEqual(Karyawan.objects.count(), 87)
+        self.assertEqual(User.objects.count(), 87)
+
+        suparni.refresh_from_db()
+        self.assertEqual(suparni.base_gaji, 12_345)
+        self.assertEqual(suparni.gaji_bulanan, 67_890)
+        self.assertEqual(suparni.cuti_tahunan, 3)
+        self.assertEqual(suparni.wilayah, 'BDG')
+        self.assertEqual(suparni.user_id, user_id)
+        self.assertEqual(suparni.nama, 'SUPARNI')
+        self.assertEqual(Lokasi.objects.get(pk='99').nama, 'Headquarters')
+
+
+def _years_before(day, years):
+    try:
+        return day.replace(year=day.year - years)
+    except ValueError:
+        return day.replace(year=day.year - years, day=28)

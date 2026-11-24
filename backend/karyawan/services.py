@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from django.contrib.auth.models import User
 from django.db import transaction
@@ -10,7 +11,7 @@ from django.db import transaction
 from absensi.invalidation import enqueue_location_changes
 from lokasi.models import Lokasi
 
-from .models import Karyawan, StatusKTk
+from .models import JenisKelamin, Karyawan, StatusKTk
 
 DEFAULT_PORTAL_PASSWORD = '123'
 
@@ -256,15 +257,15 @@ def import_karyawan_csv(upload) -> KaryawanImportResult:
             result.errors.append(
                 KaryawanImportError(
                     row_num,
-                    f'level harus angka 1–8 (diterima: "{level_raw}").',
+                    f'level harus angka 0–9 (diterima: "{level_raw}").',
                 )
             )
             continue
-        if level < 1 or level > 8:
+        if level < 0 or level > 9:
             result.errors.append(
                 KaryawanImportError(
                     row_num,
-                    f'level harus antara 1–8 (diterima: {level}).',
+                    f'level harus antara 0–9 (diterima: {level}).',
                 )
             )
             continue
@@ -337,15 +338,15 @@ def _parse_level(raw: str, row_num: int, result: KaryawanImportResult) -> int | 
         result.errors.append(
             KaryawanImportError(
                 row_num,
-                f'level harus angka 1–8 (diterima: "{raw}").',
+                f'level harus angka 0–9 (diterima: "{raw}").',
             )
         )
         return None
-    if level < 1 or level > 8:
+    if level < 0 or level > 9:
         result.errors.append(
             KaryawanImportError(
                 row_num,
-                f'level harus antara 1–8 (diterima: {level}).',
+                f'level harus antara 0–9 (diterima: {level}).',
             )
         )
         return None
@@ -646,6 +647,429 @@ def import_karyawan_update_csv(upload) -> KaryawanImportResult:
     with transaction.atomic():
         Karyawan.objects.bulk_update(to_update, update_columns)
         enqueue_location_changes(location_changes)
+    result.updated = len(to_update)
+    return result
+
+
+UPSERT_REQUIRED_COLUMNS = [COL_KARYAWAN_ID, COL_NAMA, COL_LEVEL]
+UPSERT_OPTIONAL_COLUMNS = [
+    'nama_karyawan',
+    'jabatan',
+    'role',
+    'status_kontrak',
+    'percobaan_jabatan',
+    'tanggal_kontrak_awal',
+    'tanggal_kontrak_akhir',
+    'tanggal_awal',
+    'tanggal_lahir',
+    'TG.LAHIR',
+    'jenis_kelamin',
+    'status_k_tk',
+    'lokasi_kerja',
+    'npwp',
+    'kpj',
+    'tanggal_kpj',
+]
+_UPSERT_KNOWN_HEADERS = {
+    'karyawan_id',
+    'nama',
+    'nama_karyawan',
+    'level',
+    'jabatan',
+    'role',
+    'status_kontrak',
+    'percobaan_jabatan',
+    'tanggal_kontrak_awal',
+    'tanggal_kontrak_akhir',
+    'tanggal_awal',
+    'tanggal_lahir',
+    'tg.lahir',
+    'jenis_kelamin',
+    'status_k_tk',
+    'lokasi_kerja',
+    'npwp',
+    'kpj',
+    'tanggal_kpj',
+}
+_UPSERT_FIELD_HEADERS = {
+    'nama': ('nama', 'nama_karyawan'),
+    'level': ('level',),
+    'jabatan': ('jabatan', 'role'),
+    'status_kontrak': ('status_kontrak',),
+    'percobaan_jabatan': ('percobaan_jabatan',),
+    'tanggal_kontrak_awal': ('tanggal_kontrak_awal',),
+    'tanggal_kontrak_akhir': ('tanggal_kontrak_akhir',),
+    'tanggal_awal': ('tanggal_awal',),
+    'tanggal_lahir': ('tanggal_lahir', 'tg.lahir'),
+    'jenis_kelamin': ('jenis_kelamin',),
+    'status_k_tk': ('status_k_tk',),
+    'lokasi_kerja': ('lokasi_kerja',),
+    'npwp': ('npwp',),
+    'kpj': ('kpj',),
+    'tanggal_kpj': ('tanggal_kpj',),
+}
+_UPSERT_DATE_FIELDS = frozenset(
+    {
+        'tanggal_kontrak_awal',
+        'tanggal_kontrak_akhir',
+        'tanggal_awal',
+        'tanggal_lahir',
+        'tanggal_kpj',
+    }
+)
+_DATE_FORMATS = ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y')
+_GENDER_VALUES = {
+    'P': JenisKelamin.PEREMPUAN,
+    'PEREMPUAN': JenisKelamin.PEREMPUAN,
+    'L': JenisKelamin.LAKI_LAKI,
+    'LAKI-LAKI': JenisKelamin.LAKI_LAKI,
+    'LAKI LAKI': JenisKelamin.LAKI_LAKI,
+}
+_BOOL_TRUE = frozenset({'Y', 'YA', 'TRUE', '1'})
+_BOOL_FALSE = frozenset({'N', 'TIDAK', 'FALSE', '0'})
+
+
+def _header_key(header: str) -> str:
+    return header.strip().lower()
+
+
+def _upsert_header_map(headers: list[str], result: KaryawanImportResult) -> dict[str, str] | None:
+    """Map a lowercased header to the original header, or record a header error."""
+    lowered: dict[str, str] = {}
+    for header in headers:
+        key = _header_key(header)
+        if not key:
+            result.errors.append(
+                KaryawanImportError(0, 'Header kosong tidak diperbolehkan.')
+            )
+            return None
+        if key in lowered:
+            result.errors.append(
+                KaryawanImportError(0, f'Kolom duplikat: {header}.')
+            )
+            return None
+        if key not in _UPSERT_KNOWN_HEADERS:
+            result.errors.append(
+                KaryawanImportError(0, f'Kolom tidak dikenal: {header}.')
+            )
+            return None
+        lowered[key] = header
+    return lowered
+
+
+def _upsert_sources(lowered: dict[str, str]) -> dict[str, str]:
+    """Model field -> original header. Canonical names win over aliases."""
+    sources = {}
+    for field_name, aliases in _UPSERT_FIELD_HEADERS.items():
+        for alias in aliases:
+            if alias in lowered:
+                sources[field_name] = lowered[alias]
+                break
+    return sources
+
+
+def _blank_date(text: str) -> bool:
+    compact = text.replace(' ', '')
+    return compact in {'', '-', '--'}
+
+
+def _parse_upsert_date(raw: str, row_num: int, column: str, result: KaryawanImportResult):
+    text = (raw or '').strip()
+    if _blank_date(text):
+        return True, None
+    for fmt in _DATE_FORMATS:
+        try:
+            return True, datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    result.errors.append(
+        KaryawanImportError(
+            row_num,
+            f'{column} bukan tanggal yang valid (diterima: "{text}").',
+        )
+    )
+    return False, None
+
+
+def _parse_upsert_gender(raw: str, row_num: int, result: KaryawanImportResult):
+    text = (raw or '').strip()
+    if not text:
+        return True, ''
+    gender = _GENDER_VALUES.get(text.upper())
+    if gender is None:
+        result.errors.append(
+            KaryawanImportError(
+                row_num,
+                f'jenis_kelamin tidak valid: "{text}". Pilihan: P, L, Perempuan, Laki-Laki.',
+            )
+        )
+        return False, ''
+    return True, gender
+
+
+def _parse_upsert_bool(raw: str, row_num: int, column: str, result: KaryawanImportResult):
+    text = (raw or '').strip().upper()
+    if not text or text in _BOOL_FALSE:
+        return True, False
+    if text in _BOOL_TRUE:
+        return True, True
+    result.errors.append(
+        KaryawanImportError(
+            row_num,
+            f'{column} harus Y atau N (diterima: "{text}").',
+        )
+    )
+    return False, False
+
+
+def _apply_upsert_fields(karyawan: Karyawan, fields: dict) -> None:
+    for attr, value in fields.items():
+        if attr == 'lokasi_kerja':
+            karyawan.lokasi_kerja_id = value
+        else:
+            setattr(karyawan, attr, value)
+
+
+def import_karyawan_upsert_csv(upload) -> KaryawanImportResult:
+    """Create or update Karyawan rows from the HO employee CSV.
+
+    Existing rows are matched by karyawan_id. A lokasi code that is not in the
+    database is created with the code as its name. Fields absent from the file,
+    including wages, are left unchanged on update.
+    Every row is validated before any write.
+    """
+    result = KaryawanImportResult(
+        required_columns=list(UPSERT_REQUIRED_COLUMNS),
+        optional_columns=list(UPSERT_OPTIONAL_COLUMNS),
+    )
+    text = _decode_upload(upload, result)
+    if text is None:
+        return result
+
+    reader = _csv_reader(text, result)
+    if reader is None:
+        return result
+
+    lowered = _upsert_header_map(result.received_headers, result)
+    if lowered is None:
+        return result
+
+    missing = []
+    if 'karyawan_id' not in lowered:
+        missing.append(COL_KARYAWAN_ID)
+    if 'nama' not in lowered and 'nama_karyawan' not in lowered:
+        missing.append(COL_NAMA)
+    if 'level' not in lowered:
+        missing.append(COL_LEVEL)
+    if missing:
+        result.errors.append(
+            KaryawanImportError(
+                0,
+                f'Kolom wajib tidak ditemukan: {", ".join(missing)}.',
+            )
+        )
+        return result
+
+    sources = _upsert_sources(lowered)
+    id_header = lowered['karyawan_id']
+    seen_in_file: set[str] = set()
+    pending: list[tuple[str, dict]] = []
+
+    for row_num, row in enumerate(reader, start=2):
+        result.total_rows += 1
+        karyawan_id = (row.get(id_header) or '').strip()
+        if not karyawan_id:
+            result.errors.append(
+                KaryawanImportError(row_num, 'Kolom karyawan_id wajib diisi.')
+            )
+            continue
+        if len(karyawan_id) > 7:
+            result.errors.append(
+                KaryawanImportError(row_num, 'karyawan_id maksimal 7 karakter.')
+            )
+            continue
+        if karyawan_id in seen_in_file:
+            result.errors.append(
+                KaryawanImportError(
+                    row_num,
+                    f'karyawan_id "{karyawan_id}" duplikat di file CSV.',
+                )
+            )
+            continue
+        seen_in_file.add(karyawan_id)
+
+        fields: dict = {}
+        row_had_error = False
+        for field_name, header in sources.items():
+            raw = row.get(header) or ''
+            if field_name == 'nama':
+                nama = raw.strip()
+                if not nama:
+                    result.errors.append(
+                        KaryawanImportError(row_num, 'Kolom nama wajib diisi.')
+                    )
+                    row_had_error = True
+                elif len(nama) > 128:
+                    result.errors.append(
+                        KaryawanImportError(row_num, 'Nama maksimal 128 karakter.')
+                    )
+                    row_had_error = True
+                else:
+                    fields['nama'] = nama
+            elif field_name == 'level':
+                level_raw = raw.strip()
+                if not level_raw:
+                    result.errors.append(
+                        KaryawanImportError(row_num, 'Kolom level wajib diisi.')
+                    )
+                    row_had_error = True
+                else:
+                    level = _parse_level(level_raw, row_num, result)
+                    if level is None:
+                        row_had_error = True
+                    else:
+                        fields['level'] = level
+            elif field_name == 'jabatan':
+                jabatan = raw.strip()
+                if len(jabatan) > 128:
+                    result.errors.append(
+                        KaryawanImportError(row_num, 'jabatan maksimal 128 karakter.')
+                    )
+                    row_had_error = True
+                else:
+                    fields['jabatan'] = jabatan
+            elif field_name == 'status_kontrak':
+                status_kontrak = raw.strip()
+                if len(status_kontrak) > 2:
+                    result.errors.append(
+                        KaryawanImportError(
+                            row_num, 'status_kontrak maksimal 2 karakter.'
+                        )
+                    )
+                    row_had_error = True
+                else:
+                    fields['status_kontrak'] = status_kontrak
+            elif field_name == 'percobaan_jabatan':
+                ok, value = _parse_upsert_bool(
+                    raw, row_num, 'percobaan_jabatan', result
+                )
+                if ok:
+                    fields['percobaan_jabatan'] = value
+                else:
+                    row_had_error = True
+            elif field_name in _UPSERT_DATE_FIELDS:
+                ok, value = _parse_upsert_date(raw, row_num, header, result)
+                if ok:
+                    fields[field_name] = value
+                else:
+                    row_had_error = True
+            elif field_name == 'jenis_kelamin':
+                ok, value = _parse_upsert_gender(raw, row_num, result)
+                if ok:
+                    fields['jenis_kelamin'] = value
+                else:
+                    row_had_error = True
+            elif field_name == 'status_k_tk':
+                status_k_tk = raw.strip().upper()
+                if status_k_tk and status_k_tk not in _STATUS_K_TK_VALUES:
+                    result.errors.append(
+                        KaryawanImportError(
+                            row_num,
+                            'status_k_tk tidak valid: '
+                            f'"{status_k_tk}". Pilihan: '
+                            + ', '.join(StatusKTk.values)
+                            + '.',
+                        )
+                    )
+                    row_had_error = True
+                else:
+                    fields['status_k_tk'] = status_k_tk
+            elif field_name == 'lokasi_kerja':
+                lokasi_id = raw.strip()
+                if len(lokasi_id) > 2:
+                    result.errors.append(
+                        KaryawanImportError(
+                            row_num, 'lokasi_kerja maksimal 2 karakter.'
+                        )
+                    )
+                    row_had_error = True
+                else:
+                    fields['lokasi_kerja'] = lokasi_id or None
+            elif field_name == 'npwp':
+                npwp = raw.strip()
+                if len(npwp) > 20:
+                    result.errors.append(
+                        KaryawanImportError(row_num, 'npwp maksimal 20 karakter.')
+                    )
+                    row_had_error = True
+                else:
+                    fields['npwp'] = npwp
+            elif field_name == 'kpj':
+                kpj = raw.strip()
+                if len(kpj) > 16:
+                    result.errors.append(
+                        KaryawanImportError(row_num, 'kpj maksimal 16 karakter.')
+                    )
+                    row_had_error = True
+                else:
+                    fields['kpj'] = kpj
+
+        if row_had_error:
+            continue
+        pending.append((karyawan_id, fields))
+
+    if result.errors:
+        return result
+    if not pending:
+        result.errors.append(
+            KaryawanImportError(0, 'File CSV tidak memiliki baris data.')
+        )
+        return result
+
+    existing = {
+        karyawan.karyawan_id: karyawan
+        for karyawan in Karyawan.objects.filter(
+            karyawan_id__in=[karyawan_id for karyawan_id, _ in pending]
+        )
+    }
+    lokasi_codes = {
+        fields['lokasi_kerja']
+        for _, fields in pending
+        if fields.get('lokasi_kerja')
+    }
+    update_fields = [
+        'lokasi_kerja' if name == 'lokasi_kerja' else name for name in sources
+    ]
+    to_create: list[tuple[str, dict]] = []
+    to_update: list[Karyawan] = []
+    location_changes = []
+
+    for karyawan_id, fields in pending:
+        karyawan = existing.get(karyawan_id)
+        if karyawan is None:
+            to_create.append((karyawan_id, fields))
+            continue
+        old_location_id = karyawan.lokasi_kerja_id
+        _apply_upsert_fields(karyawan, fields)
+        to_update.append(karyawan)
+        if 'lokasi_kerja' in fields:
+            location_changes.append(
+                (karyawan_id, old_location_id, karyawan.lokasi_kerja_id)
+            )
+
+    with transaction.atomic():
+        for code in sorted(lokasi_codes):
+            Lokasi.objects.get_or_create(id=code, defaults={'nama': code})
+        for karyawan_id, fields in to_create:
+            karyawan = Karyawan(karyawan_id=karyawan_id)
+            _apply_upsert_fields(karyawan, fields)
+            karyawan.save()
+        if to_update:
+            Karyawan.objects.bulk_update(to_update, update_fields)
+            if location_changes:
+                enqueue_location_changes(location_changes)
+
+    result.created = len(to_create)
     result.updated = len(to_update)
     return result
 

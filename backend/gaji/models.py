@@ -28,7 +28,7 @@ class Gaji(models.Model):
         'karyawan.Karyawan', on_delete=models.PROTECT, related_name='gaji'
     )
     level = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(8)]
+        validators=[MinValueValidator(0), MaxValueValidator(9)]
     )
 
     jabatan = models.CharField(max_length=128, blank=True, default='')

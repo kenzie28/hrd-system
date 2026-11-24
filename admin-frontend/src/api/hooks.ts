@@ -211,7 +211,7 @@ export function useGajiExport() {
   })
 }
 
-function useKaryawanCsvImport(path: string) {
+function useKaryawanCsvImport(path: string, extraKeys: string[][] = []) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ file }: { file: File }) => {
@@ -227,9 +227,16 @@ function useKaryawanCsvImport(path: string) {
     onSuccess: (result) => {
       if (result.ok) {
         qc.invalidateQueries({ queryKey: ['karyawan'] })
+        for (const key of extraKeys) {
+          qc.invalidateQueries({ queryKey: key })
+        }
       }
     },
   })
+}
+
+export function useKaryawanUpsertImport() {
+  return useKaryawanCsvImport('/admin/karyawan/import-upsert/', [['lokasi']])
 }
 
 export function useLokasi() {

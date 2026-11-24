@@ -758,8 +758,8 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
                 StateError(line, f'user_id tidak ada di tabel auth_user: {user_id}.')
             )
             continue
-        if not 1 <= level <= 8:
-            errors.append(StateError(line, 'level harus 1–8.'))
+        if not 0 <= level <= 9:
+            errors.append(StateError(line, 'level harus 0–9.'))
             continue
         karyawan_ids.add(kid)
         typed[TABLE_KARYAWAN].append(

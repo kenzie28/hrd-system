@@ -9,13 +9,23 @@ class KaryawanSerializer(serializers.ModelSerializer):
         fields = [
             'karyawan_id',
             'nama',
+            'jenis_kelamin',
+            'tanggal_lahir',
+            'tanggal_awal',
+            'tanggal_kontrak_awal',
+            'tanggal_kontrak_akhir',
+            'status_kontrak',
             'lokasi_kerja',
             'jabatan',
+            'percobaan_jabatan',
             'wilayah',
             'level',
             'cuti_tahunan',
             'status_k_tk',
             'akumulasi_lembur',
+            'npwp',
+            'kpj',
+            'tanggal_kpj',
         ]
 
 
@@ -27,12 +37,22 @@ class KaryawanWriteSerializer(serializers.ModelSerializer):
         fields = [
             'karyawan_id',
             'nama',
+            'jenis_kelamin',
+            'tanggal_lahir',
+            'tanggal_awal',
+            'tanggal_kontrak_awal',
+            'tanggal_kontrak_akhir',
+            'status_kontrak',
             'lokasi_kerja',
             'jabatan',
+            'percobaan_jabatan',
             'wilayah',
             'level',
             'cuti_tahunan',
             'status_k_tk',
+            'npwp',
+            'kpj',
+            'tanggal_kpj',
         ]
 
     def update(self, instance, validated_data):

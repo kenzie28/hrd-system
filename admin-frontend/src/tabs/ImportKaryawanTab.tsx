@@ -278,7 +278,7 @@ export function ImportKaryawanTab() {
         file CSV dengan kolom wajib{' '}
         <Typography.Text code>karyawan_id</Typography.Text>,{' '}
         <Typography.Text code>nama</Typography.Text>, dan{' '}
-        <Typography.Text code>level</Typography.Text> (1–8). Kolom opsional:{' '}
+        <Typography.Text code>level</Typography.Text> (0–9). Kolom opsional:{' '}
         <Typography.Text code>jabatan</Typography.Text>,{' '}
         <Typography.Text code>wilayah</Typography.Text>,{' '}
         <Typography.Text code>lokasi_kerja</Typography.Text> (ID lokasi yang sudah ada).{' '}

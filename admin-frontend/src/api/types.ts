@@ -34,24 +34,44 @@ export interface ShiftImportResult {
 export interface Karyawan {
   karyawan_id: string
   nama: string
+  jenis_kelamin: string
+  tanggal_lahir: string | null
+  tanggal_awal: string | null
+  tanggal_kontrak_awal: string | null
+  tanggal_kontrak_akhir: string | null
+  status_kontrak: string
   lokasi_kerja: string | null
   jabatan: string
+  percobaan_jabatan: boolean
   wilayah: string
   level: number
   cuti_tahunan: number
   status_k_tk: string
   akumulasi_lembur: number
+  npwp: string
+  kpj: string
+  tanggal_kpj: string | null
 }
 
 export interface KaryawanWrite {
   karyawan_id: string
   nama: string
+  jenis_kelamin?: string
+  tanggal_lahir?: string | null
+  tanggal_awal?: string | null
+  tanggal_kontrak_awal?: string | null
+  tanggal_kontrak_akhir?: string | null
+  status_kontrak?: string
   lokasi_kerja?: string | null
   jabatan?: string
+  percobaan_jabatan?: boolean
   wilayah?: string
   level: number
   cuti_tahunan?: number
   status_k_tk?: string
+  npwp?: string
+  kpj?: string
+  tanggal_kpj?: string | null
 }
 
 export interface KaryawanImportError {

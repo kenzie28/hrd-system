@@ -184,6 +184,33 @@ export function useProsesGajiJob(jobId: number | null) {
   })
 }
 
+export function useGajiMonthReady(bulan: string) {
+  return useQuery({
+    queryKey: ['gaji-ready', bulan],
+    queryFn: async () =>
+      (await api.get<{ bulan: string; count: number }>('/admin/gaji/', { params: { bulan } })).data,
+  })
+}
+
+export function useGajiExport() {
+  return useMutation({
+    mutationFn: async (bulan: string) => {
+      try {
+        const response = await api.get<Blob>('/admin/gaji/export/', {
+          params: { bulan },
+          responseType: 'blob',
+        })
+        const filename =
+          filenameFromDisposition(response.headers['content-disposition']) ??
+          `gaji-${bulan}.csv`
+        return { blob: response.data, filename }
+      } catch (err) {
+        throw new Error(await messageFromAxiosError(err))
+      }
+    },
+  })
+}
+
 function useKaryawanCsvImport(path: string) {
   const qc = useQueryClient()
   return useMutation({

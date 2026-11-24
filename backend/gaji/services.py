@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import calendar
+import csv
+import io
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -176,3 +178,116 @@ def write_gaji(karyawan: Karyawan, periode: date) -> Gaji:
     gaji = build_gaji(karyawan, periode)
     gaji.save()
     return gaji
+
+
+GAJI_EXPORT_COLUMNS = (
+    'karyawan_id',
+    'nama',
+    'level',
+    'jabatan',
+    'periode',
+    'hari_hadir',
+    'hari_telat',
+    'total_menit_telat',
+    'hari_sakit',
+    'hari_cuti',
+    'hari_cuti_tambahan',
+    'hari_off',
+    'hari_alpa',
+    'hari_dinas',
+    'base_gaji_bpjs',
+    'gaji_bulanan',
+    'jam_lembur',
+    'hari_lembur',
+    'lembur_dibayar',
+    'gaji_lembur',
+    'tunjangan_obat',
+    'tunjangan_dinas',
+    'uang_terima_kasih',
+    'pot_alpa',
+    'koreksi_absensi',
+    'koreksi_admin',
+    'pot_bpjs_jht',
+    'pot_bpjs_jp',
+    'pot_bpjs_kesehatan',
+    'total_pot_bpjs',
+    'beban_bpjs_kesehatan',
+    'beban_bpjs_jht',
+    'beban_bpjs_jp',
+    'beban_bpjs_jkm',
+    'beban_bjps_jkk',
+    'total_beban_bpjs',
+    'total_bpjs_benefit',
+    'status_k_tk',
+    'ter_status',
+    'net_penghasilan',
+    'persentase_pph21',
+    'pot_pph21',
+    'total_gaji',
+)
+
+
+def gaji_for_month(periode: date):
+    start, _end = month_bounds(periode)
+    return (
+        Gaji.objects.filter(periode=start)
+        .select_related('karyawan')
+        .order_by('karyawan__nama', 'karyawan_id')
+    )
+
+
+def export_gaji_csv(periode: date) -> str:
+    """CSV of every payroll row for the month, including calculated totals."""
+    start, _end = month_bounds(periode)
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator='\n')
+    writer.writerow(GAJI_EXPORT_COLUMNS)
+    for gaji in gaji_for_month(start):
+        writer.writerow(
+            [
+                gaji.karyawan_id,
+                gaji.karyawan.nama,
+                gaji.level,
+                gaji.jabatan,
+                f'{gaji.periode:%Y-%m}',
+                gaji.hari_hadir,
+                gaji.hari_telat,
+                gaji.total_menit_telat,
+                gaji.hari_sakit,
+                gaji.hari_cuti,
+                gaji.hari_cuti_tambahan,
+                gaji.hari_off,
+                gaji.hari_alpa,
+                gaji.hari_dinas,
+                gaji.base_gaji_bpjs,
+                gaji.gaji_bulanan,
+                gaji.jam_lembur,
+                gaji.hari_lembur,
+                int(gaji.lembur_dibayar),
+                gaji.gaji_lembur,
+                gaji.tunjangan_obat,
+                gaji.tunjangan_dinas,
+                gaji.uang_terima_kasih,
+                gaji.pot_alpa,
+                gaji.koreksi_absensi,
+                gaji.koreksi_admin,
+                gaji.pot_bpjs_jht,
+                gaji.pot_bpjs_jp,
+                gaji.pot_bpjs_kesehatan,
+                gaji.total_pot_bpjs,
+                gaji.beban_bpjs_kesehatan,
+                gaji.beban_bpjs_jht,
+                gaji.beban_bpjs_jp,
+                gaji.beban_bpjs_jkm,
+                gaji.beban_bjps_jkk,
+                gaji.total_beban_bpjs,
+                gaji.total_bpjs_benefit,
+                gaji.status_k_tk,
+                gaji.ter_status,
+                gaji.net_penghasilan,
+                f'{gaji.persentase_pph21:.2f}',
+                gaji.pot_pph21,
+                gaji.total_gaji,
+            ]
+        )
+    return '\ufeff' + buf.getvalue()

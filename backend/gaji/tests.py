@@ -1,3 +1,5 @@
+import csv
+import io
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
@@ -420,3 +422,42 @@ class ProsesGajiApiTests(TestCase):
         self.assertEqual(forbidden.status_code, 403)
         missing = self.client.get('/api/admin/gaji/proses/9999/')
         self.assertEqual(missing.status_code, 404)
+
+    def test_export_csv_lists_every_employee_for_the_month(self):
+        empty = self.client.get('/api/admin/gaji/export/', {'bulan': '2026-11'})
+        self.assertEqual(empty.status_code, 404)
+        self.assertIn('Belum ada gaji', empty.data['detail'])
+
+        ready = self.client.get('/api/admin/gaji/', {'bulan': '2026-11'})
+        self.assertEqual(ready.status_code, 200)
+        self.assertEqual(ready.data, {'bulan': '2026-11', 'count': 0})
+
+        write_gaji(self.admin, date(2026, 11, 1))
+        budi = write_gaji(self.employee, date(2026, 11, 1))
+        budi.total_gaji = 123_456
+        budi.save(update_fields=['total_gaji'])
+        write_gaji(self.employee, date(2026, 10, 1))
+
+        ready = self.client.get('/api/admin/gaji/', {'bulan': '2026-11'})
+        self.assertEqual(ready.data['count'], 2)
+
+        response = self.client.get('/api/admin/gaji/export/', {'bulan': '2026-11'})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('text/csv', response['Content-Type'])
+        self.assertIn('gaji-2026-11.csv', response['Content-Disposition'])
+        rows = list(csv.DictReader(io.StringIO(response.content.decode('utf-8-sig'))))
+        self.assertEqual(
+            [row['karyawan_id'] for row in rows],
+            ['0000003', '1000001'],
+        )
+        self.assertEqual(rows[0]['nama'], 'Admin')
+        self.assertEqual(rows[1]['nama'], 'Budi')
+        self.assertEqual(rows[1]['periode'], '2026-11')
+        self.assertEqual(rows[1]['total_gaji'], '123456')
+        self.assertEqual(rows[1]['net_penghasilan'], str(budi.net_penghasilan))
+        self.assertEqual(rows[1]['ter_status'], budi.ter_status)
+
+        bad = self.client.get('/api/admin/gaji/export/', {'bulan': 'November'})
+        self.assertEqual(bad.status_code, 400)
+        anonymous = APIClient().get('/api/admin/gaji/export/', {'bulan': '2026-11'})
+        self.assertEqual(anonymous.status_code, 401)

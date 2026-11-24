@@ -1,5 +1,6 @@
-"""Admin API for starting and polling a Proses Gaji job."""
+"""Admin API for starting, polling, and downloading a Proses Gaji run."""
 from django.db import connection, transaction
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
@@ -10,7 +11,7 @@ from karyawan.permissions import IsAdminAllowed
 
 from .jobs import enqueue_proses_gaji
 from .models import ProsesGajiJob, StatusProsesGaji
-from .services import parse_bulan
+from .services import export_gaji_csv, gaji_for_month, parse_bulan
 
 _OPEN_STATUSES = (StatusProsesGaji.PENDING, StatusProsesGaji.RUNNING)
 
@@ -69,3 +70,50 @@ class AdminProsesGajiDetailView(APIView):
     def get(self, request, pk):
         job = get_object_or_404(ProsesGajiJob, pk=pk)
         return Response(serialize_job(job))
+
+
+def _periode_from_query(request):
+    try:
+        return parse_bulan(request.query_params.get('bulan'))
+    except ValueError as exc:
+        return exc
+
+
+class AdminGajiMonthView(APIView):
+    """How many payroll rows exist for a month."""
+
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed]
+
+    def get(self, request):
+        periode = _periode_from_query(request)
+        if isinstance(periode, ValueError):
+            return Response({'detail': str(periode)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {
+                'bulan': f'{periode:%Y-%m}',
+                'count': gaji_for_month(periode).count(),
+            }
+        )
+
+
+class AdminGajiExportView(APIView):
+    """Download every employee's payroll row for one month."""
+
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed]
+
+    def get(self, request):
+        periode = _periode_from_query(request)
+        if isinstance(periode, ValueError):
+            return Response({'detail': str(periode)}, status=status.HTTP_400_BAD_REQUEST)
+        if not gaji_for_month(periode).exists():
+            return Response(
+                {'detail': 'Belum ada gaji untuk bulan ini.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        csv_text = export_gaji_csv(periode)
+        filename = f'gaji-{periode:%Y-%m}.csv'
+        response = HttpResponse(csv_text, content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response

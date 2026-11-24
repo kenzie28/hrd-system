@@ -7,6 +7,7 @@ import io
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
+from django.db import transaction
 from django.db.models import Sum
 
 from absensi.models import Kehadiran, StatusKehadiran
@@ -122,11 +123,9 @@ def _nominal_sum(queryset) -> int:
 
 
 def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
-    """Fill a ``Gaji`` row for this employee and month. The caller saves it."""
+    """Fill a new payroll row for this employee and month. The caller saves it."""
     start, end = month_bounds(periode)
-    gaji = Gaji.objects.filter(karyawan=karyawan, periode=start).first()
-    if gaji is None:
-        gaji = Gaji(karyawan=karyawan, periode=start)
+    gaji = Gaji(karyawan=karyawan, periode=start)
 
     gaji.level = karyawan.level
     gaji.jabatan = karyawan.jabatan
@@ -175,8 +174,16 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
 
 
 def write_gaji(karyawan: Karyawan, periode: date) -> Gaji:
-    gaji = build_gaji(karyawan, periode)
-    gaji.save()
+    """Replace every payroll row for this employee and month with a new one."""
+    start, end = month_bounds(periode)
+    with transaction.atomic():
+        Gaji.objects.filter(
+            karyawan=karyawan,
+            periode__gte=start,
+            periode__lte=end,
+        ).delete()
+        gaji = build_gaji(karyawan, periode)
+        gaji.save()
     return gaji
 
 

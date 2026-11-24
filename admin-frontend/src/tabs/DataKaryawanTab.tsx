@@ -20,7 +20,6 @@ import {
   Popover,
   Select,
   Space,
-  Switch,
   Table,
   Tag,
   Typography,
@@ -35,7 +34,6 @@ import {
   useLokasi,
 } from '../api/hooks'
 import type { Karyawan } from '../api/types'
-import { formatCurrency } from '../constants'
 
 type ColumnKey =
   | 'karyawan_id'
@@ -45,10 +43,7 @@ type ColumnKey =
   | 'wilayah'
   | 'level'
   | 'cuti_tahunan'
-  | 'base_gaji'
-  | 'gaji_bulanan'
-  | 'jumlah_anak'
-  | 'nikah'
+  | 'status_k_tk'
   | 'akumulasi_lembur'
 
 const ALL_COLUMN_KEYS: ColumnKey[] = [
@@ -59,10 +54,7 @@ const ALL_COLUMN_KEYS: ColumnKey[] = [
   'wilayah',
   'level',
   'cuti_tahunan',
-  'base_gaji',
-  'gaji_bulanan',
-  'jumlah_anak',
-  'nikah',
+  'status_k_tk',
   'akumulasi_lembur',
 ]
 
@@ -74,20 +66,15 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   wilayah: 'Wilayah',
   level: 'Level',
   cuti_tahunan: 'Cuti',
-  base_gaji: 'Base Gaji',
-  gaji_bulanan: 'Gaji Bulanan',
-  jumlah_anak: 'Jumlah Anak',
-  nikah: 'Nikah',
+  status_k_tk: 'Status K/TK',
   akumulasi_lembur: 'Akumulasi Lembur',
 }
 
-const ADDED_COLUMN_KEYS: ColumnKey[] = [
-  'base_gaji',
-  'gaji_bulanan',
-  'jumlah_anak',
-  'nikah',
-  'akumulasi_lembur',
-]
+const STATUS_K_TK_OPTIONS = ['TK', 'TK1', 'TK2', 'TK3', 'K0', 'K1', 'K2', 'K3'].map(
+  (value) => ({ value, label: value }),
+)
+
+const ADDED_COLUMN_KEYS: ColumnKey[] = ['status_k_tk', 'akumulasi_lembur']
 
 const STORAGE_KEY = 'master-karyawan-columns'
 
@@ -107,10 +94,6 @@ interface KaryawanFilters {
   level: number[]
   cutiMin: number | null
   cutiMax: number | null
-  gajiMin: number | null
-  gajiMax: number | null
-  bulananMin: number | null
-  bulananMax: number | null
 }
 
 function emptyFilters(): KaryawanFilters {
@@ -123,10 +106,6 @@ function emptyFilters(): KaryawanFilters {
     level: [],
     cutiMin: null,
     cutiMax: null,
-    gajiMin: null,
-    gajiMax: null,
-    bulananMin: null,
-    bulananMax: null,
   }
 }
 
@@ -166,8 +145,6 @@ function countActiveFilters(filters: KaryawanFilters) {
   if (filters.wilayah.trim()) count += 1
   if (filters.level.length > 0) count += 1
   if (filters.cutiMin != null || filters.cutiMax != null) count += 1
-  if (filters.gajiMin != null || filters.gajiMax != null) count += 1
-  if (filters.bulananMin != null || filters.bulananMax != null) count += 1
   return count
 }
 
@@ -325,58 +302,6 @@ function FilterFields({
             </Typography.Text>
           ) : null}
         </div>
-        <div>
-          <Typography.Text style={{ fontSize: 12 }}>{COLUMN_LABELS.base_gaji}</Typography.Text>
-          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-            <InputNumber
-              size="small"
-              min={0}
-              placeholder="Min"
-              value={filters.gajiMin}
-              onChange={(value) => patch({ gajiMin: value })}
-              style={{ flex: 1, width: '100%' }}
-            />
-            <InputNumber
-              size="small"
-              min={0}
-              placeholder="Maks"
-              value={filters.gajiMax}
-              onChange={(value) => patch({ gajiMax: value })}
-              style={{ flex: 1, width: '100%' }}
-            />
-          </div>
-          {rangeInvalid(filters.gajiMin, filters.gajiMax) ? (
-            <Typography.Text type="danger" style={{ fontSize: 12 }}>
-              Minimum melebihi maksimum.
-            </Typography.Text>
-          ) : null}
-        </div>
-        <div>
-          <Typography.Text style={{ fontSize: 12 }}>{COLUMN_LABELS.gaji_bulanan}</Typography.Text>
-          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-            <InputNumber
-              size="small"
-              min={0}
-              placeholder="Min"
-              value={filters.bulananMin}
-              onChange={(value) => patch({ bulananMin: value })}
-              style={{ flex: 1, width: '100%' }}
-            />
-            <InputNumber
-              size="small"
-              min={0}
-              placeholder="Maks"
-              value={filters.bulananMax}
-              onChange={(value) => patch({ bulananMax: value })}
-              style={{ flex: 1, width: '100%' }}
-            />
-          </div>
-          {rangeInvalid(filters.bulananMin, filters.bulananMax) ? (
-            <Typography.Text type="danger" style={{ fontSize: 12 }}>
-              Minimum melebihi maksimum.
-            </Typography.Text>
-          ) : null}
-        </div>
         <Button size="small" disabled={active === 0} onClick={() => setFilters(emptyFilters())}>
           Reset
         </Button>
@@ -415,8 +340,7 @@ interface KaryawanFormValues {
   wilayah?: string
   lokasi_kerja?: string | null
   cuti_tahunan: number
-  jumlah_anak: number
-  nikah: boolean
+  status_k_tk?: string
 }
 
 export function DataKaryawanTab() {
@@ -471,8 +395,6 @@ export function DataKaryawanTab() {
       if (!includesText(k.wilayah ?? '', filters.wilayah)) return false
       if (filters.level.length > 0 && !filters.level.includes(k.level)) return false
       if (!inRange(k.cuti_tahunan, filters.cutiMin, filters.cutiMax)) return false
-      if (!inRange(k.base_gaji ?? 0, filters.gajiMin, filters.gajiMax)) return false
-      if (!inRange(k.gaji_bulanan ?? 0, filters.bulananMin, filters.bulananMax)) return false
       return true
     })
   }, [karyawan, search, filters])
@@ -533,32 +455,11 @@ export function DataKaryawanTab() {
       width: 100,
     },
     {
-      key: 'base_gaji',
-      title: COLUMN_LABELS.base_gaji,
-      dataIndex: 'base_gaji',
-      width: 160,
-      render: (value: number) => formatCurrency(value ?? 0),
-    },
-    {
-      key: 'gaji_bulanan',
-      title: COLUMN_LABELS.gaji_bulanan,
-      dataIndex: 'gaji_bulanan',
-      width: 160,
-      render: (value: number) => formatCurrency(value ?? 0),
-    },
-    {
-      key: 'jumlah_anak',
-      title: COLUMN_LABELS.jumlah_anak,
-      dataIndex: 'jumlah_anak',
+      key: 'status_k_tk',
+      title: COLUMN_LABELS.status_k_tk,
+      dataIndex: 'status_k_tk',
       width: 120,
-      render: (value: number) => value ?? 0,
-    },
-    {
-      key: 'nikah',
-      title: COLUMN_LABELS.nikah,
-      dataIndex: 'nikah',
-      width: 90,
-      render: (value: boolean) => (value ? 'Ya' : 'Tidak'),
+      render: (value: string) => value || '—',
     },
     {
       key: 'akumulasi_lembur',
@@ -600,8 +501,7 @@ export function DataKaryawanTab() {
       wilayah: '',
       lokasi_kerja: null,
       cuti_tahunan: 12,
-      jumlah_anak: 0,
-      nikah: false,
+      status_k_tk: undefined,
     })
     setModalOpen(true)
   }
@@ -617,8 +517,7 @@ export function DataKaryawanTab() {
       wilayah: record.wilayah,
       lokasi_kerja: record.lokasi_kerja,
       cuti_tahunan: record.cuti_tahunan,
-      jumlah_anak: record.jumlah_anak ?? 0,
-      nikah: record.nikah ?? false,
+      status_k_tk: record.status_k_tk || undefined,
     })
     setModalOpen(true)
   }
@@ -641,8 +540,7 @@ export function DataKaryawanTab() {
       wilayah: (values.wilayah ?? '').trim(),
       lokasi_kerja: values.lokasi_kerja || null,
       cuti_tahunan: values.cuti_tahunan,
-      jumlah_anak: values.jumlah_anak,
-      nikah: values.nikah,
+      status_k_tk: values.status_k_tk || '',
     }
     try {
       if (isEditing) {
@@ -790,28 +688,6 @@ export function DataKaryawanTab() {
               {COLUMN_LABELS.cuti_tahunan}: {rangeLabel(filters.cutiMin, filters.cutiMax)}
             </Tag>
           ) : null}
-          {filters.gajiMin != null || filters.gajiMax != null ? (
-            <Tag
-              closable
-              onClose={() =>
-                setFilters((prev) => ({ ...prev, gajiMin: null, gajiMax: null }))
-              }
-            >
-              {COLUMN_LABELS.base_gaji}:{' '}
-              {rangeLabel(filters.gajiMin, filters.gajiMax, formatCurrency)}
-            </Tag>
-          ) : null}
-          {filters.bulananMin != null || filters.bulananMax != null ? (
-            <Tag
-              closable
-              onClose={() =>
-                setFilters((prev) => ({ ...prev, bulananMin: null, bulananMax: null }))
-              }
-            >
-              {COLUMN_LABELS.gaji_bulanan}:{' '}
-              {rangeLabel(filters.bulananMin, filters.bulananMax, formatCurrency)}
-            </Tag>
-          ) : null}
           <Button type="link" size="small" onClick={() => setFilters(emptyFilters())}>
             Reset
           </Button>
@@ -923,15 +799,12 @@ export function DataKaryawanTab() {
           >
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item
-            name="jumlah_anak"
-            label="Jumlah Anak"
-            rules={[{ required: true, message: 'Jumlah anak wajib diisi' }]}
-          >
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="nikah" label="Nikah" valuePropName="checked">
-            <Switch />
+          <Form.Item name="status_k_tk" label="Status K/TK">
+            <Select
+              allowClear
+              placeholder="Pilih status"
+              options={STATUS_K_TK_OPTIONS}
+            />
           </Form.Item>
           <Form.Item name="lokasi_kerja" label="Lokasi Kerja">
             <Select

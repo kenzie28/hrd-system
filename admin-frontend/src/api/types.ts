@@ -39,10 +39,7 @@ export interface Karyawan {
   wilayah: string
   level: number
   cuti_tahunan: number
-  base_gaji: number
-  gaji_bulanan: number
-  jumlah_anak: number
-  nikah: boolean
+  status_k_tk: string
   akumulasi_lembur: number
 }
 
@@ -54,8 +51,7 @@ export interface KaryawanWrite {
   wilayah?: string
   level: number
   cuti_tahunan?: number
-  jumlah_anak?: number
-  nikah?: boolean
+  status_k_tk?: string
 }
 
 export interface KaryawanImportError {

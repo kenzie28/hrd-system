@@ -13,14 +13,12 @@ class KaryawanAdmin(admin.ModelAdmin):
         'wilayah',
         'level',
         'cuti_tahunan',
-        'base_gaji',
-        'gaji_bulanan',
-        'jumlah_anak',
-        'nikah',
+        'status_k_tk',
         'akumulasi_lembur',
         'user',
         'must_change_password',
     ]
+    exclude = ('base_gaji', 'gaji_bulanan')
     list_editable = ['cuti_tahunan']
     list_filter = ['level', 'lokasi_kerja', 'wilayah']
     search_fields = ['karyawan_id', 'nama']

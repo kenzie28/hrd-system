@@ -42,8 +42,6 @@ class Karyawan(models.Model):
     )
     base_gaji = models.PositiveBigIntegerField(default=0)
     gaji_bulanan = models.PositiveBigIntegerField(default=0)
-    jumlah_anak = models.PositiveSmallIntegerField(default=0)
-    nikah = models.BooleanField(default=False)
     status_k_tk = models.CharField(
         max_length=3, choices=StatusKTk.choices, blank=True, default=''
     )

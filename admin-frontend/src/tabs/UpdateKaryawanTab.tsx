@@ -137,7 +137,7 @@ function ImportResultPanel({ result }: { result: KaryawanImportResult }) {
   )
 }
 
-const EXAMPLE_HEADERS = ['karyawan_id', 'jabatan', 'cuti_tahunan'] as const
+const EXAMPLE_HEADERS = ['karyawan_id', 'jabatan', 'cuti_tahunan', 'status_k_tk'] as const
 
 const EXAMPLE_ROWS = [
   {
@@ -147,17 +147,17 @@ const EXAMPLE_ROWS = [
   },
   {
     row: 2,
-    values: ['0000003', 'Director', '14'],
+    values: ['0000003', 'Director', '14', 'K1'],
     isHeader: false,
   },
   {
     row: 3,
-    values: ['0000010', 'SPG', '12'],
+    values: ['0000010', 'SPG', '12', 'TK'],
     isHeader: false,
   },
 ] as const
 
-const COL_LETTERS = ['A', 'B', 'C']
+const COL_LETTERS = ['A', 'B', 'C', 'D']
 
 const sheetCell: CSSProperties = {
   border: '1px solid #d0d7de',
@@ -287,8 +287,10 @@ export function UpdateKaryawanTab() {
         <Typography.Text code>jabatan</Typography.Text>,{' '}
         <Typography.Text code>wilayah</Typography.Text>,{' '}
         <Typography.Text code>lokasi_kerja</Typography.Text>,{' '}
-        <Typography.Text code>cuti_tahunan</Typography.Text>. Untuk menambah karyawan
-        baru, gunakan tab Tambah Karyawan (CSV).
+        <Typography.Text code>cuti_tahunan</Typography.Text>,{' '}
+        <Typography.Text code>status_k_tk</Typography.Text> (TK, TK1, TK2, TK3, K0, K1,
+        K2, K3; sel kosong mengosongkan status). Untuk menambah karyawan baru, gunakan
+        tab Tambah Karyawan (CSV).
       </Typography.Paragraph>
 
       <ContohSheet />

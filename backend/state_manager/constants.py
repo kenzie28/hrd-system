@@ -42,8 +42,7 @@ TABLE_COLUMNS = {
         'cuti_tahunan',
         'base_gaji',
         'gaji_bulanan',
-        'jumlah_anak',
-        'nikah',
+        'status_k_tk',
         'akumulasi_lembur',
     ),
     TABLE_LANGGANAN: (
@@ -113,10 +112,14 @@ OPTIONAL_TABLE_COLUMNS = {
     TABLE_KARYAWAN: frozenset({
         'base_gaji',
         'gaji_bulanan',
-        'jumlah_anak',
-        'nikah',
+        'status_k_tk',
         'akumulasi_lembur',
     }),
+}
+
+# Older snapshots may include these columns. They are ignored on import.
+LEGACY_EXTRA_COLUMNS = {
+    TABLE_KARYAWAN: frozenset({'jumlah_anak', 'nikah'}),
 }
 
 # Older snapshots may include these tables. Their sections are ignored on import.

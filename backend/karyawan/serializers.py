@@ -14,10 +14,7 @@ class KaryawanSerializer(serializers.ModelSerializer):
             'wilayah',
             'level',
             'cuti_tahunan',
-            'base_gaji',
-            'gaji_bulanan',
-            'jumlah_anak',
-            'nikah',
+            'status_k_tk',
             'akumulasi_lembur',
         ]
 
@@ -35,8 +32,7 @@ class KaryawanWriteSerializer(serializers.ModelSerializer):
             'wilayah',
             'level',
             'cuti_tahunan',
-            'jumlah_anak',
-            'nikah',
+            'status_k_tk',
         ]
 
     def update(self, instance, validated_data):

@@ -213,10 +213,15 @@ class ProsesGajiCalculationTests(TestCase):
             gaji.net_penghasilan - gaji.total_bpjs_benefit - gaji.pot_pph21,
         )
 
-    def test_rerun_updates_the_same_row(self):
+    def test_rerun_deletes_previous_rows_for_that_month(self):
+        other_month = write_gaji(self.employee, date(2026, 10, 1))
         first = write_gaji(self.employee, self.periode)
-        first.gaji_lembur = 999
-        first.save(update_fields=['gaji_lembur'])
+        stray = Gaji.objects.create(
+            karyawan=self.employee,
+            level=self.employee.level,
+            periode=date(2026, 11, 15),
+            gaji_lembur=999,
+        )
         self.employee.base_gaji = 8_000_000
         self.employee.gaji_bulanan = 7_000_000
         self.employee.lembur_dibayar = False
@@ -226,8 +231,15 @@ class ProsesGajiCalculationTests(TestCase):
 
         again = write_gaji(self.employee, self.periode)
 
-        self.assertEqual(again.pk, first.pk)
-        self.assertEqual(Gaji.objects.count(), 1)
+        self.assertNotEqual(again.pk, first.pk)
+        self.assertFalse(Gaji.objects.filter(pk=first.pk).exists())
+        self.assertFalse(Gaji.objects.filter(pk=stray.pk).exists())
+        self.assertTrue(Gaji.objects.filter(pk=other_month.pk).exists())
+        self.assertEqual(
+            Gaji.objects.filter(karyawan=self.employee, periode__year=2026, periode__month=11).count(),
+            1,
+        )
+        self.assertEqual(again.periode, self.periode)
         self.assertEqual(again.base_gaji_bpjs, 8_000_000)
         self.assertEqual(again.gaji_bulanan, 7_000_000)
         self.assertFalse(again.lembur_dibayar)
@@ -288,6 +300,27 @@ class ProsesGajiJobTests(TestCase):
         self.assertEqual(job.processed, 2)
         self.assertEqual(job.message, 'Gaji 2026-11 selesai untuk 2 karyawan.')
         self.assertEqual(Gaji.objects.count(), 2)
+
+    def test_second_run_overwrites_the_same_month(self):
+        first = ProsesGajiJob.objects.create(periode=self.periode)
+        run_proses_gaji(first.pk)
+        self.andi.base_gaji = 4_000_000
+        self.andi.gaji_bulanan = 5_000_000
+        self.andi.save()
+        andi_row = Gaji.objects.get(karyawan=self.andi, periode=self.periode)
+        andi_row.gaji_lembur = 999
+        andi_row.save(update_fields=['gaji_lembur'])
+
+        second = ProsesGajiJob.objects.create(periode=self.periode)
+        run_proses_gaji(second.pk)
+
+        self.assertFalse(Gaji.objects.filter(pk=andi_row.pk).exists())
+        self.assertEqual(Gaji.objects.filter(periode=self.periode).count(), 2)
+        row = Gaji.objects.get(karyawan=self.andi, periode=self.periode)
+        self.assertEqual(Gaji.objects.filter(karyawan=self.andi).count(), 1)
+        self.assertEqual(row.base_gaji_bpjs, 4_000_000)
+        self.assertEqual(row.gaji_bulanan, 5_000_000)
+        self.assertEqual(row.gaji_lembur, 0)
 
     def test_later_failure_keeps_earlier_rows(self):
         job = ProsesGajiJob.objects.create(periode=self.periode)

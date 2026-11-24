@@ -10,7 +10,7 @@ from django.db import transaction
 from absensi.invalidation import enqueue_location_changes
 from lokasi.models import Lokasi
 
-from .models import Karyawan
+from .models import Karyawan, StatusKTk
 
 DEFAULT_PORTAL_PASSWORD = '123'
 
@@ -21,6 +21,7 @@ COL_JABATAN = 'jabatan'
 COL_WILAYAH = 'wilayah'
 COL_LOKASI = 'lokasi_kerja'
 COL_CUTI = 'cuti_tahunan'
+COL_STATUS_K_TK = 'status_k_tk'
 REQUIRED_COLUMNS = [COL_KARYAWAN_ID, COL_NAMA, COL_LEVEL]
 OPTIONAL_COLUMNS = [COL_JABATAN, COL_WILAYAH, COL_LOKASI]
 UPDATE_OPTIONAL_COLUMNS = [
@@ -30,7 +31,9 @@ UPDATE_OPTIONAL_COLUMNS = [
     COL_WILAYAH,
     COL_LOKASI,
     COL_CUTI,
+    COL_STATUS_K_TK,
 ]
+_STATUS_K_TK_VALUES = frozenset(StatusKTk.values)
 
 
 KARYAWAN_EXPORT_COLUMNS = [
@@ -41,6 +44,7 @@ KARYAWAN_EXPORT_COLUMNS = [
     COL_WILAYAH,
     COL_LOKASI,
     COL_CUTI,
+    COL_STATUS_K_TK,
 ]
 
 
@@ -59,6 +63,7 @@ def export_karyawan_csv() -> str:
                 obj.wilayah,
                 obj.lokasi_kerja_id or '',
                 obj.cuti_tahunan,
+                obj.status_k_tk,
             ]
         )
     return buf.getvalue()
@@ -407,8 +412,8 @@ def import_karyawan_update_csv(upload) -> KaryawanImportResult:
 
     Required column: karyawan_id (must already exist).
     Any other recognized column present in the header is applied to every row
-    — empty cells clear blankable fields (jabatan, wilayah, lokasi_kerja) and
-    are rejected for nama, level, and cuti_tahunan.
+    — empty cells clear blankable fields (jabatan, wilayah, lokasi_kerja,
+    status_k_tk) and are rejected for nama, level, and cuti_tahunan.
     All rows are validated before any write.
     """
     result = KaryawanImportResult(
@@ -578,6 +583,22 @@ def import_karyawan_update_csv(upload) -> KaryawanImportResult:
                     row_had_error = True
                 else:
                     fields['cuti_tahunan'] = cuti
+
+        if COL_STATUS_K_TK in header_set:
+            status_k_tk = (row.get(COL_STATUS_K_TK) or '').strip().upper()
+            if status_k_tk and status_k_tk not in _STATUS_K_TK_VALUES:
+                result.errors.append(
+                    KaryawanImportError(
+                        row_num,
+                        'status_k_tk tidak valid: '
+                        f'"{status_k_tk}". Pilihan: '
+                        + ', '.join(StatusKTk.values)
+                        + '.',
+                    )
+                )
+                row_had_error = True
+            else:
+                fields['status_k_tk'] = status_k_tk
 
         if row_had_error:
             continue

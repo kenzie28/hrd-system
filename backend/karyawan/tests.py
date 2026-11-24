@@ -4,7 +4,11 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from karyawan.models import Karyawan
-from karyawan.services import import_base_gaji_csv, import_gaji_bulanan_csv
+from karyawan.services import (
+    import_base_gaji_csv,
+    import_gaji_bulanan_csv,
+    import_karyawan_update_csv,
+)
 
 
 class KaryawanWageCsvImportTests(TestCase):
@@ -189,3 +193,63 @@ class AdminWageImportApiTests(TestCase):
         )
         self.assertEqual(Karyawan.objects.get(pk='0000003').gaji_bulanan, 0)
         self.assertEqual(Karyawan.objects.get(pk='1000001').base_gaji, 0)
+
+
+class KaryawanUpdateStatusCsvTests(TestCase):
+    def setUp(self):
+        self.staff = Karyawan.objects.create(
+            karyawan_id='1000001',
+            nama='Budi',
+            level=1,
+            status_k_tk='TK',
+            base_gaji=4_500_000,
+            gaji_bulanan=6_000_000,
+        )
+        self.other = Karyawan.objects.create(
+            karyawan_id='1000002',
+            nama='Ani',
+            level=1,
+            status_k_tk='K0',
+        )
+        self.client = APIClient()
+
+    def _upload(self, body: str):
+        upload = SimpleUploadedFile(
+            'update-karyawan.csv',
+            body.encode(),
+            content_type='text/csv',
+        )
+        return import_karyawan_update_csv(upload)
+
+    def test_updates_status_k_tk_for_that_employee_only(self):
+        result = self._upload('karyawan_id,status_k_tk\n1000001,k2\n')
+        self.assertTrue(result.ok, result.errors)
+        self.assertEqual(result.updated, 1)
+        self.staff.refresh_from_db()
+        self.other.refresh_from_db()
+        self.assertEqual(self.staff.status_k_tk, 'K2')
+        self.assertEqual(self.other.status_k_tk, 'K0')
+        self.assertEqual(self.staff.base_gaji, 4_500_000)
+        self.assertEqual(self.staff.gaji_bulanan, 6_000_000)
+
+    def test_blank_status_clears_the_field(self):
+        result = self._upload('karyawan_id,status_k_tk\n1000001,\n')
+        self.assertTrue(result.ok, result.errors)
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.status_k_tk, '')
+
+    def test_invalid_status_writes_nothing(self):
+        result = self._upload('karyawan_id,status_k_tk\n1000001,KAWIN\n')
+        self.assertFalse(result.ok)
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.status_k_tk, 'TK')
+
+    def test_list_api_omits_wage_fields(self):
+        response = self.client.get('/api/karyawan/')
+        self.assertEqual(response.status_code, 200)
+        row = next(item for item in response.data if item['karyawan_id'] == '1000001')
+        self.assertEqual(row['status_k_tk'], 'TK')
+        self.assertNotIn('base_gaji', row)
+        self.assertNotIn('gaji_bulanan', row)
+        self.assertNotIn('jumlah_anak', row)
+        self.assertNotIn('nikah', row)

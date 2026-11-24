@@ -34,7 +34,7 @@ from gaji.models import Gaji
 from kalender_bersama.models import Langganan, NotifikasiDismiss
 from koreksi.models import Koreksi, TipeKoreksi
 from obat.models import TunjanganObat
-from karyawan.models import Karyawan
+from karyawan.models import Karyawan, StatusKTk
 from karyawan.signals import ensure_portal_login
 from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
 from liburan.models import Liburan
@@ -45,6 +45,7 @@ from .constants import (
     CLEAR_ORDER,
     CLEARABLE_LABELS,
     CLEARABLE_MODELS,
+    LEGACY_EXTRA_COLUMNS,
     LEGACY_SKIPPED_TABLES,
     OPTIONAL_TABLE_COLUMNS,
     OPTIONAL_TABLES,
@@ -212,8 +213,7 @@ def export_state_csv() -> str:
                 _cell(obj.cuti_tahunan),
                 _cell(obj.base_gaji),
                 _cell(obj.gaji_bulanan),
-                _cell(obj.jumlah_anak),
-                _cell(obj.nikah),
+                _cell(obj.status_k_tk),
                 _cell(obj.akumulasi_lembur),
             ]
         )
@@ -447,8 +447,9 @@ def parse_state_csv(text: str) -> tuple[dict[str, list[dict]], list[StateError]]
             received = tuple(row)
             seen_headers[current_table] = list(received)
             optional = OPTIONAL_TABLE_COLUMNS.get(current_table, frozenset())
+            ignored = LEGACY_EXTRA_COLUMNS.get(current_table, frozenset())
             missing = [c for c in expected if c not in received and c not in optional]
-            extra = [c for c in received if c not in expected]
+            extra = [c for c in received if c not in expected and c not in ignored]
             if missing or extra:
                 parts = []
                 if missing:
@@ -720,15 +721,10 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
         if gaji_bulanan is not None and gaji_bulanan < 0:
             errors.append(StateError(line, 'gaji_bulanan harus non-negatif.'))
             gaji_bulanan = None
-        jumlah_anak = _parse_int(
-            _opt(row, 'jumlah_anak') or '0', line, 'jumlah_anak', errors
-        )
-        if jumlah_anak is not None and jumlah_anak < 0:
-            errors.append(StateError(line, 'jumlah_anak harus non-negatif.'))
-            jumlah_anak = None
-        nikah = _parse_bool(
-            _opt(row, 'nikah') or 'false', line, 'nikah', errors
-        )
+        status_k_tk = _opt(row, 'status_k_tk')
+        if status_k_tk and status_k_tk not in StatusKTk.values:
+            errors.append(StateError(line, f'status_k_tk tidak valid: {status_k_tk}.'))
+            status_k_tk = None
         akumulasi_lembur = _parse_int(
             _opt(row, 'akumulasi_lembur') or '0', line, 'akumulasi_lembur', errors
         )
@@ -745,8 +741,7 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
             cuti_tahunan,
             base_gaji,
             gaji_bulanan,
-            jumlah_anak,
-            nikah,
+            status_k_tk,
             akumulasi_lembur,
         ):
             continue
@@ -780,8 +775,7 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
                 'cuti_tahunan': cuti_tahunan,
                 'base_gaji': base_gaji,
                 'gaji_bulanan': gaji_bulanan,
-                'jumlah_anak': jumlah_anak,
-                'nikah': nikah,
+                'status_k_tk': status_k_tk,
                 'akumulasi_lembur': akumulasi_lembur,
                 '_line': line,
             }
@@ -1528,8 +1522,7 @@ def _insert_state(typed: dict[str, list[dict]]) -> None:
             cuti_tahunan=row['cuti_tahunan'],
             base_gaji=row['base_gaji'],
             gaji_bulanan=row['gaji_bulanan'],
-            jumlah_anak=row['jumlah_anak'],
-            nikah=row['nikah'],
+            status_k_tk=row['status_k_tk'],
             akumulasi_lembur=row['akumulasi_lembur'],
         )
 

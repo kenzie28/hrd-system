@@ -158,33 +158,58 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
     )
 
     if karyawan.absensi_dihitung:
-        gaji.pot_alpa = round_half_up(
-            Decimal(gaji.hari_alpa) * Decimal(gaji.gaji_bulanan) / Decimal(20)
-        )
+        pot_alpa = Decimal(gaji.hari_alpa) * Decimal(gaji.gaji_bulanan) / Decimal(20)
     else:
-        gaji.pot_alpa = 0
-    gaji.gaji_lembur = 0
-    gaji.tunjangan_dinas = gaji.hari_dinas * TUNJANGAN_DINAS_PER_HARI
-    gaji.uang_terima_kasih = 0
+        pot_alpa = Decimal(0)
+    gaji_lembur = Decimal(0)
+    tunjangan_dinas = Decimal(gaji.hari_dinas) * Decimal(TUNJANGAN_DINAS_PER_HARI)
+    uang_terima_kasih = Decimal(0)
 
-    if (karyawan.no_bpjs or '').strip():
+    has_bpjs = bool((karyawan.no_bpjs or '').strip())
+    if has_bpjs:
         base = Decimal(gaji.base_gaji_bpjs)
-        for field, rate in _BPJS_OF_BASE:
-            setattr(gaji, field, round_half_up(base * rate))
+        bpjs = {field: base * rate for field, rate in _BPJS_OF_BASE}
         if _above_jp_age(karyawan, end):
-            gaji.pot_bpjs_jp = 0
-            gaji.beban_bpjs_jp = 0
-        net = gaji.net_penghasilan
-        fraction = ter_fraction(gaji.ter_status, net)
-        gaji.persentase_pph21 = (fraction * Decimal(100)).quantize(Decimal('0.01'))
-        gaji.pot_pph21 = round_half_up(Decimal(net) * fraction)
+            bpjs['pot_bpjs_jp'] = Decimal(0)
+            bpjs['beban_bpjs_jp'] = Decimal(0)
     else:
-        for field, _rate in _BPJS_OF_BASE:
-            setattr(gaji, field, 0)
-        gaji.persentase_pph21 = Decimal('0.00')
-        gaji.pot_pph21 = 0
+        bpjs = {field: Decimal(0) for field, _rate in _BPJS_OF_BASE}
 
-    gaji.total_gaji = max(0, gaji.net_penghasilan - gaji.total_bpjs_benefit - gaji.pot_pph21)
+    benefit = (
+        bpjs['beban_bpjs_kesehatan']
+        + bpjs['beban_bpjs_jkm']
+        + bpjs['beban_bjps_jkk']
+    )
+    # Tax base stays exact. Tunjangan dinas, lembur, obat, koreksi, and the
+    # other wage components are all inside this sum; none of them is rounded first.
+    net = (
+        Decimal(gaji.gaji_bulanan)
+        + benefit
+        + gaji_lembur
+        + Decimal(gaji.tunjangan_obat)
+        + tunjangan_dinas
+        - pot_alpa
+        + Decimal(gaji.koreksi_absensi)
+        + Decimal(gaji.koreksi_admin)
+        + uang_terima_kasih
+    )
+    if has_bpjs:
+        fraction = ter_fraction(gaji.ter_status, net)
+        pph = net * fraction
+        gaji.persentase_pph21 = (fraction * Decimal(100)).quantize(Decimal('0.01'))
+    else:
+        pph = Decimal(0)
+        gaji.persentase_pph21 = Decimal('0.00')
+    total = net - benefit - pph
+
+    gaji.pot_alpa = round_half_up(pot_alpa)
+    gaji.gaji_lembur = round_half_up(gaji_lembur)
+    gaji.tunjangan_dinas = round_half_up(tunjangan_dinas)
+    gaji.uang_terima_kasih = round_half_up(uang_terima_kasih)
+    for field, amount in bpjs.items():
+        setattr(gaji, field, round_half_up(amount))
+    gaji.pot_pph21 = round_half_up(pph)
+    gaji.total_gaji = round_half_up(max(Decimal(0), total))
     return gaji
 
 

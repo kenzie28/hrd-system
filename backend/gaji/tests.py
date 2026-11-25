@@ -52,6 +52,12 @@ class TerFractionTests(TestCase):
         self.assertEqual(ter_fraction('C', 1_419_000_000), Decimal('0.33'))
         self.assertEqual(ter_fraction('C', 1_419_000_001), Decimal('0.34'))
 
+    def test_fractional_rupiah_above_a_boundary_uses_the_higher_bracket(self):
+        self.assertEqual(ter_fraction('A', Decimal('5400000')), Decimal('0'))
+        self.assertEqual(ter_fraction('A', Decimal('5400000.01')), Decimal('0.0025'))
+        self.assertEqual(ter_fraction('A', Decimal('5650000')), Decimal('0.0025'))
+        self.assertEqual(ter_fraction('A', Decimal('5650000.01')), Decimal('0.005'))
+
     def test_blank_unknown_and_non_positive_income_are_zero(self):
         self.assertEqual(ter_fraction('', 10_000_000), Decimal('0'))
         self.assertEqual(ter_fraction('Z', 10_000_000), Decimal('0'))
@@ -259,7 +265,40 @@ class ProsesGajiCalculationTests(TestCase):
         self.assertEqual(gaji.beban_bjps_jkk, 0)
         self.assertEqual(gaji.persentase_pph21, Decimal('0.00'))
         self.assertEqual(gaji.pot_pph21, 0)
-        self.assertEqual(gaji.total_gaji, 9)
+        # 10 - 0.5 alpa, with the fractional BPJS benefit added and removed.
+        # Rounding that result once is 10; subtracting the rounded columns is 9.
+        self.assertEqual(gaji.total_gaji, 10)
+        self.assertEqual(
+            gaji.net_penghasilan - gaji.total_bpjs_benefit - gaji.pot_pph21,
+            9,
+        )
+
+    def test_pph_includes_tunjangan_dinas_before_any_rounding(self):
+        self.employee.base_gaji = 100
+        self.employee.gaji_bulanan = 5_539_996
+        self.employee.save(update_fields=['base_gaji', 'gaji_bulanan'])
+        Dinas.objects.create(karyawan=self.employee, tanggal=date(2026, 11, 2))
+        TunjanganObat.objects.create(
+            karyawan=self.employee, nominal=1, bulan=self.periode
+        )
+        Koreksi.objects.create(
+            karyawan=self.employee,
+            tipe=TipeKoreksi.ABSENSI,
+            nominal=-1,
+            tanggal=self.periode,
+        )
+
+        gaji = write_gaji(self.employee, self.periode)
+
+        # Exact net is 5,539,996 + 4.54 benefit + 110,000 dinas + 1 obat - 1 koreksi
+        # = 5,650,000.54. That sits in the 0.50% bracket. Rounding the benefit
+        # to 4 first would leave 5,650,000 and the 0.25% bracket.
+        self.assertEqual(gaji.tunjangan_dinas, 110_000)
+        self.assertEqual(gaji.tunjangan_obat, 1)
+        self.assertEqual(gaji.koreksi_absensi, -1)
+        self.assertEqual(gaji.persentase_pph21, Decimal('0.50'))
+        self.assertEqual(gaji.pot_pph21, 28_250)
+        self.assertEqual(gaji.total_gaji, 5_621_746)
 
     def test_absensi_dihitung_false_skips_pot_alpa(self):
         self.employee.absensi_dihitung = False

@@ -141,25 +141,28 @@ TER_BRACKETS: dict[str, tuple[tuple[int, int | None, Decimal], ...]] = {
 }
 
 
-def ter_fraction(category: str, net: int) -> Decimal:
+def ter_fraction(category: str, net: Decimal | int) -> Decimal:
     """Withholding fraction for this TER category and net income.
 
     Blank category, an unknown category, and net income at or below zero use 0.
+    A fractional rupiah is compared as-is, so income just above a boundary uses
+    the higher bracket.
     """
-    if net <= 0 or not category:
+    amount = Decimal(net)
+    if amount <= 0 or not category:
         return Decimal('0')
     brackets = TER_BRACKETS.get(category)
     if not brackets:
         return Decimal('0')
     for minimum, maximum, rate in brackets:
         if maximum is None:
-            if net > minimum:
+            if amount > minimum:
                 return rate
             continue
         if minimum == 0:
-            if net <= maximum:
+            if amount <= maximum:
                 return rate
             continue
-        if minimum < net <= maximum:
+        if minimum < amount <= maximum:
             return rate
     return Decimal('0')

@@ -8,6 +8,7 @@ import type {
   CutiImportResult,
   RekapAbsensi,
   Cuti,
+  Dinas,
   Karyawan,
   Koreksi,
   KoreksiImportResult,
@@ -796,12 +797,8 @@ export function useLemburImport() {
   ])
 }
 
-export function useLemburDinasImport() {
-  return useCsvImport('/admin/lembur-dinas/import/', [
-    ['admin-lembur'],
-    ['admin-lembur-list'],
-    ['rekap-absensi'],
-  ])
+export function useDinasImport() {
+  return useCsvImport('/admin/dinas/import/', [['admin-dinas']])
 }
 
 // ---- Absensi conflicts (duplicate clock-in/out on the same day) ----
@@ -921,32 +918,42 @@ export interface LemburDayPayload {
   tanggal: string
 }
 
-export interface LemburDinasRangePayload {
+export interface DinasRangePayload {
   karyawan_id: string
   tanggal_mulai: string
   tanggal_selesai: string
 }
 
-export interface LemburDinasRangeResult {
+export interface DinasRangeResult {
   created: number
   skipped: number
   tanggal_mulai: string
   tanggal_selesai: string
 }
 
-export function useCreateLemburDinas() {
+export function useDinas(filters?: RecordFilters, enabled = true) {
+  return useQuery({
+    queryKey: ['admin-dinas', filters],
+    queryFn: async () =>
+      (await api.get<Dinas[]>('/admin/dinas/', { params: filterParams(filters) })).data,
+    enabled,
+  })
+}
+
+export function useCreateDinasRange() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: LemburDinasRangePayload) =>
-      api
-        .post<LemburDinasRangeResult>('/admin/lembur/add-dinas/', data)
-        .then((response) => response.data),
-    onSuccess: () =>
-      Promise.all([
-        qc.invalidateQueries({ queryKey: ['admin-lembur'] }),
-        qc.invalidateQueries({ queryKey: ['admin-lembur-list'] }),
-        qc.invalidateQueries({ queryKey: ['rekap-absensi'] }),
-      ]),
+    mutationFn: (data: DinasRangePayload) =>
+      api.post<DinasRangeResult>('/admin/dinas/range/', data).then((response) => response.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-dinas'] }),
+  })
+}
+
+export function useDeleteDinas() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`/admin/dinas/${id}/`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-dinas'] }),
   })
 }
 

@@ -10,7 +10,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from cuti.models import Cuti, StatusPermohonanCuti, TipeCuti
-from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
+from lembur.models import PermohonanLembur, StatusPermohonanLembur
 from liburan.models import Liburan
 from shift.models import HariKerja, Shift
 
@@ -93,11 +93,12 @@ def punch_window(punch: Absensi) -> tuple[datetime, datetime]:
 
 
 def approved_lembur_minutes(permohonan, punch_start, punch_end, shift_end) -> int:
-    """Overtime minutes unlocked by an approved request, or zero."""
+    """Overtime minutes unlocked by an approved lembur request, or zero.
+
+    Only time after the shift ends counts. Dinas does not add lembur minutes.
+    """
     if permohonan is None:
         return 0
-    if permohonan.tipe == TipeLembur.DINAS:
-        return whole_minutes(punch_end - punch_start)
     if punch_end > shift_end:
         return whole_minutes(punch_end - shift_end)
     return 0

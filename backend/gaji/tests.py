@@ -10,13 +10,14 @@ from rest_framework.test import APIClient
 
 from absensi.models import Kehadiran, StatusKehadiran
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
+from dinas.models import Dinas
 from gaji.jobs import run_proses_gaji
 from gaji.models import Gaji, ProsesGajiJob, StatusProsesGaji
 from gaji.services import write_gaji
 from gaji.ter import ter_fraction
 from karyawan.models import Karyawan, StatusKTk
 from koreksi.models import Koreksi, TipeKoreksi
-from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
+from lembur.models import PermohonanLembur, StatusPermohonanLembur
 from obat.models import TunjanganObat
 
 
@@ -68,6 +69,7 @@ class ProsesGajiCalculationTests(TestCase):
             gaji_bulanan=6_000_000,
             lembur_dibayar=True,
             status_k_tk=StatusKTk.TK,
+            no_bpjs='1234567890123456',
         )
         self.periode = date(2026, 11, 1)
 
@@ -113,23 +115,11 @@ class ProsesGajiCalculationTests(TestCase):
         _cuti(self.employee, TipeCuti.IZIN_OFF, date(2026, 11, 16))
         _cuti(self.employee, TipeCuti.IZIN_TELAT, date(2026, 11, 17))
 
-        for day in (date(2026, 11, 18), date(2026, 11, 18), date(2026, 11, 19)):
-            PermohonanLembur.objects.create(
-                karyawan=self.employee,
-                tanggal=day,
-                tipe=TipeLembur.DINAS,
-                status=StatusPermohonanLembur.APPROVED,
-            )
-        PermohonanLembur.objects.create(
-            karyawan=self.employee,
-            tanggal=date(2026, 11, 20),
-            tipe=TipeLembur.DINAS,
-            status=StatusPermohonanLembur.MENUNGGU_HRD,
-        )
+        for day in (date(2026, 11, 18), date(2026, 11, 19)):
+            Dinas.objects.create(karyawan=self.employee, tanggal=day)
         PermohonanLembur.objects.create(
             karyawan=self.employee,
             tanggal=date(2026, 11, 21),
-            tipe=TipeLembur.BIASA,
             status=StatusPermohonanLembur.APPROVED,
         )
 
@@ -269,6 +259,22 @@ class ProsesGajiCalculationTests(TestCase):
         self.assertEqual(gaji.persentase_pph21, Decimal('0.00'))
         self.assertEqual(gaji.pot_pph21, 0)
         self.assertEqual(gaji.total_gaji, 9)
+
+    def test_blank_no_bpjs_skips_bpjs_and_pph(self):
+        self.employee.no_bpjs = '   '
+        self.employee.save(update_fields=['no_bpjs'])
+
+        gaji = write_gaji(self.employee, self.periode)
+
+        self.assertEqual(gaji.total_pot_bpjs, 0)
+        self.assertEqual(gaji.total_bpjs_benefit, 0)
+        self.assertEqual(gaji.beban_bpjs_jht, 0)
+        self.assertEqual(gaji.beban_bpjs_jp, 0)
+        self.assertEqual(gaji.pot_bpjs_kesehatan, 0)
+        self.assertEqual(gaji.persentase_pph21, Decimal('0.00'))
+        self.assertEqual(gaji.pot_pph21, 0)
+        self.assertEqual(gaji.net_penghasilan, 6_000_000)
+        self.assertEqual(gaji.total_gaji, gaji.net_penghasilan)
 
 
 class ProsesGajiJobTests(TestCase):

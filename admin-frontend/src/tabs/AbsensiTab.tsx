@@ -17,6 +17,7 @@ import dayjs, { Dayjs } from 'dayjs'
 import {
   useAbsensi,
   useAbsensiMutations,
+  useDinas,
   useKaryawan,
   useLembur,
   useLemburDayMutations,
@@ -53,6 +54,13 @@ export function AbsensiTab({ initialKaryawanId, initialBulan }: AbsensiTabProps)
     },
     Boolean(karyawanId),
   )
+  const { data: dinasRows, isLoading: dinasLoading } = useDinas(
+    {
+      karyawan_id: karyawanId,
+      bulan: month.format('YYYY-MM'),
+    },
+    Boolean(karyawanId),
+  )
   const { data: karyawan } = useKaryawan()
   const { data: lokasi } = useLokasi()
   const { update, remove } = useAbsensiMutations()
@@ -69,6 +77,10 @@ export function AbsensiTab({ initialKaryawanId, initialBulan }: AbsensiTabProps)
   const lemburDates = useMemo(
     () => new Set((approvedLembur ?? []).map((row) => row.tanggal)),
     [approvedLembur],
+  )
+  const dinasDates = useMemo(
+    () => new Set((dinasRows ?? []).map((row) => row.tanggal)),
+    [dinasRows],
   )
 
   const toggleLembur = async (record: Absensi) => {
@@ -185,9 +197,17 @@ export function AbsensiTab({ initialKaryawanId, initialBulan }: AbsensiTabProps)
                       Hapus
                     </Button>
                   </Popconfirm>
-                  {!lemburLoading && (
+                  {!(lemburLoading || dinasLoading) && (
                     <Button
                       size="small"
+                      disabled={
+                        dinasDates.has(record.tanggal) && !lemburDates.has(record.tanggal)
+                      }
+                      title={
+                        dinasDates.has(record.tanggal) && !lemburDates.has(record.tanggal)
+                          ? 'Hari ini dinas'
+                          : undefined
+                      }
                       loading={pendingLemburTanggal === record.tanggal}
                       onClick={() => toggleLembur(record)}
                     >

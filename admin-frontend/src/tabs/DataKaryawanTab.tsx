@@ -56,7 +56,8 @@ type ColumnKey =
   | 'status_k_tk'
   | 'akumulasi_lembur'
   | 'npwp'
-  | 'kpj'
+  | 'no_bpjs'
+  | 'no_kpj'
   | 'tanggal_kpj'
 
 const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = [
@@ -81,7 +82,8 @@ const ALL_COLUMN_KEYS: ColumnKey[] = [
   'status_kontrak',
   'percobaan_jabatan',
   'npwp',
-  'kpj',
+  'no_bpjs',
+  'no_kpj',
   'tanggal_kpj',
 ]
 
@@ -103,7 +105,8 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   status_k_tk: 'Status K/TK',
   akumulasi_lembur: 'Akumulasi Lembur',
   npwp: 'NPWP',
-  kpj: 'KPJ',
+  no_bpjs: 'No. BPJS',
+  no_kpj: 'No. KPJ',
   tanggal_kpj: 'Tanggal KPJ',
 }
 
@@ -370,7 +373,8 @@ function loadVisibleColumns(): ColumnKey[] {
     if (!raw) return [...DEFAULT_VISIBLE_COLUMNS]
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return [...DEFAULT_VISIBLE_COLUMNS]
-    const valid = parsed.filter((k): k is ColumnKey =>
+    const normalized = parsed.map((key) => (key === 'kpj' ? 'no_kpj' : key))
+    const valid = normalized.filter((k): k is ColumnKey =>
       ALL_COLUMN_KEYS.includes(k as ColumnKey),
     )
     if (valid.length === 0) return [...DEFAULT_VISIBLE_COLUMNS]
@@ -403,7 +407,8 @@ interface KaryawanFormValues {
   cuti_tahunan: number
   status_k_tk?: string
   npwp?: string
-  kpj?: string
+  no_bpjs?: string
+  no_kpj?: string
   tanggal_kpj?: Dayjs | null
 }
 
@@ -589,9 +594,16 @@ export function DataKaryawanTab() {
       render: (value: string) => value || '—',
     },
     {
-      key: 'kpj',
-      title: COLUMN_LABELS.kpj,
-      dataIndex: 'kpj',
+      key: 'no_bpjs',
+      title: COLUMN_LABELS.no_bpjs,
+      dataIndex: 'no_bpjs',
+      width: 150,
+      render: (value: string) => value || '—',
+    },
+    {
+      key: 'no_kpj',
+      title: COLUMN_LABELS.no_kpj,
+      dataIndex: 'no_kpj',
       width: 140,
       render: (value: string) => value || '—',
     },
@@ -644,7 +656,8 @@ export function DataKaryawanTab() {
       status_kontrak: '',
       percobaan_jabatan: false,
       npwp: '',
-      kpj: '',
+      no_bpjs: '',
+      no_kpj: '',
       tanggal_kpj: null,
     })
     setModalOpen(true)
@@ -670,7 +683,8 @@ export function DataKaryawanTab() {
       status_kontrak: record.status_kontrak,
       percobaan_jabatan: record.percobaan_jabatan,
       npwp: record.npwp,
-      kpj: record.kpj,
+      no_bpjs: record.no_bpjs,
+      no_kpj: record.no_kpj,
       tanggal_kpj: toDayjs(record.tanggal_kpj),
     })
     setModalOpen(true)
@@ -703,7 +717,8 @@ export function DataKaryawanTab() {
       status_kontrak: (values.status_kontrak ?? '').trim(),
       percobaan_jabatan: Boolean(values.percobaan_jabatan),
       npwp: (values.npwp ?? '').trim(),
-      kpj: (values.kpj ?? '').trim(),
+      no_bpjs: (values.no_bpjs ?? '').trim(),
+      no_kpj: (values.no_kpj ?? '').trim(),
       tanggal_kpj: datePayload(values.tanggal_kpj),
     }
     try {
@@ -1017,7 +1032,10 @@ export function DataKaryawanTab() {
           <Form.Item name="npwp" label="NPWP" rules={[{ max: 20, message: 'Maksimal 20 karakter' }]}>
             <Input maxLength={20} />
           </Form.Item>
-          <Form.Item name="kpj" label="KPJ" rules={[{ max: 16, message: 'Maksimal 16 karakter' }]}>
+          <Form.Item name="no_bpjs" label="No. BPJS" rules={[{ max: 16, message: 'Maksimal 16 karakter' }]}>
+            <Input maxLength={16} />
+          </Form.Item>
+          <Form.Item name="no_kpj" label="No. KPJ" rules={[{ max: 16, message: 'Maksimal 16 karakter' }]}>
             <Input maxLength={16} />
           </Form.Item>
           <Form.Item name="tanggal_kpj" label="Tanggal KPJ">

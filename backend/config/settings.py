@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'cuti',
     'kalender_bersama',
     'lembur',
+    'dinas',
     'gaji',
     'koreksi',
     'obat',

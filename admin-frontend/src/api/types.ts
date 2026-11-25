@@ -49,7 +49,8 @@ export interface Karyawan {
   status_k_tk: string
   akumulasi_lembur: number
   npwp: string
-  kpj: string
+  no_bpjs: string
+  no_kpj: string
   tanggal_kpj: string | null
 }
 
@@ -70,7 +71,8 @@ export interface KaryawanWrite {
   cuti_tahunan?: number
   status_k_tk?: string
   npwp?: string
-  kpj?: string
+  no_bpjs?: string
+  no_kpj?: string
   tanggal_kpj?: string | null
 }
 
@@ -281,22 +283,25 @@ export type LemburStatus =
   | 'DIBATALKAN'
   | 'APPROVED'
 
-export type TipeLembur = 'BIASA' | 'DINAS'
-
 export interface PermohonanLembur {
   id: number
   karyawan_id: string
   karyawan_nama: string
   alasan: string
   tanggal: string
-  tipe: TipeLembur
-  tipe_display: string
   status: LemburStatus
   status_display: string
   supervisor: string | null
   supervisor_nama: string | null
   hrd_approver: string | null
   hrd_approver_nama: string | null
+}
+
+export interface Dinas {
+  id: number
+  karyawan_id: string
+  karyawan_nama: string
+  tanggal: string
 }
 
 export interface Koreksi {

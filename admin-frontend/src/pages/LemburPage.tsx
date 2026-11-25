@@ -1,7 +1,6 @@
 import { Badge, Tabs, Typography } from 'antd'
 import type { ReactNode } from 'react'
 import { usePendingLembur } from '../api/hooks'
-import { DinasTab } from '../tabs/DinasTab'
 import { LemburTab } from '../tabs/LemburTab'
 import { PersetujuanLemburTab } from '../tabs/PersetujuanLemburTab'
 
@@ -11,7 +10,6 @@ export default function LemburPage() {
 
   const items: { key: string; label: ReactNode; children: ReactNode }[] = [
     { key: 'lembur', label: 'Lembur', children: <LemburTab /> },
-    { key: 'dinas', label: 'Dinas', children: <DinasTab /> },
     {
       key: 'persetujuan-lembur',
       label: (

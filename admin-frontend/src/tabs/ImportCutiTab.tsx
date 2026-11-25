@@ -5,8 +5,8 @@ import { useState, type CSSProperties } from 'react'
 import {
   useCutiImport,
   useCutiSakitImport,
+  useDinasImport,
   useIzinOffImport,
-  useLemburDinasImport,
   useLemburImport,
 } from '../api/hooks'
 import type { CutiImportResult } from '../api/types'
@@ -81,7 +81,7 @@ function ImportCutiForm({
   importAction,
   note,
 }: {
-  label: 'Cuti' | 'Izin Off' | 'Sakit' | 'Lembur' | 'Lembur Dinas'
+  label: 'Cuti' | 'Izin Off' | 'Sakit' | 'Lembur' | 'Dinas'
   importAction: ImportAction
   note?: string
 }) {
@@ -178,13 +178,13 @@ export function ImportLemburTab() {
   return <ImportCutiForm label="Lembur" importAction={importAction} />
 }
 
-export function ImportLemburDinasTab() {
-  const importAction = useLemburDinasImport()
+export function ImportDinasTab() {
+  const importAction = useDinasImport()
   return (
     <ImportCutiForm
-      label="Lembur Dinas"
+      label="Dinas"
       importAction={importAction}
-      note="Tanggal yang sudah punya lembur approved, Biasa atau Dinas, dilewati."
+      note="Tanggal yang sudah punya dinas, atau lembur yang approved, dilewati."
     />
   )
 }

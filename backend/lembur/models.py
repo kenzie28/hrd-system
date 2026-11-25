@@ -1,11 +1,6 @@
 from django.db import models
 
 
-class TipeLembur(models.TextChoices):
-    BIASA = 'BIASA', 'Biasa'
-    DINAS = 'DINAS', 'Dinas'
-
-
 class StatusPermohonanLembur(models.TextChoices):
     MENUNGGU_SUPERVISOR = 'MENUNGGU_SUPERVISOR', 'Menunggu Izin Supervisor'
     MENUNGGU_HRD = 'MENUNGGU_HRD', 'Menunggu Izin HRD'
@@ -27,11 +22,6 @@ class PermohonanLembur(models.Model):
     )
     alasan = models.TextField(blank=True)
     tanggal = models.DateField()
-    tipe = models.CharField(
-        max_length=32,
-        choices=TipeLembur.choices,
-        default=TipeLembur.BIASA,
-    )
     status = models.CharField(
         max_length=32,
         choices=StatusPermohonanLembur.choices,

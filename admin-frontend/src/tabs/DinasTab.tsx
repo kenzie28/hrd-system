@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { App as AntApp, Button, DatePicker, Popconfirm, Select, Space, Typography } from 'antd'
 import axios from 'axios'
 import type { Dayjs } from 'dayjs'
-import { useCreateLemburDinas, useKaryawan } from '../api/hooks'
+import { useCreateDinasRange, useKaryawan } from '../api/hooks'
 
 function errorDetail(err: unknown, fallback: string) {
   if (!axios.isAxiosError(err)) return fallback
@@ -17,17 +17,17 @@ function errorDetail(err: unknown, fallback: string) {
 
 function resultMessage(created: number, skipped: number) {
   if (created === 0) {
-    return 'Tidak ada lembur dinas baru. Semua hari sudah punya lembur yang approved.'
+    return 'Tidak ada dinas baru. Semua hari sudah punya dinas atau lembur yang approved.'
   }
-  const made = `Lembur dinas dibuat untuk ${created} hari.`
+  const made = `Dinas dibuat untuk ${created} hari.`
   if (skipped === 0) return made
-  return `${made} ${skipped} hari dilewati karena sudah ada lembur approved.`
+  return `${made} ${skipped} hari dilewati karena sudah ada dinas atau lembur yang approved.`
 }
 
 export function DinasTab() {
   const { message } = AntApp.useApp()
   const { data: karyawanList, isLoading } = useKaryawan()
-  const createDinas = useCreateLemburDinas()
+  const createDinas = useCreateDinasRange()
   const [karyawanId, setKaryawanId] = useState<string>()
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null)
 
@@ -50,16 +50,16 @@ export function DinasTab() {
       }
       setRange(null)
     } catch (err) {
-      message.error(errorDetail(err, 'Gagal membuat lembur dinas.'))
+      message.error(errorDetail(err, 'Gagal membuat dinas.'))
     }
   }
 
   return (
     <div>
       <Typography.Paragraph type="secondary">
-        Pilih karyawan dan rentang tanggal. Setiap hari dalam rentang itu dibuat
-        sebagai Lembur Dinas yang sudah approved. Hari yang sudah punya lembur
-        approved, Biasa atau Dinas, dilewati.
+        Pilih karyawan dan rentang tanggal. Setiap hari dalam rentang itu dicatat
+        sebagai dinas. Hari yang sudah punya dinas, atau lembur yang approved,
+        dilewati.
       </Typography.Paragraph>
       <Space orientation="vertical" size="middle" style={{ width: '100%', maxWidth: 480 }}>
         <Select
@@ -90,7 +90,7 @@ export function DinasTab() {
           }}
         />
         <Popconfirm
-          title="Buat lembur dinas?"
+          title="Buat dinas?"
           description={
             karyawan && range
               ? `${karyawan.nama} (${karyawan.karyawan_id}), ${range[0].format('YYYY-MM-DD')} s.d. ${range[1].format('YYYY-MM-DD')} (${dayCount} hari).`
@@ -102,7 +102,7 @@ export function DinasTab() {
           disabled={!canSubmit}
         >
           <Button type="primary" disabled={!canSubmit} loading={createDinas.isPending}>
-            Buat Lembur Dinas
+            Buat Dinas
           </Button>
         </Popconfirm>
       </Space>

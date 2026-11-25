@@ -14,7 +14,7 @@ from absensi.models import Kehadiran, StatusKehadiran
 from cuti.models import Cuti, TipeCuti
 from karyawan.models import Karyawan
 from koreksi.models import Koreksi, TipeKoreksi
-from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
+from dinas.models import Dinas
 from obat.models import TunjanganObat
 
 from .models import Gaji
@@ -104,18 +104,11 @@ def _leave_days(karyawan: Karyawan, start: date, end: date) -> dict:
 
 
 def _hari_dinas(karyawan: Karyawan, start: date, end: date) -> int:
-    return (
-        PermohonanLembur.objects.filter(
-            karyawan=karyawan,
-            tipe=TipeLembur.DINAS,
-            status=StatusPermohonanLembur.APPROVED,
-            tanggal__gte=start,
-            tanggal__lte=end,
-        )
-        .values('tanggal')
-        .distinct()
-        .count()
-    )
+    return Dinas.objects.filter(
+        karyawan=karyawan,
+        tanggal__gte=start,
+        tanggal__lte=end,
+    ).count()
 
 
 def _nominal_sum(queryset) -> int:
@@ -154,10 +147,6 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
         )
     )
 
-    base = Decimal(gaji.base_gaji_bpjs)
-    for field, rate in _BPJS_OF_BASE:
-        setattr(gaji, field, round_half_up(base * rate))
-
     gaji.pot_alpa = round_half_up(
         Decimal(gaji.hari_alpa) * Decimal(gaji.gaji_bulanan) / Decimal(20)
     )
@@ -165,11 +154,21 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
     gaji.tunjangan_dinas = 0
     gaji.uang_terima_kasih = 0
 
-    net = gaji.net_penghasilan
-    fraction = ter_fraction(gaji.ter_status, net)
-    gaji.persentase_pph21 = (fraction * Decimal(100)).quantize(Decimal('0.01'))
-    gaji.pot_pph21 = round_half_up(Decimal(net) * fraction)
-    gaji.total_gaji = max(0, net - gaji.total_bpjs_benefit - gaji.pot_pph21)
+    if (karyawan.no_bpjs or '').strip():
+        base = Decimal(gaji.base_gaji_bpjs)
+        for field, rate in _BPJS_OF_BASE:
+            setattr(gaji, field, round_half_up(base * rate))
+        net = gaji.net_penghasilan
+        fraction = ter_fraction(gaji.ter_status, net)
+        gaji.persentase_pph21 = (fraction * Decimal(100)).quantize(Decimal('0.01'))
+        gaji.pot_pph21 = round_half_up(Decimal(net) * fraction)
+    else:
+        for field, _rate in _BPJS_OF_BASE:
+            setattr(gaji, field, 0)
+        gaji.persentase_pph21 = Decimal('0.00')
+        gaji.pot_pph21 = 0
+
+    gaji.total_gaji = max(0, gaji.net_penghasilan - gaji.total_bpjs_benefit - gaji.pot_pph21)
     return gaji
 
 

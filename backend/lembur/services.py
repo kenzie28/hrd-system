@@ -2,21 +2,18 @@
 import csv
 import io
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from django.db import transaction
 
+from dinas.models import Dinas
 from karyawan.models import Karyawan
 
-from .models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
+from .models import PermohonanLembur, StatusPermohonanLembur
 
 
-# One request per calendar day. A year is enough for a single admin action.
-MAX_LEMBUR_DINAS_RANGE_DAYS = 366
-
-
-class LemburDinasRangeError(Exception):
-    """The requested Lembur Dinas date range cannot be created."""
+class LemburDayError(Exception):
+    """This day cannot receive an approved lembur request."""
 
 
 LEMBUR_IMPORT_REQUIRED_COLUMNS = ['karyawan_id', 'tanggal']
@@ -78,16 +75,13 @@ def _parse_import_date(value: str) -> date | None:
         return None
 
 
-def import_lembur_csv(upload, tipe: str = TipeLembur.BIASA) -> LemburImportResult:
-    """Create approved one-day overtime requests of ``tipe`` from CSV.
+def import_lembur_csv(upload) -> LemburImportResult:
+    """Create approved one-day overtime requests from CSV.
 
-    Duplicate rows, and dates that already have an approved request for the
-    same employee (either type), are skipped. Validation is all-or-nothing.
+    Duplicate rows, days that already have approved lembur, and days that
+    already have dinas are skipped. Validation is all-or-nothing.
     """
     result = LemburImportResult()
-    if tipe not in (TipeLembur.BIASA, TipeLembur.DINAS):
-        result.errors.append(LemburImportError(0, f'Tipe lembur tidak valid: "{tipe}".'))
-        return result
     try:
         raw = upload.read()
         text = raw.decode('utf-8-sig') if isinstance(raw, bytes) else str(raw)
@@ -175,11 +169,18 @@ def import_lembur_csv(upload, tipe: str = TipeLembur.BIASA) -> LemburImportResul
             .filter(pk__in={row.karyawan_id for row in rows})
             .order_by('pk')
         }
+        dates = {row.tanggal for row in rows}
         existing = set(
             PermohonanLembur.objects.filter(
                 karyawan_id__in=employees,
                 status=StatusPermohonanLembur.APPROVED,
-                tanggal__in={row.tanggal for row in rows},
+                tanggal__in=dates,
+            ).values_list('karyawan_id', 'tanggal')
+        )
+        existing.update(
+            Dinas.objects.filter(
+                karyawan_id__in=employees,
+                tanggal__in=dates,
             ).values_list('karyawan_id', 'tanggal')
         )
         to_create = [
@@ -187,20 +188,19 @@ def import_lembur_csv(upload, tipe: str = TipeLembur.BIASA) -> LemburImportResul
         ]
 
         for row in to_create:
-            create_approved_lembur(employees[row.karyawan_id], row.tanggal, tipe)
+            create_approved_lembur(employees[row.karyawan_id], row.tanggal)
 
         result.created = len(to_create)
 
     return result
 
 
-def create_approved_lembur(karyawan, tanggal, tipe=TipeLembur.BIASA) -> PermohonanLembur:
+def create_approved_lembur(karyawan, tanggal) -> PermohonanLembur:
     """Create one already-approved overtime request for a single day."""
     return PermohonanLembur.objects.create(
         karyawan=karyawan,
         tanggal=tanggal,
         alasan='',
-        tipe=tipe,
         status=StatusPermohonanLembur.APPROVED,
         supervisor=None,
         hrd_approver=None,
@@ -208,56 +208,13 @@ def create_approved_lembur(karyawan, tanggal, tipe=TipeLembur.BIASA) -> Permohon
 
 
 @transaction.atomic
-def create_approved_lembur_dinas_range(karyawan, start: date, end: date) -> tuple[int, int]:
-    """Create approved Lembur Dinas for each day in ``[start, end]``.
-
-    A day that already has an approved request of either type is left as-is.
-    Returns ``(created, skipped)``.
-    """
-    if end < start:
-        raise LemburDinasRangeError(
-            'tanggal_selesai harus pada atau setelah tanggal_mulai.'
-        )
-    span = (end - start).days + 1
-    if span > MAX_LEMBUR_DINAS_RANGE_DAYS:
-        raise LemburDinasRangeError(
-            f'Rentang maksimal {MAX_LEMBUR_DINAS_RANGE_DAYS} hari (diterima: {span}).'
-        )
-
-    locked = Karyawan.objects.select_for_update().filter(pk=karyawan.pk).first()
-    if locked is None:
-        raise LemburDinasRangeError('Karyawan tidak ditemukan.')
-
-    existing = set(
-        PermohonanLembur.objects.filter(
-            karyawan=locked,
-            status=StatusPermohonanLembur.APPROVED,
-            tanggal__gte=start,
-            tanggal__lte=end,
-        ).values_list('tanggal', flat=True)
-    )
-    to_create = []
-    current = start
-    while current <= end:
-        if current not in existing:
-            to_create.append(
-                PermohonanLembur(
-                    karyawan=locked,
-                    tanggal=current,
-                    alasan='',
-                    tipe=TipeLembur.DINAS,
-                    status=StatusPermohonanLembur.APPROVED,
-                )
-            )
-        current += timedelta(days=1)
-
-    PermohonanLembur.objects.bulk_create(to_create)
-    return len(to_create), span - len(to_create)
-
-
-@transaction.atomic
 def ensure_approved_lembur(karyawan, tanggal) -> tuple[PermohonanLembur, bool]:
-    """Return the approved request for this day, creating it when missing."""
+    """Return the approved lembur for this day, creating it when missing.
+
+    A day that already has dinas is refused.
+    """
+    if Dinas.objects.filter(karyawan=karyawan, tanggal=tanggal).exists():
+        raise LemburDayError('Sudah ada dinas pada tanggal ini.')
     existing = (
         PermohonanLembur.objects.select_for_update()
         .filter(
@@ -275,7 +232,7 @@ def ensure_approved_lembur(karyawan, tanggal) -> tuple[PermohonanLembur, bool]:
 
 @transaction.atomic
 def clear_approved_lembur(karyawan, tanggal) -> int:
-    """Delete approved overtime for this day. Other statuses are left in place."""
+    """Delete approved overtime for this day. Other statuses and dinas stay."""
     rows = list(
         PermohonanLembur.objects.select_for_update().filter(
             karyawan=karyawan,

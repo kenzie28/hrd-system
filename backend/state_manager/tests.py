@@ -9,13 +9,14 @@ from rest_framework.test import APIClient
 
 from absensi.models import Absensi, Kehadiran, RekapAbsensi, StatusKehadiran
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
+from dinas.models import Dinas
 from gaji.models import Gaji
 from kalender_bersama.models import Langganan, NotifikasiDismiss
 from karyawan.models import Karyawan
 from karyawan.services import import_karyawan_update_csv
 from koreksi.models import Koreksi, TipeKoreksi
 from obat.models import TunjanganObat
-from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
+from lembur.models import PermohonanLembur, StatusPermohonanLembur
 from liburan.models import Liburan
 from lokasi.models import Lokasi
 from shift.models import HariKerja, Shift
@@ -23,27 +24,34 @@ from state_manager.constants import STATE_MANAGER_PASSWORD
 from state_manager.services import export_state_csv, import_state_csv
 
 
-def _without_lembur_tipe(csv_text: str) -> str:
-    """Drop the permohonan_lembur.tipe column, as an older snapshot would."""
+def _legacy_lembur_with_tipe(csv_text: str, extra_rows: list[list[str]]) -> str:
+    """Old snapshot: permohonan_lembur still has tipe, and there is no dinas table."""
+    csv_text = _without_table(csv_text, 'dinas')
     rows = list(csv.reader(StringIO(csv_text)))
     out = StringIO()
     writer = csv.writer(out, lineterminator='\n')
     in_lembur = False
-    tipe_index = None
+    header_written = False
     for row in rows:
         if row and row[0] == '__table__':
+            if in_lembur and header_written:
+                for extra in extra_rows:
+                    writer.writerow(extra)
             in_lembur = len(row) > 1 and row[1] == 'permohonan_lembur'
-            tipe_index = None
+            header_written = False
             writer.writerow(row)
             continue
-        if in_lembur and tipe_index is None:
-            tipe_index = row.index('tipe')
-            writer.writerow([cell for index, cell in enumerate(row) if index != tipe_index])
+        if in_lembur and not header_written:
+            writer.writerow([*row, 'tipe'])
+            header_written = True
             continue
-        if in_lembur and tipe_index is not None:
-            writer.writerow([cell for index, cell in enumerate(row) if index != tipe_index])
+        if in_lembur:
+            writer.writerow([*row, 'BIASA'])
             continue
         writer.writerow(row)
+    if in_lembur and header_written:
+        for extra in extra_rows:
+            writer.writerow(extra)
     return out.getvalue()
 
 
@@ -159,6 +167,7 @@ class StateManagerApiTests(TestCase):
             status=StatusPermohonanLembur.MENUNGGU_HRD,
             supervisor=self.admin,
         )
+        Dinas.objects.create(karyawan=self.worker, tanggal=date(2026, 3, 16))
         Koreksi.objects.create(
             karyawan=self.worker,
             tipe=TipeKoreksi.ABSENSI,
@@ -209,7 +218,7 @@ class StateManagerApiTests(TestCase):
         lines = body.splitlines()
         self.assertEqual(
             lines[0],
-            'karyawan_id,nama,level,jabatan,wilayah,lokasi_kerja,cuti_tahunan,status_k_tk',
+            'karyawan_id,nama,level,jabatan,wilayah,lokasi_kerja,cuti_tahunan,status_k_tk,npwp,no_bpjs,no_kpj',
         )
         self.assertIn('0000003,Kenzie Mihardja,8,Director,,99,10', body)
         self.assertIn('1000001,Budi Santoso,1,Staff,JKT,99,12', body)
@@ -248,6 +257,7 @@ class StateManagerApiTests(TestCase):
         self.assertIn('__table__,permohonan_lembur', body)
         self.assertIn('MENUNGGU_HRD', body)
         self.assertIn('Closing bulan', body)
+        self.assertIn('__table__,dinas', body)
         self.assertIn('__table__,cuti', body)
         self.assertIn('__table__,langganan', body)
         self.assertIn('__table__,notifikasi_dismiss', body)
@@ -292,7 +302,11 @@ class StateManagerApiTests(TestCase):
             PermohonanLembur.objects.filter(
                 alasan='Closing bulan',
                 status=StatusPermohonanLembur.MENUNGGU_HRD,
-                tipe=TipeLembur.BIASA,
+            ).exists()
+        )
+        self.assertTrue(
+            Dinas.objects.filter(
+                karyawan_id='1000001', tanggal=date(2026, 3, 16)
             ).exists()
         )
         self.assertTrue(
@@ -341,36 +355,61 @@ class StateManagerApiTests(TestCase):
         self.assertFalse(TunjanganObat.objects.exists())
         self.assertTrue(Koreksi.objects.filter(karyawan_id='1000001').exists())
 
-    def test_lembur_tipe_round_trips_and_legacy_snapshot_defaults_biasa(self):
-        PermohonanLembur.objects.create(
-            karyawan=self.worker,
-            tanggal=date(2026, 3, 16),
-            status=StatusPermohonanLembur.APPROVED,
-            tipe=TipeLembur.DINAS,
-        )
+    def test_dinas_round_trips_and_legacy_tipe_becomes_dinas(self):
         csv_text = export_state_csv()
         self.assertIn(
-            'id,karyawan_id,alasan,tanggal,status,supervisor_id,hrd_approver_id,tipe',
+            'id,karyawan_id,alasan,tanggal,status,supervisor_id,hrd_approver_id',
             csv_text,
         )
+        self.assertNotIn('hrd_approver_id,tipe', csv_text)
 
         result = import_state_csv(csv_text)
         self.assertTrue(result.ok, result.errors)
-        self.assertEqual(
-            PermohonanLembur.objects.get(tanggal=date(2026, 3, 16)).tipe,
-            TipeLembur.DINAS,
+        self.assertTrue(
+            Dinas.objects.filter(
+                karyawan_id='1000001', tanggal=date(2026, 3, 16)
+            ).exists()
         )
-        self.assertEqual(
-            PermohonanLembur.objects.get(alasan='Closing bulan').tipe,
-            TipeLembur.BIASA,
+        self.assertFalse(
+            PermohonanLembur.objects.filter(tanggal=date(2026, 3, 16)).exists()
         )
 
-        legacy = import_state_csv(_without_lembur_tipe(csv_text))
-        self.assertTrue(legacy.ok, legacy.errors)
-        self.assertFalse(PermohonanLembur.objects.filter(tipe=TipeLembur.DINAS).exists())
-        self.assertEqual(
-            PermohonanLembur.objects.get(tanggal=date(2026, 3, 16)).tipe,
-            TipeLembur.BIASA,
+        legacy = _legacy_lembur_with_tipe(
+            csv_text,
+            [
+                ['9001', '1000001', '', '2026-03-20', 'APPROVED', '', '', 'DINAS'],
+                ['9002', '1000001', '', '2026-03-21', 'MENUNGGU_HRD', '', '', 'DINAS'],
+            ],
+        )
+        restored = import_state_csv(legacy)
+        self.assertTrue(restored.ok, restored.errors)
+        self.assertFalse(Dinas.objects.filter(tanggal=date(2026, 3, 16)).exists())
+        self.assertTrue(
+            Dinas.objects.filter(
+                karyawan_id='1000001', tanggal=date(2026, 3, 20)
+            ).exists()
+        )
+        self.assertFalse(Dinas.objects.filter(tanggal=date(2026, 3, 21)).exists())
+        self.assertFalse(
+            PermohonanLembur.objects.filter(tanggal=date(2026, 3, 21)).exists()
+        )
+        self.assertFalse(
+            PermohonanLembur.objects.filter(tanggal=date(2026, 3, 20)).exists()
+        )
+        self.assertTrue(
+            PermohonanLembur.objects.filter(alasan='Closing bulan').exists()
+        )
+
+    def test_snapshot_without_dinas_section_imports_as_empty(self):
+        self.assertTrue(Dinas.objects.exists())
+        legacy = _without_table(export_state_csv(), 'dinas')
+        self.assertNotIn('__table__,dinas', legacy)
+
+        result = import_state_csv(legacy)
+        self.assertTrue(result.ok, result.errors)
+        self.assertFalse(Dinas.objects.exists())
+        self.assertTrue(
+            PermohonanLembur.objects.filter(alasan='Closing bulan').exists()
         )
 
     def test_base_gaji_round_trips_and_legacy_snapshot_defaults_zero(self):
@@ -489,6 +528,7 @@ class StateManagerApiTests(TestCase):
         self.assertEqual(payload['counts']['karyawan'], 2)
         self.assertEqual(payload['counts']['permohonan_cuti'], 2)
         self.assertEqual(payload['counts']['permohonan_lembur'], 1)
+        self.assertEqual(payload['counts']['dinas'], 1)
         self.assertEqual(payload['counts']['langganan'], 1)
         self.assertEqual(payload['counts']['notifikasi_dismiss'], 1)
         self.assertEqual(payload['counts']['koreksi'], 1)
@@ -535,6 +575,7 @@ class StateManagerApiTests(TestCase):
         self.assertFalse(PermohonanCuti.objects.exists())
         self.assertFalse(Cuti.objects.exists())
         self.assertFalse(PermohonanLembur.objects.exists())
+        self.assertFalse(Dinas.objects.exists())
         self.assertFalse(Gaji.objects.exists())
         self.assertFalse(Koreksi.objects.exists())
         self.assertFalse(TunjanganObat.objects.exists())
@@ -562,7 +603,7 @@ class StateManagerApiTests(TestCase):
         self.assertIn('absensi', ids)
         self.assertNotIn('gaji', ids)
         self.assertIn('koreksi', ids)
-        self.assertIn('tunjangan_obat', ids)
+        self.assertIn('dinas', ids)
         self.assertIn('kehadiran', ids)
         self.assertIn('rekap_absensi', ids)
         self.assertTrue(all(row['label'] for row in response.json()['models']))
@@ -658,6 +699,7 @@ class StateManagerApiTests(TestCase):
         self.assertIn('Tunjangan obat', detail)
         self.assertIn('Akun login', detail)
         self.assertIn('Permohonan cuti', detail)
+        self.assertIn('Dinas', detail)
         self.assertEqual(Karyawan.objects.count(), 2)
         self.assertTrue(self.worker.user_id)
 
@@ -677,6 +719,7 @@ class StateManagerApiTests(TestCase):
                 'permohonan_cuti',
                 'cuti',
                 'permohonan_lembur',
+                'dinas',
             ]
         )
         self.assertEqual(response.status_code, 200, response.content)
@@ -699,6 +742,7 @@ class StateManagerApiTests(TestCase):
         self.assertFalse(PermohonanCuti.objects.exists())
         self.assertFalse(Cuti.objects.exists())
         self.assertFalse(PermohonanLembur.objects.exists())
+        self.assertFalse(Dinas.objects.exists())
         self.assertFalse(Langganan.objects.exists())
         self.assertFalse(NotifikasiDismiss.objects.exists())
 

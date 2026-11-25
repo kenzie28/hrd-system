@@ -1,5 +1,6 @@
 import {
   CalendarOutlined,
+  CarOutlined,
   ClockCircleOutlined,
   DatabaseOutlined,
   EnvironmentOutlined,
@@ -66,6 +67,13 @@ export default function HomePage() {
       icon: <ClockCircleOutlined className="home-module-icon" />,
       path: '/lembur',
       pendingCount: pendingLemburCount,
+    },
+    {
+      key: 'dinas',
+      title: 'Dinas',
+      description: 'Catat hari dinas karyawan.',
+      icon: <CarOutlined className="home-module-icon" />,
+      path: '/dinas',
     },
     {
       key: 'liburan',

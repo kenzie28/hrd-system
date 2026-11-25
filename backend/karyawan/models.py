@@ -64,8 +64,10 @@ class Karyawan(models.Model):
     lembur_dibayar = models.BooleanField(default=False)
     akumulasi_lembur = models.PositiveIntegerField(default=0)
     npwp = models.CharField(max_length=20, blank=True, default='')
-    kpj = models.CharField(max_length=16, blank=True, default='')
+    no_bpjs = models.CharField(max_length=16, blank=True, default='')
+    no_kpj = models.CharField(max_length=16, blank=True, default='')
     tanggal_kpj = models.DateField(null=True, blank=True)
+    
 
     class Meta:
         verbose_name_plural = 'Karyawan'

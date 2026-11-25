@@ -30,13 +30,14 @@ from absensi.invalidation import (
 )
 from absensi.models import Absensi, Kehadiran, RekapAbsensi, absensi_minute_key
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
+from dinas.models import Dinas
 from gaji.models import Gaji
 from kalender_bersama.models import Langganan, NotifikasiDismiss
 from koreksi.models import Koreksi, TipeKoreksi
 from obat.models import TunjanganObat
 from karyawan.models import Karyawan, StatusKTk
 from karyawan.signals import ensure_portal_login
-from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
+from lembur.models import PermohonanLembur, StatusPermohonanLembur
 from liburan.models import Liburan
 from lokasi.models import Lokasi
 from shift.models import HariKerja, Shift
@@ -56,6 +57,7 @@ from .constants import (
     TABLE_AUTH_USER,
     TABLE_COLUMNS,
     TABLE_CUTI,
+    TABLE_DINAS,
     TABLE_KEHADIRAN,
     TABLE_KARYAWAN,
     TABLE_KOREKSI,
@@ -322,7 +324,6 @@ def export_state_csv() -> str:
                 _cell(obj.status),
                 _cell(obj.supervisor_id),
                 _cell(obj.hrd_approver_id),
-                _cell(obj.tipe),
             ]
         )
     _write_table(
@@ -331,6 +332,12 @@ def export_state_csv() -> str:
         TABLE_COLUMNS[TABLE_PERMOHONAN_LEMBUR],
         permohonan_lembur_rows,
     )
+
+    dinas_rows = [
+        [_cell(obj.id), _cell(obj.karyawan_id), _cell(obj.tanggal)]
+        for obj in Dinas.objects.order_by('id')
+    ]
+    _write_table(writer, TABLE_DINAS, TABLE_COLUMNS[TABLE_DINAS], dinas_rows)
 
     koreksi_rows = [
         [
@@ -1029,8 +1036,52 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
         )
 
     status_lembur = {choice.value for choice in StatusPermohonanLembur}
-    tipe_lembur = {choice.value for choice in TipeLembur}
     lembur_ids: set[int] = set()
+    approved_lembur_days: set[tuple[str, date]] = set()
+    dinas_ids: set[int] = set()
+    dinas_days: set[tuple[str, date]] = set()
+
+    def _take_dinas_day(karyawan_id, tanggal, line, pk):
+        key = (karyawan_id, tanggal)
+        if key in dinas_days:
+            errors.append(
+                StateError(line, f'dinas duplikat: {karyawan_id} / {tanggal}.')
+            )
+            return
+        if key in approved_lembur_days:
+            errors.append(
+                StateError(
+                    line,
+                    f'{karyawan_id} / {tanggal} tidak boleh sekaligus lembur approved dan dinas.',
+                )
+            )
+            return
+        dinas_days.add(key)
+        typed[TABLE_DINAS].append(
+            {
+                'id': pk,
+                'karyawan_id': karyawan_id,
+                'tanggal': tanggal,
+                '_line': line,
+            }
+        )
+
+    for row in tables.get(TABLE_DINAS, []):
+        line = _line_of(row)
+        pk = _parse_int(_opt(row, 'id'), line, 'dinas.id', errors)
+        karyawan_id = _req(row, 'karyawan_id', errors, TABLE_DINAS)
+        tanggal = _parse_date(_opt(row, 'tanggal'), line, 'tanggal', errors)
+        if None in (pk, karyawan_id, tanggal):
+            continue
+        if pk in dinas_ids:
+            errors.append(StateError(line, f'dinas.id duplikat: {pk}.'))
+            continue
+        if karyawan_id not in karyawan_ids:
+            errors.append(StateError(line, f'karyawan_id tidak ada: {karyawan_id}.'))
+            continue
+        dinas_ids.add(pk)
+        _take_dinas_day(karyawan_id, tanggal, line, pk)
+
     for row in tables.get(TABLE_PERMOHONAN_LEMBUR, []):
         line = _line_of(row)
         pk = _parse_int(_opt(row, 'id'), line, 'permohonan_lembur.id', errors)
@@ -1038,17 +1089,9 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
         tanggal = _parse_date(_opt(row, 'tanggal'), line, 'tanggal', errors)
         status = _choice(_opt(row, 'status'), status_lembur, line, 'status', errors)
         raw_tipe = _opt(row, 'tipe')
-        tipe = (
-            TipeLembur.BIASA
-            if not raw_tipe
-            else _choice(raw_tipe, tipe_lembur, line, 'tipe', errors)
-        )
         supervisor_id = _opt(row, 'supervisor_id') or None
         hrd_approver_id = _opt(row, 'hrd_approver_id') or None
-        if None in (pk, karyawan_id, tanggal, status, tipe):
-            continue
-        if pk in lembur_ids:
-            errors.append(StateError(line, f'permohonan_lembur.id duplikat: {pk}.'))
+        if None in (pk, karyawan_id, tanggal, status):
             continue
         if karyawan_id not in karyawan_ids:
             errors.append(StateError(line, f'karyawan_id tidak ada: {karyawan_id}.'))
@@ -1059,7 +1102,28 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
         if hrd_approver_id and hrd_approver_id not in karyawan_ids:
             errors.append(StateError(line, f'hrd_approver_id tidak ada: {hrd_approver_id}.'))
             continue
+        if raw_tipe == 'DINAS':
+            if status == StatusPermohonanLembur.APPROVED:
+                _take_dinas_day(karyawan_id, tanggal, line, None)
+            continue
+        if raw_tipe not in ('', 'BIASA'):
+            errors.append(StateError(line, f'tipe tidak dikenal: "{raw_tipe}".'))
+            continue
+        if pk in lembur_ids:
+            errors.append(StateError(line, f'permohonan_lembur.id duplikat: {pk}.'))
+            continue
+        day_key = (karyawan_id, tanggal)
+        if status == StatusPermohonanLembur.APPROVED and day_key in dinas_days:
+            errors.append(
+                StateError(
+                    line,
+                    f'{karyawan_id} / {tanggal} tidak boleh sekaligus lembur approved dan dinas.',
+                )
+            )
+            continue
         lembur_ids.add(pk)
+        if status == StatusPermohonanLembur.APPROVED:
+            approved_lembur_days.add(day_key)
         typed[TABLE_PERMOHONAN_LEMBUR].append(
             {
                 'id': pk,
@@ -1067,7 +1131,6 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
                 'alasan': row.get('alasan') or '',
                 'tanggal': tanggal,
                 'status': status,
-                'tipe': tipe,
                 'supervisor_id': supervisor_id,
                 'hrd_approver_id': hrd_approver_id,
                 '_line': line,
@@ -1180,6 +1243,7 @@ def _wipe_hrd_state() -> list[int]:
     Gaji.objects.all().delete()
     Koreksi.objects.all().delete()
     TunjanganObat.objects.all().delete()
+    Dinas.objects.all().delete()
     PermohonanLembur.objects.all().delete()
     NotifikasiDismiss.objects.all().delete()
     Langganan.objects.all().delete()
@@ -1276,6 +1340,7 @@ def reset_hrd_state() -> None:
             Gaji.objects.all().delete()
             Koreksi.objects.all().delete()
             TunjanganObat.objects.all().delete()
+            Dinas.objects.all().delete()
             PermohonanLembur.objects.all().delete()
             NotifikasiDismiss.objects.all().delete()
             Langganan.objects.all().delete()
@@ -1354,6 +1419,8 @@ def _missing_clear_dependencies(selected: set[str]) -> list[str]:
             | _non_admin_fk('hrd_approver_id')
         ).exists():
             needed.add(TABLE_PERMOHONAN_LEMBUR)
+        if Dinas.objects.filter(_non_admin_fk('karyawan_id')).exists():
+            needed.add(TABLE_DINAS)
         if User.objects.filter(karyawan__isnull=False).exclude(
             karyawan__karyawan_id=RESET_ADMIN_KARYAWAN_ID
         ).exists():
@@ -1398,6 +1465,10 @@ def _delete_table(name: str, auth_user_ids: list[int]) -> int:
     if name == TABLE_PERMOHONAN_LEMBUR:
         count = PermohonanLembur.objects.count()
         PermohonanLembur.objects.all().delete()
+        return count
+    if name == TABLE_DINAS:
+        count = Dinas.objects.count()
+        Dinas.objects.all().delete()
         return count
     if name == TABLE_NOTIFIKASI_DISMISS:
         count = NotifikasiDismiss.objects.count()
@@ -1597,10 +1668,18 @@ def _insert_state(typed: dict[str, list[dict]]) -> None:
             alasan=row['alasan'],
             tanggal=row['tanggal'],
             status=row['status'],
-            tipe=row['tipe'],
             supervisor_id=row['supervisor_id'],
             hrd_approver_id=row['hrd_approver_id'],
         )
+
+    for row in typed[TABLE_DINAS]:
+        fields = {
+            'karyawan_id': row['karyawan_id'],
+            'tanggal': row['tanggal'],
+        }
+        if row['id'] is not None:
+            fields['id'] = row['id']
+        Dinas.objects.create(**fields)
 
     for row in typed[TABLE_KOREKSI]:
         Koreksi.objects.create(

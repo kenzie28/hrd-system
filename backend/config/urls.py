@@ -29,11 +29,8 @@ from kalender_bersama.views import (
     NotifikasiDismissView,
     NotifikasiListView,
 )
-from lembur.admin_views import (
-    AdminLemburDinasImportView,
-    AdminLemburImportView,
-    AdminLemburViewSet,
-)
+from dinas.admin_views import AdminDinasImportView, AdminDinasViewSet
+from lembur.admin_views import AdminLemburImportView, AdminLemburViewSet
 from lembur.views import PortalLemburViewSet
 from koreksi.admin_views import AdminKoreksiImportView, AdminKoreksiViewSet
 from obat.admin_views import AdminTunjanganObatImportView, AdminTunjanganObatViewSet
@@ -84,6 +81,7 @@ portal_router.register('kehadiran', PortalKehadiranViewSet, basename='portal-keh
 admin_router = DefaultRouter()
 admin_router.register('cuti', AdminCutiViewSet, basename='admin-cuti')
 admin_router.register('lembur', AdminLemburViewSet, basename='admin-lembur')
+admin_router.register('dinas', AdminDinasViewSet, basename='admin-dinas')
 admin_router.register('koreksi', AdminKoreksiViewSet, basename='admin-koreksi')
 admin_router.register(
     'tunjangan-obat', AdminTunjanganObatViewSet, basename='admin-tunjangan-obat'
@@ -232,9 +230,9 @@ admin_api_urlpatterns = [
         name='admin-lembur-import',
     ),
     path(
-        'admin/lembur-dinas/import/',
-        AdminLemburDinasImportView.as_view(),
-        name='admin-lembur-dinas-import',
+        'admin/dinas/import/',
+        AdminDinasImportView.as_view(),
+        name='admin-dinas-import',
     ),
     path(
         'admin/liburan/import/',

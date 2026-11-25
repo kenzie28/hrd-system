@@ -23,6 +23,9 @@ COL_WILAYAH = 'wilayah'
 COL_LOKASI = 'lokasi_kerja'
 COL_CUTI = 'cuti_tahunan'
 COL_STATUS_K_TK = 'status_k_tk'
+COL_NPWP = 'npwp'
+COL_NO_BPJS = 'no_bpjs'
+COL_NO_KPJ = 'no_kpj'
 REQUIRED_COLUMNS = [COL_KARYAWAN_ID, COL_NAMA, COL_LEVEL]
 OPTIONAL_COLUMNS = [COL_JABATAN, COL_WILAYAH, COL_LOKASI]
 UPDATE_OPTIONAL_COLUMNS = [
@@ -33,7 +36,15 @@ UPDATE_OPTIONAL_COLUMNS = [
     COL_LOKASI,
     COL_CUTI,
     COL_STATUS_K_TK,
+    COL_NPWP,
+    COL_NO_BPJS,
+    COL_NO_KPJ,
 ]
+_UPDATE_TEXT_LIMITS = {
+    COL_NPWP: 20,
+    COL_NO_BPJS: 16,
+    COL_NO_KPJ: 16,
+}
 _STATUS_K_TK_VALUES = frozenset(StatusKTk.values)
 
 
@@ -46,6 +57,9 @@ KARYAWAN_EXPORT_COLUMNS = [
     COL_LOKASI,
     COL_CUTI,
     COL_STATUS_K_TK,
+    COL_NPWP,
+    COL_NO_BPJS,
+    COL_NO_KPJ,
 ]
 
 
@@ -65,6 +79,9 @@ def export_karyawan_csv() -> str:
                 obj.lokasi_kerja_id or '',
                 obj.cuti_tahunan,
                 obj.status_k_tk,
+                obj.npwp,
+                obj.no_bpjs,
+                obj.no_kpj,
             ]
         )
     return buf.getvalue()
@@ -414,7 +431,8 @@ def import_karyawan_update_csv(upload) -> KaryawanImportResult:
     Required column: karyawan_id (must already exist).
     Any other recognized column present in the header is applied to every row
     — empty cells clear blankable fields (jabatan, wilayah, lokasi_kerja,
-    status_k_tk) and are rejected for nama, level, and cuti_tahunan.
+    status_k_tk, npwp, no_bpjs, no_kpj) and are rejected for nama, level,
+    and cuti_tahunan.
     All rows are validated before any write.
     """
     result = KaryawanImportResult(
@@ -601,6 +619,20 @@ def import_karyawan_update_csv(upload) -> KaryawanImportResult:
             else:
                 fields['status_k_tk'] = status_k_tk
 
+        for column, limit in _UPDATE_TEXT_LIMITS.items():
+            if column not in header_set:
+                continue
+            value = (row.get(column) or '').strip()
+            if len(value) > limit:
+                result.errors.append(
+                    KaryawanImportError(
+                        row_num, f'{column} maksimal {limit} karakter.'
+                    )
+                )
+                row_had_error = True
+            else:
+                fields[column] = value
+
         if row_had_error:
             continue
         pending.append((row_num, karyawan_id, fields))
@@ -667,6 +699,8 @@ UPSERT_OPTIONAL_COLUMNS = [
     'status_k_tk',
     'lokasi_kerja',
     'npwp',
+    'no_bpjs',
+    'no_kpj',
     'kpj',
     'tanggal_kpj',
 ]
@@ -688,6 +722,8 @@ _UPSERT_KNOWN_HEADERS = {
     'status_k_tk',
     'lokasi_kerja',
     'npwp',
+    'no_bpjs',
+    'no_kpj',
     'kpj',
     'tanggal_kpj',
 }
@@ -705,7 +741,8 @@ _UPSERT_FIELD_HEADERS = {
     'status_k_tk': ('status_k_tk',),
     'lokasi_kerja': ('lokasi_kerja',),
     'npwp': ('npwp',),
-    'kpj': ('kpj',),
+    'no_bpjs': ('no_bpjs',),
+    'no_kpj': ('no_kpj', 'kpj'),
     'tanggal_kpj': ('tanggal_kpj',),
 }
 _UPSERT_DATE_FIELDS = frozenset(
@@ -1004,15 +1041,17 @@ def import_karyawan_upsert_csv(upload) -> KaryawanImportResult:
                     row_had_error = True
                 else:
                     fields['npwp'] = npwp
-            elif field_name == 'kpj':
-                kpj = raw.strip()
-                if len(kpj) > 16:
+            elif field_name in ('no_bpjs', 'no_kpj'):
+                number = raw.strip()
+                if len(number) > 16:
                     result.errors.append(
-                        KaryawanImportError(row_num, 'kpj maksimal 16 karakter.')
+                        KaryawanImportError(
+                            row_num, f'{field_name} maksimal 16 karakter.'
+                        )
                     )
                     row_had_error = True
                 else:
-                    fields['kpj'] = kpj
+                    fields[field_name] = number
 
         if row_had_error:
             continue

@@ -22,8 +22,9 @@ from absensi.models import (
 from absensi.proses import proses_absensi_bulan
 from absensi.services import import_absensi_csv
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
+from dinas.models import Dinas
 from karyawan.models import Karyawan
-from lembur.models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
+from lembur.models import PermohonanLembur, StatusPermohonanLembur
 from liburan.models import Liburan
 from lokasi.models import Lokasi
 from shift.models import HariKerja, Shift
@@ -225,29 +226,17 @@ class ProsesAbsensiTests(TestCase):
             karyawan=self.karyawan,
             tanggal=self.focus,
             status=StatusPermohonanLembur.APPROVED,
-            tipe=TipeLembur.BIASA,
         )
         rekap = self._rekap()
         self.assertEqual(rekap.hari_hadir, 1)
         self.assertEqual(rekap.total_menit_lembur, 0)
 
-    def test_lembur_dinas_counts_entire_attendance(self):
-        _punch(self.karyawan, self.home, self.focus, '08:00', '17:00')
-        PermohonanLembur.objects.create(
-            karyawan=self.karyawan,
-            tanggal=self.focus,
-            status=StatusPermohonanLembur.APPROVED,
-            tipe=TipeLembur.DINAS,
-        )
-        rekap = self._rekap()
-        self.assertEqual(rekap.hari_hadir, 1)
-        self.assertEqual(rekap.total_menit_lembur, 540)
-
-        Absensi.objects.filter(karyawan=self.karyawan, tanggal=self.focus).delete()
+    def test_dinas_does_not_add_lembur_minutes(self):
         _punch(self.karyawan, self.home, self.focus, '08:00', '17:45')
+        Dinas.objects.create(karyawan=self.karyawan, tanggal=self.focus)
         rekap = self._rekap()
         self.assertEqual(rekap.hari_hadir, 1)
-        self.assertEqual(rekap.total_menit_lembur, 585)
+        self.assertEqual(rekap.total_menit_lembur, 0)
 
     def test_best_match_picks_closest_start_and_notes_unused_punches(self):
         _punch(self.karyawan, self.other, self.focus, '07:00', '08:00')

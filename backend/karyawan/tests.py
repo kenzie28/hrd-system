@@ -253,6 +253,57 @@ class KaryawanUpdateStatusCsvTests(TestCase):
         self.staff.refresh_from_db()
         self.assertEqual(self.staff.status_k_tk, 'TK')
 
+    def test_updates_npwp_no_bpjs_and_no_kpj(self):
+        self.other.npwp = 'keep-me'
+        self.other.no_bpjs = '111'
+        self.other.no_kpj = '222'
+        self.other.save(update_fields=['npwp', 'no_bpjs', 'no_kpj'])
+
+        result = self._upload(
+            'karyawan_id,npwp,no_bpjs,no_kpj\n'
+            '1000001,55.042.174.7-044.000,0001234567890,10000740943\n'
+        )
+        self.assertTrue(result.ok, result.errors)
+        self.assertEqual(result.updated, 1)
+        self.assertIn('npwp', result.optional_columns)
+        self.assertIn('no_bpjs', result.optional_columns)
+        self.assertIn('no_kpj', result.optional_columns)
+        self.staff.refresh_from_db()
+        self.other.refresh_from_db()
+        self.assertEqual(self.staff.npwp, '55.042.174.7-044.000')
+        self.assertEqual(self.staff.no_bpjs, '0001234567890')
+        self.assertEqual(self.staff.no_kpj, '10000740943')
+        self.assertEqual(self.staff.base_gaji, 4_500_000)
+        self.assertEqual(self.other.npwp, 'keep-me')
+        self.assertEqual(self.other.no_bpjs, '111')
+        self.assertEqual(self.other.no_kpj, '222')
+
+    def test_blank_identity_numbers_clear_the_fields(self):
+        self.staff.npwp = '55.042.174.7-044.000'
+        self.staff.no_bpjs = '0001234567890'
+        self.staff.no_kpj = '10000740943'
+        self.staff.save(update_fields=['npwp', 'no_bpjs', 'no_kpj'])
+
+        result = self._upload('karyawan_id,npwp,no_bpjs,no_kpj\n1000001,,,\n')
+        self.assertTrue(result.ok, result.errors)
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.npwp, '')
+        self.assertEqual(self.staff.no_bpjs, '')
+        self.assertEqual(self.staff.no_kpj, '')
+
+    def test_overlong_identity_number_writes_nothing(self):
+        self.staff.no_bpjs = '0001234567890'
+        self.staff.no_kpj = '10000740943'
+        self.staff.save(update_fields=['no_bpjs', 'no_kpj'])
+
+        result = self._upload(
+            'karyawan_id,no_bpjs,no_kpj\n1000001,' + ('1' * 17) + ',10000740943\n'
+        )
+        self.assertFalse(result.ok)
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.no_bpjs, '0001234567890')
+        self.assertEqual(self.staff.no_kpj, '10000740943')
+
     def test_list_api_omits_wage_fields(self):
         response = self.client.get('/api/karyawan/')
         self.assertEqual(response.status_code, 200)
@@ -347,14 +398,16 @@ class KaryawanUpsertCsvTests(TestCase):
         self.assertEqual(suparni.status_k_tk, 'K1')
         self.assertEqual(suparni.lokasi_kerja_id, '80')
         self.assertEqual(suparni.npwp, '55.042.174.7-044.000')
-        self.assertEqual(suparni.kpj, '10000740943')
+        self.assertEqual(suparni.no_bpjs, '')
+        self.assertEqual(suparni.no_kpj, '10000740943')
         self.assertEqual(suparni.tanggal_kpj, date(2010, 1, 1))
         self.assertIsNotNone(suparni.user_id)
         serialized = KaryawanSerializer(suparni).data
         self.assertEqual(serialized['jenis_kelamin'], 'Perempuan')
         self.assertEqual(serialized['tanggal_lahir'], '1974-12-24')
         self.assertEqual(serialized['npwp'], '55.042.174.7-044.000')
-        self.assertEqual(serialized['kpj'], '10000740943')
+        self.assertEqual(serialized['no_bpjs'], '')
+        self.assertEqual(serialized['no_kpj'], '10000740943')
         self.assertNotIn('base_gaji', serialized)
         self.assertNotIn('gaji_bulanan', serialized)
 

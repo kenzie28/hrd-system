@@ -29,7 +29,8 @@ const HO_COLUMNS = [
   'status_k_tk',
   'lokasi_kerja',
   'npwp',
-  'kpj',
+  'no_bpjs',
+  'no_kpj',
   'tanggal_kpj',
 ]
 
@@ -176,8 +177,9 @@ export function UpsertKaryawanTab() {
           </span>
         ))}
         . Nama juga diterima sebagai <Typography.Text code>nama</Typography.Text>, jabatan
-        sebagai <Typography.Text code>jabatan</Typography.Text>, dan tanggal lahir sebagai{' '}
-        <Typography.Text code>tanggal_lahir</Typography.Text>. Level 0–9. Tanggal boleh{' '}
+        sebagai <Typography.Text code>jabatan</Typography.Text>, tanggal lahir sebagai{' '}
+        <Typography.Text code>tanggal_lahir</Typography.Text>, dan no. KPJ sebagai{' '}
+        <Typography.Text code>kpj</Typography.Text>. Level 0–9. Tanggal boleh{' '}
         <Typography.Text code>YYYY-MM-DD</Typography.Text> atau{' '}
         <Typography.Text code>DD/MM/YYYY</Typography.Text>; sel{' '}
         <Typography.Text code>- -</Typography.Text> dikosongkan. Jenis kelamin{' '}

@@ -24,7 +24,8 @@ class KaryawanSerializer(serializers.ModelSerializer):
             'status_k_tk',
             'akumulasi_lembur',
             'npwp',
-            'kpj',
+            'no_bpjs',
+            'no_kpj',
             'tanggal_kpj',
         ]
 
@@ -51,7 +52,8 @@ class KaryawanWriteSerializer(serializers.ModelSerializer):
             'cuti_tahunan',
             'status_k_tk',
             'npwp',
-            'kpj',
+            'no_bpjs',
+            'no_kpj',
             'tanggal_kpj',
         ]
 

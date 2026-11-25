@@ -14,6 +14,7 @@ TABLE_PERMOHONAN_CUTI = 'permohonan_cuti'
 TABLE_NOTIFIKASI_DISMISS = 'notifikasi_dismiss'
 TABLE_CUTI = 'cuti'
 TABLE_PERMOHONAN_LEMBUR = 'permohonan_lembur'
+TABLE_DINAS = 'dinas'
 TABLE_KOREKSI = 'koreksi'
 TABLE_TUNJANGAN_OBAT = 'tunjangan_obat'
 
@@ -87,7 +88,11 @@ TABLE_COLUMNS = {
         'status',
         'supervisor_id',
         'hrd_approver_id',
-        'tipe',
+    ),
+    TABLE_DINAS: (
+        'id',
+        'karyawan_id',
+        'tanggal',
     ),
     TABLE_KOREKSI: (
         'id',
@@ -108,7 +113,6 @@ TABLE_ORDER = tuple(TABLE_COLUMNS.keys())
 
 # Older snapshots may omit these columns. Missing values default during parse.
 OPTIONAL_TABLE_COLUMNS = {
-    TABLE_PERMOHONAN_LEMBUR: frozenset({'tipe'}),
     TABLE_KARYAWAN: frozenset({
         'base_gaji',
         'gaji_bulanan',
@@ -117,16 +121,19 @@ OPTIONAL_TABLE_COLUMNS = {
     }),
 }
 
-# Older snapshots may include these columns. They are ignored on import.
+# Older snapshots may include these columns.
+# permohonan_lembur.tipe is not discarded: an approved DINAS value is imported
+# as a dinas row. Every other extra column here is ignored.
 LEGACY_EXTRA_COLUMNS = {
     TABLE_KARYAWAN: frozenset({'jumlah_anak', 'nikah'}),
+    TABLE_PERMOHONAN_LEMBUR: frozenset({'tipe'}),
 }
 
 # Older snapshots may include these tables. Their sections are ignored on import.
 LEGACY_SKIPPED_TABLES = frozenset({'gaji'})
 
 # Older snapshots may omit these tables. A missing table imports as no rows.
-OPTIONAL_TABLES = frozenset({TABLE_KOREKSI, TABLE_TUNJANGAN_OBAT})
+OPTIONAL_TABLES = frozenset({TABLE_KOREKSI, TABLE_TUNJANGAN_OBAT, TABLE_DINAS})
 
 TABLE_KEHADIRAN = 'kehadiran'
 TABLE_REKAP_ABSENSI = 'rekap_absensi'
@@ -144,6 +151,7 @@ CLEARABLE_MODELS: tuple[tuple[str, str], ...] = (
     (TABLE_NOTIFIKASI_DISMISS, 'Notifikasi ditutup'),
     (TABLE_CUTI, 'Hari cuti'),
     (TABLE_PERMOHONAN_LEMBUR, 'Permohonan lembur'),
+    (TABLE_DINAS, 'Dinas'),
     (TABLE_KOREKSI, 'Koreksi'),
     (TABLE_TUNJANGAN_OBAT, 'Tunjangan obat'),
     (TABLE_KEHADIRAN, 'Kehadiran'),
@@ -158,6 +166,7 @@ CLEAR_ORDER = (
     TABLE_KEHADIRAN,
     TABLE_KOREKSI,
     TABLE_TUNJANGAN_OBAT,
+    TABLE_DINAS,
     TABLE_PERMOHONAN_LEMBUR,
     TABLE_NOTIFIKASI_DISMISS,
     TABLE_LANGGANAN,

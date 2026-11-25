@@ -6,7 +6,6 @@ import { AbsensiTab } from '../tabs/AbsensiTab'
 import { ImportAbsensiTab } from '../tabs/ImportAbsensiTab'
 import {
   ImportCutiTab,
-  ImportLemburDinasTab,
   ImportLemburTab,
   ImportOffTab,
   ImportSakitTab,
@@ -59,11 +58,6 @@ export default function AbsensiPage() {
     { key: 'import-off', label: 'Import CSV Off', children: <ImportOffTab /> },
     { key: 'import-sakit', label: 'Import CSV Sakit', children: <ImportSakitTab /> },
     { key: 'import-lembur', label: 'Import CSV Lembur', children: <ImportLemburTab /> },
-    {
-      key: 'import-lembur-dinas',
-      label: 'Import CSV Lembur Dinas',
-      children: <ImportLemburDinasTab />,
-    },
   ]
 
   return (

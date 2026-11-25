@@ -9,19 +9,19 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.debug_log import debug_exception
+from dinas.models import Dinas
 from karyawan.models import Karyawan
 from karyawan.permissions import IsAdminAllowed
 from karyawan.portal_views import _karyawan_for
 
-from .models import PermohonanLembur, StatusPermohonanLembur, TipeLembur
+from .models import PermohonanLembur, StatusPermohonanLembur
 from .serializers import PermohonanLemburSerializer
 from .services import (
-    LemburDinasRangeError,
+    LemburDayError,
     LemburImportError,
     LemburImportResult,
     approve_by_hrd,
     clear_approved_lembur,
-    create_approved_lembur_dinas_range,
     ensure_approved_lembur,
     import_lembur_csv,
     serialize_lembur_import_result,
@@ -91,7 +91,6 @@ class AdminLemburImportView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAdminAllowed]
     parser_classes = [MultiPartParser]
-    tipe_lembur = TipeLembur.BIASA
 
     def post(self, request):
         upload = request.FILES.get('file')
@@ -106,13 +105,12 @@ class AdminLemburImportView(APIView):
             )
 
         try:
-            result = import_lembur_csv(upload, self.tipe_lembur)
+            result = import_lembur_csv(upload)
         except IntegrityError as exc:
             debug_exception(
                 'lembur_import_post',
                 'Import CSV lembur gagal: constraint database.',
                 exc,
-                tipe=self.tipe_lembur,
                 filename=getattr(upload, 'name', None),
             )
             result = LemburImportResult(
@@ -125,7 +123,6 @@ class AdminLemburImportView(APIView):
                 'lembur_import_post',
                 'Import CSV lembur gagal dengan exception tak terduga.',
                 exc,
-                tipe=self.tipe_lembur,
                 filename=getattr(upload, 'name', None),
             )
             result = LemburImportResult(
@@ -136,12 +133,6 @@ class AdminLemburImportView(APIView):
             serialize_lembur_import_result(result),
             status=status.HTTP_200_OK,
         )
-
-
-class AdminLemburDinasImportView(AdminLemburImportView):
-    """Import approved one-day Lembur Dinas requests."""
-
-    tipe_lembur = TipeLembur.DINAS
 
 
 class AdminLemburViewSet(viewsets.ReadOnlyModelViewSet):
@@ -176,44 +167,12 @@ class AdminLemburViewSet(viewsets.ReadOnlyModelViewSet):
         karyawan, tanggal, error = _lembur_day(request.data)
         if error is not None:
             return error
-        permohonan, created = ensure_approved_lembur(karyawan, tanggal)
-        return Response(
-            PermohonanLemburSerializer(permohonan).data,
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
-        )
-
-    @action(detail=False, methods=['post'], url_path='add-dinas')
-    def add_dinas(self, request):
-        """Create approved Lembur Dinas for every day in a date range."""
-        data, error = _lembur_body(request.data)
-        if error is not None:
-            return error
-        karyawan, error = _lembur_karyawan(data)
-        if error is not None:
-            return error
-        tanggal_mulai, error = _parse_lembur_date(
-            data.get('tanggal_mulai'), 'tanggal_mulai'
-        )
-        if error is not None:
-            return error
-        tanggal_selesai, error = _parse_lembur_date(
-            data.get('tanggal_selesai'), 'tanggal_selesai'
-        )
-        if error is not None:
-            return error
         try:
-            created, skipped = create_approved_lembur_dinas_range(
-                karyawan, tanggal_mulai, tanggal_selesai
-            )
-        except LemburDinasRangeError as exc:
+            permohonan, created = ensure_approved_lembur(karyawan, tanggal)
+        except LemburDayError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(
-            {
-                'created': created,
-                'skipped': skipped,
-                'tanggal_mulai': tanggal_mulai.isoformat(),
-                'tanggal_selesai': tanggal_selesai.isoformat(),
-            },
+            PermohonanLemburSerializer(permohonan).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
@@ -237,6 +196,14 @@ class AdminLemburViewSet(viewsets.ReadOnlyModelViewSet):
         if permohonan.status != StatusPermohonanLembur.MENUNGGU_HRD:
             return Response(
                 {'detail': 'Permohonan tidak menunggu persetujuan HRD.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if Dinas.objects.filter(
+            karyawan_id=permohonan.karyawan_id,
+            tanggal=permohonan.tanggal,
+        ).exists():
+            return Response(
+                {'detail': 'Sudah ada dinas pada tanggal ini.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         already_approved = PermohonanLembur.objects.filter(

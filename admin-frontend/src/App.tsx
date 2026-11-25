@@ -10,6 +10,7 @@ import KaryawanPage from './pages/KaryawanPage'
 import KoreksiPage from './pages/KoreksiPage'
 import TunjanganObatPage from './pages/TunjanganObatPage'
 import LemburPage from './pages/LemburPage'
+import DinasPage from './pages/DinasPage'
 import LiburanPage from './pages/LiburanPage'
 import LoginPage from './pages/LoginPage'
 import LokasiPage from './pages/LokasiPage'
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/absensi" element={<AbsensiPage />} />
         <Route path="/cuti" element={<CutiPage />} />
         <Route path="/lembur" element={<LemburPage />} />
+        <Route path="/dinas" element={<DinasPage />} />
         <Route path="/liburan" element={<LiburanPage />} />
         <Route path="/karyawan" element={<KaryawanPage />} />
         <Route path="/lokasi" element={<LokasiPage />} />

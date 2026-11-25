@@ -327,6 +327,17 @@ export interface KoreksiImportResult {
   required_columns: string[]
 }
 
+export interface GajiKaryawan {
+  karyawan_id: string
+  nama: string
+  level: number
+  jabatan: string
+  no_bpjs: string
+  base_gaji: number
+  gaji_bulanan: number
+  absensi_dihitung: boolean
+}
+
 export type ProsesGajiStatus = 'pending' | 'running' | 'succeeded' | 'failed'
 
 export interface ProsesGajiJob {

@@ -291,11 +291,15 @@ export function UpdateKaryawanTab() {
         <Typography.Text code>status_k_tk</Typography.Text> (TK, TK1, TK2, TK3, K0, K1,
         K2, K3), <Typography.Text code>npwp</Typography.Text>,{' '}
         <Typography.Text code>no_bpjs</Typography.Text>,{' '}
-        <Typography.Text code>no_kpj</Typography.Text>. Sel kosong mengosongkan{' '}
+        <Typography.Text code>no_kpj</Typography.Text>,{' '}
+        <Typography.Text code>tanggal_lahir</Typography.Text> (
+        <Typography.Text code>YYYY-MM-DD</Typography.Text> atau{' '}
+        <Typography.Text code>DD/MM/YYYY</Typography.Text>). Sel kosong mengosongkan{' '}
         <Typography.Text code>status_k_tk</Typography.Text>,{' '}
         <Typography.Text code>npwp</Typography.Text>,{' '}
-        <Typography.Text code>no_bpjs</Typography.Text>, dan{' '}
-        <Typography.Text code>no_kpj</Typography.Text>. Untuk menambah karyawan baru,
+        <Typography.Text code>no_bpjs</Typography.Text>,{' '}
+        <Typography.Text code>no_kpj</Typography.Text>, dan{' '}
+        <Typography.Text code>tanggal_lahir</Typography.Text>. Untuk menambah karyawan baru,
         gunakan tab Tambah Karyawan (CSV).
       </Typography.Paragraph>
 

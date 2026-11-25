@@ -5,6 +5,8 @@ from rest_framework.routers import DefaultRouter
 from absensi.admin_views import AdminAbsensiImportView
 from gaji.admin_views import (
     AdminGajiExportView,
+    AdminGajiKaryawanDetailView,
+    AdminGajiKaryawanListView,
     AdminGajiMonthView,
     AdminProsesGajiDetailView,
     AdminProsesGajiView,
@@ -188,6 +190,16 @@ admin_api_urlpatterns = [
         'admin/gaji/export/',
         AdminGajiExportView.as_view(),
         name='admin-gaji-export',
+    ),
+    path(
+        'admin/gaji/karyawan/',
+        AdminGajiKaryawanListView.as_view(),
+        name='admin-gaji-karyawan',
+    ),
+    path(
+        'admin/gaji/karyawan/<str:pk>/',
+        AdminGajiKaryawanDetailView.as_view(),
+        name='admin-gaji-karyawan-detail',
     ),
     path(
         'admin/gaji/',

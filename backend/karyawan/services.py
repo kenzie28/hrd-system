@@ -26,6 +26,7 @@ COL_STATUS_K_TK = 'status_k_tk'
 COL_NPWP = 'npwp'
 COL_NO_BPJS = 'no_bpjs'
 COL_NO_KPJ = 'no_kpj'
+COL_TANGGAL_LAHIR = 'tanggal_lahir'
 REQUIRED_COLUMNS = [COL_KARYAWAN_ID, COL_NAMA, COL_LEVEL]
 OPTIONAL_COLUMNS = [COL_JABATAN, COL_WILAYAH, COL_LOKASI]
 UPDATE_OPTIONAL_COLUMNS = [
@@ -39,6 +40,7 @@ UPDATE_OPTIONAL_COLUMNS = [
     COL_NPWP,
     COL_NO_BPJS,
     COL_NO_KPJ,
+    COL_TANGGAL_LAHIR,
 ]
 _UPDATE_TEXT_LIMITS = {
     COL_NPWP: 20,
@@ -431,8 +433,8 @@ def import_karyawan_update_csv(upload) -> KaryawanImportResult:
     Required column: karyawan_id (must already exist).
     Any other recognized column present in the header is applied to every row
     — empty cells clear blankable fields (jabatan, wilayah, lokasi_kerja,
-    status_k_tk, npwp, no_bpjs, no_kpj) and are rejected for nama, level,
-    and cuti_tahunan.
+    status_k_tk, npwp, no_bpjs, no_kpj, tanggal_lahir) and are rejected for
+    nama, level, and cuti_tahunan.
     All rows are validated before any write.
     """
     result = KaryawanImportResult(
@@ -632,6 +634,18 @@ def import_karyawan_update_csv(upload) -> KaryawanImportResult:
                 row_had_error = True
             else:
                 fields[column] = value
+
+        if COL_TANGGAL_LAHIR in header_set:
+            ok, value = _parse_upsert_date(
+                row.get(COL_TANGGAL_LAHIR) or '',
+                row_num,
+                COL_TANGGAL_LAHIR,
+                result,
+            )
+            if ok:
+                fields[COL_TANGGAL_LAHIR] = value
+            else:
+                row_had_error = True
 
         if row_had_error:
             continue

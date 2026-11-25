@@ -12,13 +12,16 @@ from django.db.models import Sum
 
 from absensi.models import Kehadiran, StatusKehadiran
 from cuti.models import Cuti, TipeCuti
-from karyawan.models import Karyawan
+from karyawan.models import Karyawan, _completed_years
 from koreksi.models import Koreksi, TipeKoreksi
 from dinas.models import Dinas
 from obat.models import TunjanganObat
 
 from .models import Gaji
 from .ter import ter_fraction
+
+TUNJANGAN_DINAS_PER_HARI = 110_000
+_JP_AGE_CUTOFF = 60
 
 _BPJS_OF_BASE = (
     ('pot_bpjs_jht', Decimal('0.02')),
@@ -115,6 +118,13 @@ def _nominal_sum(queryset) -> int:
     return queryset.aggregate(total=Sum('nominal'))['total'] or 0
 
 
+def _above_jp_age(karyawan: Karyawan, on: date) -> bool:
+    """True once completed age from tanggal_lahir is over 60 on ``on``."""
+    if karyawan.tanggal_lahir is None:
+        return False
+    return _completed_years(karyawan.tanggal_lahir, on) > _JP_AGE_CUTOFF
+
+
 def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
     """Fill a new payroll row for this employee and month. The caller saves it."""
     start, end = month_bounds(periode)
@@ -147,17 +157,23 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
         )
     )
 
-    gaji.pot_alpa = round_half_up(
-        Decimal(gaji.hari_alpa) * Decimal(gaji.gaji_bulanan) / Decimal(20)
-    )
+    if karyawan.absensi_dihitung:
+        gaji.pot_alpa = round_half_up(
+            Decimal(gaji.hari_alpa) * Decimal(gaji.gaji_bulanan) / Decimal(20)
+        )
+    else:
+        gaji.pot_alpa = 0
     gaji.gaji_lembur = 0
-    gaji.tunjangan_dinas = 0
+    gaji.tunjangan_dinas = gaji.hari_dinas * TUNJANGAN_DINAS_PER_HARI
     gaji.uang_terima_kasih = 0
 
     if (karyawan.no_bpjs or '').strip():
         base = Decimal(gaji.base_gaji_bpjs)
         for field, rate in _BPJS_OF_BASE:
             setattr(gaji, field, round_half_up(base * rate))
+        if _above_jp_age(karyawan, end):
+            gaji.pot_bpjs_jp = 0
+            gaji.beban_bpjs_jp = 0
         net = gaji.net_penghasilan
         fraction = ter_fraction(gaji.ter_status, net)
         gaji.persentase_pph21 = (fraction * Decimal(100)).quantize(Decimal('0.01'))

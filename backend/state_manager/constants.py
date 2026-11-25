@@ -45,6 +45,7 @@ TABLE_COLUMNS = {
         'gaji_bulanan',
         'status_k_tk',
         'akumulasi_lembur',
+        'absensi_dihitung',
     ),
     TABLE_LANGGANAN: (
         'id',
@@ -118,6 +119,7 @@ OPTIONAL_TABLE_COLUMNS = {
         'gaji_bulanan',
         'status_k_tk',
         'akumulasi_lembur',
+        'absensi_dihitung',
     }),
 }
 

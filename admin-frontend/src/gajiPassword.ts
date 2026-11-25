@@ -17,3 +17,11 @@ export function storeGajiPassword(password: string) {
     /* ignore quota / private mode */
   }
 }
+
+export function clearGajiPassword() {
+  try {
+    sessionStorage.removeItem(GAJI_PASSWORD_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+}

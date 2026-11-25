@@ -9,6 +9,7 @@ import type {
   RekapAbsensi,
   Cuti,
   Dinas,
+  GajiKaryawan,
   Karyawan,
   Koreksi,
   KoreksiImportResult,
@@ -153,11 +154,40 @@ export function useKaryawanUpdateImport() {
 }
 
 export function useBaseGajiImport() {
-  return useKaryawanCsvImport('/admin/gaji/import-base-gaji/')
+  return useKaryawanCsvImport('/admin/gaji/import-base-gaji/', [['gaji-karyawan']])
 }
 
 export function useGajiBulananImport() {
-  return useKaryawanCsvImport('/admin/gaji/import-gaji-bulanan/')
+  return useKaryawanCsvImport('/admin/gaji/import-gaji-bulanan/', [['gaji-karyawan']])
+}
+
+export function useGajiKaryawan() {
+  return useQuery({
+    queryKey: ['gaji-karyawan'],
+    queryFn: async () =>
+      (await api.get<GajiKaryawan[]>('/admin/gaji/karyawan/')).data,
+  })
+}
+
+export function useUpdateAbsensiDihitung() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      karyawan_id,
+      absensi_dihitung,
+    }: {
+      karyawan_id: string
+      absensi_dihitung: boolean
+    }) =>
+      api
+        .patch<GajiKaryawan>(`/admin/gaji/karyawan/${karyawan_id}/`, { absensi_dihitung })
+        .then((response) => response.data),
+    onSuccess: (row) => {
+      qc.setQueryData<GajiKaryawan[]>(['gaji-karyawan'], (current) =>
+        current?.map((item) => (item.karyawan_id === row.karyawan_id ? row : item)),
+      )
+    },
+  })
 }
 
 export function useProsesGaji() {

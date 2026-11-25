@@ -18,7 +18,7 @@ class KaryawanAdmin(admin.ModelAdmin):
         'user',
         'must_change_password',
     ]
-    exclude = ('base_gaji', 'gaji_bulanan')
+    exclude = ('base_gaji', 'gaji_bulanan', 'absensi_dihitung')
     list_editable = ['cuti_tahunan']
     list_filter = ['level', 'lokasi_kerja', 'wilayah']
     search_fields = ['karyawan_id', 'nama']

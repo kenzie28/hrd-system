@@ -311,6 +311,40 @@ class KaryawanUpdateStatusCsvTests(TestCase):
         self.assertEqual(self.staff.no_bpjs, '')
         self.assertEqual(self.staff.no_kpj, '')
 
+    def test_updates_tanggal_lahir(self):
+        self.other.tanggal_lahir = date(1990, 1, 2)
+        self.other.save(update_fields=['tanggal_lahir'])
+
+        result = self._upload(
+            'karyawan_id,tanggal_lahir\n1000001,24/12/1974\n'
+        )
+        self.assertTrue(result.ok, result.errors)
+        self.assertEqual(result.updated, 1)
+        self.assertIn('tanggal_lahir', result.optional_columns)
+        self.staff.refresh_from_db()
+        self.other.refresh_from_db()
+        self.assertEqual(self.staff.tanggal_lahir, date(1974, 12, 24))
+        self.assertEqual(self.staff.base_gaji, 4_500_000)
+        self.assertEqual(self.other.tanggal_lahir, date(1990, 1, 2))
+
+    def test_blank_tanggal_lahir_clears_the_field(self):
+        self.staff.tanggal_lahir = date(1974, 12, 24)
+        self.staff.save(update_fields=['tanggal_lahir'])
+
+        result = self._upload('karyawan_id,tanggal_lahir\n1000001,\n')
+        self.assertTrue(result.ok, result.errors)
+        self.staff.refresh_from_db()
+        self.assertIsNone(self.staff.tanggal_lahir)
+
+    def test_invalid_tanggal_lahir_writes_nothing(self):
+        self.staff.tanggal_lahir = date(1974, 12, 24)
+        self.staff.save(update_fields=['tanggal_lahir'])
+
+        result = self._upload('karyawan_id,tanggal_lahir\n1000001,bukan-tanggal\n')
+        self.assertFalse(result.ok)
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.tanggal_lahir, date(1974, 12, 24))
+
     def test_overlong_identity_number_writes_nothing(self):
         self.staff.no_bpjs = '0001234567890'
         self.staff.no_kpj = '10000740943'
@@ -331,6 +365,7 @@ class KaryawanUpdateStatusCsvTests(TestCase):
         self.assertEqual(row['status_k_tk'], 'TK')
         self.assertNotIn('base_gaji', row)
         self.assertNotIn('gaji_bulanan', row)
+        self.assertNotIn('absensi_dihitung', row)
         self.assertNotIn('jumlah_anak', row)
         self.assertNotIn('nikah', row)
 
@@ -390,6 +425,31 @@ class KaryawanActiveTests(TestCase):
 
 
 class KaryawanUpsertCsvTests(TestCase):
+    def test_upsert_leaves_absensi_dihitung_unchanged(self):
+        Karyawan.objects.create(
+            karyawan_id='1000001',
+            nama='Budi',
+            level=1,
+            absensi_dihitung=False,
+            base_gaji=12_345,
+            gaji_bulanan=67_890,
+        )
+        result = import_karyawan_upsert_csv(
+            SimpleUploadedFile(
+                'mini.csv',
+                b'karyawan_id,nama,level\n1000001,Budi Baru,2\n1000002,Ani,1\n',
+                content_type='text/csv',
+            )
+        )
+        self.assertTrue(result.ok, result.errors)
+        budi = Karyawan.objects.get(pk='1000001')
+        self.assertEqual(budi.nama, 'Budi Baru')
+        self.assertEqual(budi.level, 2)
+        self.assertFalse(budi.absensi_dihitung)
+        self.assertEqual(budi.base_gaji, 12_345)
+        self.assertEqual(budi.gaji_bulanan, 67_890)
+        self.assertTrue(Karyawan.objects.get(pk='1000002').absensi_dihitung)
+
     def test_ho_file_creates_then_updates_without_clearing_wages(self):
         Lokasi.objects.create(id='99', nama='Headquarters')
         payload = (Path(settings.BASE_DIR).parent / 'HO Employee Data.csv').read_bytes()
@@ -430,6 +490,7 @@ class KaryawanUpsertCsvTests(TestCase):
         self.assertEqual(serialized['no_kpj'], '10000740943')
         self.assertNotIn('base_gaji', serialized)
         self.assertNotIn('gaji_bulanan', serialized)
+        self.assertNotIn('absensi_dihitung', serialized)
 
         wah = Karyawan.objects.get(pk='2406021')
         self.assertIsNone(wah.tanggal_lahir)
@@ -447,10 +508,17 @@ class KaryawanUpsertCsvTests(TestCase):
 
         suparni.base_gaji = 12_345
         suparni.gaji_bulanan = 67_890
+        suparni.absensi_dihitung = False
         suparni.cuti_tahunan = 3
         suparni.wilayah = 'BDG'
         suparni.save(
-            update_fields=['base_gaji', 'gaji_bulanan', 'cuti_tahunan', 'wilayah']
+            update_fields=[
+                'base_gaji',
+                'gaji_bulanan',
+                'absensi_dihitung',
+                'cuti_tahunan',
+                'wilayah',
+            ]
         )
         user_id = suparni.user_id
 
@@ -466,6 +534,7 @@ class KaryawanUpsertCsvTests(TestCase):
         suparni.refresh_from_db()
         self.assertEqual(suparni.base_gaji, 12_345)
         self.assertEqual(suparni.gaji_bulanan, 67_890)
+        self.assertFalse(suparni.absensi_dihitung)
         self.assertEqual(suparni.cuti_tahunan, 3)
         self.assertEqual(suparni.wilayah, 'BDG')
         self.assertEqual(suparni.user_id, user_id)

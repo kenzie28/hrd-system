@@ -7,6 +7,7 @@ from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from karyawan.models import Karyawan
 from karyawan.permissions import IsAdminAllowed
 
 from .access import HasGajiPassword
@@ -78,6 +79,49 @@ def _periode_from_query(request):
         return parse_bulan(request.query_params.get('bulan'))
     except ValueError as exc:
         return exc
+
+
+_GAJI_KARYAWAN_FIELDS = (
+    'karyawan_id',
+    'nama',
+    'level',
+    'jabatan',
+    'no_bpjs',
+    'base_gaji',
+    'gaji_bulanan',
+    'absensi_dihitung',
+)
+
+
+class AdminGajiKaryawanListView(APIView):
+    """Every employee with the wage fields used by this module."""
+
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed, HasGajiPassword]
+
+    def get(self, request):
+        rows = Karyawan.objects.order_by('karyawan_id').values(*_GAJI_KARYAWAN_FIELDS)
+        return Response(list(rows))
+
+
+class AdminGajiKaryawanDetailView(APIView):
+    """Turn attendance deductions on or off for one employee."""
+
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAdminAllowed, HasGajiPassword]
+
+    def patch(self, request, pk):
+        karyawan = get_object_or_404(Karyawan, pk=pk)
+        value = request.data.get('absensi_dihitung', None)
+        if not isinstance(value, bool):
+            return Response(
+                {'detail': 'absensi_dihitung harus true atau false.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        karyawan.absensi_dihitung = value
+        karyawan.save(update_fields=['absensi_dihitung'])
+        row = Karyawan.objects.filter(pk=karyawan.pk).values(*_GAJI_KARYAWAN_FIELDS).get()
+        return Response(row)
 
 
 class AdminGajiMonthView(APIView):

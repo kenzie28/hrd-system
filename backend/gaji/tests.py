@@ -193,12 +193,12 @@ class ProsesGajiCalculationTests(TestCase):
         self.assertEqual(gaji.total_bpjs_benefit, 204_300)
         self.assertEqual(gaji.pot_alpa, 600_000)
         self.assertEqual(gaji.gaji_lembur, 0)
-        self.assertEqual(gaji.tunjangan_dinas, 0)
+        self.assertEqual(gaji.tunjangan_dinas, 220_000)
         self.assertEqual(gaji.uang_terima_kasih, 0)
-        self.assertEqual(gaji.net_penghasilan, 5_756_300)
-        self.assertEqual(gaji.persentase_pph21, Decimal('0.50'))
-        self.assertEqual(gaji.pot_pph21, 28_782)
-        self.assertEqual(gaji.total_gaji, 5_523_218)
+        self.assertEqual(gaji.net_penghasilan, 5_976_300)
+        self.assertEqual(gaji.persentase_pph21, Decimal('0.75'))
+        self.assertEqual(gaji.pot_pph21, 44_822)
+        self.assertEqual(gaji.total_gaji, 5_727_178)
         self.assertEqual(
             gaji.total_gaji,
             gaji.net_penghasilan - gaji.total_bpjs_benefit - gaji.pot_pph21,
@@ -260,6 +260,64 @@ class ProsesGajiCalculationTests(TestCase):
         self.assertEqual(gaji.persentase_pph21, Decimal('0.00'))
         self.assertEqual(gaji.pot_pph21, 0)
         self.assertEqual(gaji.total_gaji, 9)
+
+    def test_absensi_dihitung_false_skips_pot_alpa(self):
+        self.employee.absensi_dihitung = False
+        self.employee.no_bpjs = ''
+        self.employee.save(update_fields=['absensi_dihitung', 'no_bpjs'])
+        Kehadiran.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 11, 2),
+            status=StatusKehadiran.ALPA,
+        )
+        Kehadiran.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 11, 3),
+            status=StatusKehadiran.ALPA,
+        )
+
+        gaji = write_gaji(self.employee, self.periode)
+
+        self.assertEqual(gaji.hari_alpa, 2)
+        self.assertEqual(gaji.pot_alpa, 0)
+        self.assertEqual(gaji.net_penghasilan, 6_000_000)
+
+    def test_jp_is_zero_when_completed_age_is_above_60(self):
+        self.employee.tanggal_lahir = date(1965, 11, 30)
+        self.employee.save(update_fields=['tanggal_lahir'])
+
+        gaji = write_gaji(self.employee, self.periode)
+
+        self.assertEqual(gaji.pot_bpjs_jp, 0)
+        self.assertEqual(gaji.beban_bpjs_jp, 0)
+        self.assertEqual(gaji.pot_bpjs_jht, 90_000)
+        self.assertEqual(gaji.beban_bpjs_jht, 166_500)
+        self.assertEqual(gaji.pot_bpjs_kesehatan, 45_000)
+
+    def test_jp_still_applies_at_age_60_and_without_a_birth_date(self):
+        self.employee.tanggal_lahir = date(1966, 11, 30)
+        self.employee.save(update_fields=['tanggal_lahir'])
+
+        at_60 = write_gaji(self.employee, self.periode)
+
+        self.assertEqual(at_60.pot_bpjs_jp, 45_000)
+        self.assertEqual(at_60.beban_bpjs_jp, 90_000)
+
+        self.employee.tanggal_lahir = date(1965, 12, 1)
+        self.employee.save(update_fields=['tanggal_lahir'])
+
+        turns_61_next_month = write_gaji(self.employee, self.periode)
+
+        self.assertEqual(turns_61_next_month.pot_bpjs_jp, 45_000)
+        self.assertEqual(turns_61_next_month.beban_bpjs_jp, 90_000)
+
+        self.employee.tanggal_lahir = None
+        self.employee.save(update_fields=['tanggal_lahir'])
+
+        unknown = write_gaji(self.employee, self.periode)
+
+        self.assertEqual(unknown.pot_bpjs_jp, 45_000)
+        self.assertEqual(unknown.beban_bpjs_jp, 90_000)
 
     def test_blank_no_bpjs_skips_bpjs_and_pph(self):
         self.employee.no_bpjs = '   '
@@ -508,6 +566,90 @@ class ProsesGajiApiTests(TestCase):
         self.assertEqual(bad.status_code, 400)
         anonymous = APIClient().get('/api/admin/gaji/export/', {'bulan': '2026-11'})
         self.assertEqual(anonymous.status_code, 401)
+
+    def test_karyawan_list_returns_wage_fields_for_every_employee(self):
+        self.admin.jabatan = 'HR'
+        self.admin.no_bpjs = '111'
+        self.admin.base_gaji = 1_000_000
+        self.admin.gaji_bulanan = 2_000_000
+        self.admin.save()
+        self.employee.jabatan = 'Staff'
+        self.employee.no_bpjs = ''
+        self.employee.base_gaji = 4_500_000
+        self.employee.gaji_bulanan = 6_000_000
+        self.employee.save()
+
+        locked = APIClient()
+        locked.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+        denied = locked.get('/api/admin/gaji/karyawan/')
+        self.assertEqual(denied.status_code, 403)
+
+        response = self.client.get('/api/admin/gaji/karyawan/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data,
+            [
+                {
+                    'karyawan_id': '0000003',
+                    'nama': 'Admin',
+                    'level': 8,
+                    'jabatan': 'HR',
+                    'no_bpjs': '111',
+                    'base_gaji': 1_000_000,
+                    'gaji_bulanan': 2_000_000,
+                    'absensi_dihitung': True,
+                },
+                {
+                    'karyawan_id': '1000001',
+                    'nama': 'Budi',
+                    'level': 1,
+                    'jabatan': 'Staff',
+                    'no_bpjs': '',
+                    'base_gaji': 4_500_000,
+                    'gaji_bulanan': 6_000_000,
+                    'absensi_dihitung': True,
+                },
+            ],
+        )
+
+    def test_patch_absensi_dihitung_for_one_employee(self):
+        response = self.client.patch(
+            '/api/admin/gaji/karyawan/1000001/',
+            {'absensi_dihitung': False},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['karyawan_id'], '1000001')
+        self.assertFalse(response.data['absensi_dihitung'])
+        self.employee.refresh_from_db()
+        self.admin.refresh_from_db()
+        self.assertFalse(self.employee.absensi_dihitung)
+        self.assertTrue(self.admin.absensi_dihitung)
+
+        bad = self.client.patch(
+            '/api/admin/gaji/karyawan/1000001/',
+            {'absensi_dihitung': 'false'},
+            format='json',
+        )
+        self.assertEqual(bad.status_code, 400)
+        self.employee.refresh_from_db()
+        self.assertFalse(self.employee.absensi_dihitung)
+
+        missing = self.client.patch(
+            '/api/admin/gaji/karyawan/9999999/',
+            {'absensi_dihitung': True},
+            format='json',
+        )
+        self.assertEqual(missing.status_code, 404)
+
+        locked = APIClient()
+        locked.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+        denied = locked.patch(
+            '/api/admin/gaji/karyawan/1000001/',
+            {'absensi_dihitung': True},
+            format='json',
+        )
+        self.assertEqual(denied.status_code, 403)
 
     def test_module_password_required_for_any_admin(self):
         client = APIClient()

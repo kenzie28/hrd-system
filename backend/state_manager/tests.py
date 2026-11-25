@@ -417,7 +417,7 @@ class StateManagerApiTests(TestCase):
         self.worker.save(update_fields=['base_gaji'])
         csv_text = export_state_csv()
         self.assertIn(
-            'karyawan_id,nama,lokasi_kerja_id,jabatan,wilayah,level,user_id,must_change_password,cuti_tahunan,base_gaji,gaji_bulanan,status_k_tk,akumulasi_lembur',
+            'karyawan_id,nama,lokasi_kerja_id,jabatan,wilayah,level,user_id,must_change_password,cuti_tahunan,base_gaji,gaji_bulanan,status_k_tk,akumulasi_lembur,absensi_dihitung',
             csv_text,
         )
 
@@ -433,8 +433,14 @@ class StateManagerApiTests(TestCase):
         self.worker.gaji_bulanan = 5_000_000
         self.worker.status_k_tk = 'K1'
         self.worker.akumulasi_lembur = 3
+        self.worker.absensi_dihitung = False
         self.worker.save(
-            update_fields=['gaji_bulanan', 'status_k_tk', 'akumulasi_lembur']
+            update_fields=[
+                'gaji_bulanan',
+                'status_k_tk',
+                'akumulasi_lembur',
+                'absensi_dihitung',
+            ]
         )
         csv_text = export_state_csv()
 
@@ -444,10 +450,11 @@ class StateManagerApiTests(TestCase):
         self.assertEqual(worker.gaji_bulanan, 5_000_000)
         self.assertEqual(worker.status_k_tk, 'K1')
         self.assertEqual(worker.akumulasi_lembur, 3)
+        self.assertFalse(worker.absensi_dihitung)
 
         legacy_family = csv_text.replace(
-            'akumulasi_lembur\n',
-            'akumulasi_lembur,jumlah_anak,nikah\n',
+            'akumulasi_lembur,absensi_dihitung\n',
+            'akumulasi_lembur,absensi_dihitung,jumlah_anak,nikah\n',
             1,
         )
         legacy_family_result = import_state_csv(legacy_family)
@@ -455,7 +462,12 @@ class StateManagerApiTests(TestCase):
         self.assertEqual(Karyawan.objects.get(pk='1000001').status_k_tk, 'K1')
 
         legacy_text = csv_text
-        for column in ('gaji_bulanan', 'status_k_tk', 'akumulasi_lembur'):
+        for column in (
+            'gaji_bulanan',
+            'status_k_tk',
+            'akumulasi_lembur',
+            'absensi_dihitung',
+        ):
             legacy_text = _without_column(legacy_text, 'karyawan', column)
         legacy = import_state_csv(legacy_text)
         self.assertTrue(legacy.ok, legacy.errors)
@@ -463,6 +475,7 @@ class StateManagerApiTests(TestCase):
         self.assertEqual(worker.gaji_bulanan, 0)
         self.assertEqual(worker.status_k_tk, '')
         self.assertEqual(worker.akumulasi_lembur, 0)
+        self.assertTrue(worker.absensi_dihitung)
 
     def test_legacy_gaji_section_is_skipped(self):
         csv_text = export_state_csv()

@@ -58,6 +58,7 @@ class Karyawan(models.Model):
     )
     base_gaji = models.PositiveBigIntegerField(default=0)
     gaji_bulanan = models.PositiveBigIntegerField(default=0)
+    absensi_dihitung = models.BooleanField(default=True)
     status_k_tk = models.CharField(
         max_length=3, choices=StatusKTk.choices, blank=True, default=''
     )

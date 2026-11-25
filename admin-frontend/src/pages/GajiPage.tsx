@@ -2,41 +2,27 @@ import { useState } from 'react'
 import { WalletOutlined } from '@ant-design/icons'
 import { Alert, Form, Input, Modal, Space, Tabs, Typography } from 'antd'
 import { useNavigate } from 'react-router-dom'
+import {
+  GAJI_MODULE_PASSWORD,
+  readGajiPassword,
+  storeGajiPassword,
+} from '../gajiPassword'
 import { ProcessGajiTab } from '../tabs/ProcessGajiTab'
 import { ImportBaseGajiTab, ImportGajiBulananTab } from '../tabs/WageCsvImportTab'
-
-const MODULE_PASSWORD = 'bears'
-const PASSWORD_STORAGE_KEY = 'hrd_gaji_password'
-
-function readStoredPassword(): string {
-  try {
-    return sessionStorage.getItem(PASSWORD_STORAGE_KEY) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-function storePassword(password: string) {
-  try {
-    sessionStorage.setItem(PASSWORD_STORAGE_KEY, password)
-  } catch {
-    /* ignore quota / private mode */
-  }
-}
 
 export default function GajiPage() {
   const navigate = useNavigate()
   const [passwordForm] = Form.useForm<{ password: string }>()
-  const [unlocked, setUnlocked] = useState(() => readStoredPassword() === MODULE_PASSWORD)
+  const [unlocked, setUnlocked] = useState(() => readGajiPassword() === GAJI_MODULE_PASSWORD)
   const [unlockError, setUnlockError] = useState<string | null>(null)
 
   const handleUnlock = async () => {
     const values = await passwordForm.validateFields()
-    if (values.password !== MODULE_PASSWORD) {
+    if (values.password !== GAJI_MODULE_PASSWORD) {
       setUnlockError('Kata sandi salah.')
       return
     }
-    storePassword(values.password)
+    storeGajiPassword(values.password)
     setUnlockError(null)
     setUnlocked(true)
   }

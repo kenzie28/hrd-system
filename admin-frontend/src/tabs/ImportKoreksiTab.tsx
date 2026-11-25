@@ -121,7 +121,7 @@ function ImportResultPanel({ result }: { result: KoreksiImportResult }) {
   )
 }
 
-const EXAMPLE_HEADERS = ['karyawan_id', 'tipe', 'nominal', 'bulan'] as const
+const EXAMPLE_HEADERS = ['karyawan_id', 'tipe', 'nominal', 'tanggal'] as const
 
 const EXAMPLE_ROWS = [
   {
@@ -268,7 +268,7 @@ export function ImportKoreksiTab() {
         <Typography.Text code>Koreksi Admin</Typography.Text> atau{' '}
         <Typography.Text code>Koreksi Absensi</Typography.Text>),{' '}
         <Typography.Text code>nominal</Typography.Text>, dan{' '}
-        <Typography.Text code>bulan</Typography.Text> (
+        <Typography.Text code>tanggal</Typography.Text> (
         <Typography.Text code>YYYY-MM-DD</Typography.Text>,{' '}
         <Typography.Text code>YYYY-MM</Typography.Text>, atau{' '}
         <Typography.Text code>YYYYMM</Typography.Text>). Setiap baris menambah koreksi baru.

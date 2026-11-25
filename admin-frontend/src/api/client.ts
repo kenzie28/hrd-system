@@ -1,5 +1,7 @@
 import axios from 'axios'
 
+import { GAJI_PASSWORD_HEADER, readGajiPassword } from '../gajiPassword'
+
 export const ADMIN_TOKEN_STORAGE_KEY = 'admin_token'
 
 /**
@@ -24,10 +26,21 @@ export const api = axios.create({
   },
 })
 
+function isGajiRequest(url: string | undefined): boolean {
+  if (!url) return false
+  return url.includes('/admin/gaji')
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)
   if (token) {
     config.headers.Authorization = `Token ${token}`
+  }
+  if (isGajiRequest(config.url)) {
+    const password = readGajiPassword()
+    if (password) {
+      config.headers[GAJI_PASSWORD_HEADER] = password
+    }
   }
   return config
 })

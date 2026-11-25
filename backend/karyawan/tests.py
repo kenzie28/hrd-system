@@ -9,6 +9,7 @@ from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
+from gaji.access import GAJI_PASSWORD
 from karyawan.models import Karyawan
 from karyawan.serializers import KaryawanSerializer
 from karyawan.services import (
@@ -159,8 +160,27 @@ class AdminWageImportApiTests(TestCase):
             level=1,
         )
         self.client = APIClient()
-        token = Token.objects.create(user=self.admin.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+        self.token = Token.objects.create(user=self.admin.user)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f'Token {self.token.key}',
+            HTTP_X_GAJI_PASSWORD=GAJI_PASSWORD,
+        )
+
+    def test_import_rejects_missing_gaji_password(self):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+        upload = SimpleUploadedFile(
+            'base-gaji.csv',
+            b'karyawan_id,base_gaji\n1000001,1500000\n',
+            content_type='text/csv',
+        )
+        response = client.post(
+            '/api/admin/gaji/import-base-gaji/',
+            {'file': upload},
+            format='multipart',
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Karyawan.objects.get(pk='1000001').base_gaji, 0)
 
     def test_import_sets_base_gaji(self):
         upload = SimpleUploadedFile(

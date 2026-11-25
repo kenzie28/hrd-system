@@ -310,7 +310,7 @@ export interface Koreksi {
   karyawan_nama: string
   tipe: string
   nominal: number
-  bulan: string
+  tanggal: string
 }
 
 export interface KoreksiImportError {

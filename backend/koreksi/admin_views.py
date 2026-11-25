@@ -26,7 +26,7 @@ def _apply_common_filters(queryset, params):
     bulan = params.get('bulan')
     if bulan:
         year, month = map(int, bulan.split('-'))
-        queryset = queryset.filter(bulan__year=year, bulan__month=month)
+        queryset = queryset.filter(tanggal__year=year, tanggal__month=month)
     return queryset
 
 
@@ -43,7 +43,7 @@ class AdminKoreksiViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class AdminKoreksiImportView(APIView):
-    """CSV upload endpoint: columns karyawan_id,tipe,nominal,bulan."""
+    """CSV upload endpoint: columns karyawan_id,tipe,nominal,tanggal."""
 
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAdminAllowed]

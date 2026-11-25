@@ -11,6 +11,8 @@ from rest_framework.views import APIView
 
 from core.debug_log import debug_error, debug_exception
 
+from gaji.access import HasGajiPassword
+
 from .access import is_admin_allowed
 from .login import authenticate_karyawan_credentials
 from .models import Karyawan
@@ -263,7 +265,7 @@ class AdminBaseGajiImportView(APIView):
     """CSV upload: set base_gaji for each karyawan_id."""
 
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAdminAllowed]
+    permission_classes = [IsAdminAllowed, HasGajiPassword]
     parser_classes = [MultiPartParser]
 
     def post(self, request):
@@ -285,7 +287,7 @@ class AdminGajiBulananImportView(APIView):
     """CSV upload: set gaji_bulanan for each karyawan_id."""
 
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAdminAllowed]
+    permission_classes = [IsAdminAllowed, HasGajiPassword]
     parser_classes = [MultiPartParser]
 
     def post(self, request):

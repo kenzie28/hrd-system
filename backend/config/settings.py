@@ -176,6 +176,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'x-api-key',
     'x-state-manager-password',
+    'x-gaji-password',
 ]
 
 REST_FRAMEWORK = {

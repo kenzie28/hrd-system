@@ -14,13 +14,11 @@ class Koreksi(models.Model):
     )
     tipe = models.CharField(max_length=16, choices=TipeKoreksi.choices)
     nominal = models.BigIntegerField()
-    bulan = models.DateField(
-        help_text='First day of the month this correction applies to.',
-    )
+    tanggal = models.DateField()
 
     class Meta:
         verbose_name_plural = 'Koreksi'
-        ordering = ['-bulan', 'karyawan__nama', 'id']
+        ordering = ['-tanggal', 'karyawan__nama', 'id']
 
     def __str__(self):
-        return f'{self.karyawan} {self.get_tipe_display()} {self.bulan:%Y-%m}'
+        return f'{self.karyawan} {self.get_tipe_display()} {self.tanggal:%Y-%m}'

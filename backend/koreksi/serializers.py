@@ -12,4 +12,4 @@ class KoreksiSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Koreksi
-        fields = ['id', 'karyawan_id', 'karyawan_nama', 'tipe', 'nominal', 'bulan']
+        fields = ['id', 'karyawan_id', 'karyawan_nama', 'tipe', 'nominal', 'tanggal']

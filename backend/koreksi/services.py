@@ -1,4 +1,4 @@
-"""CSV import for Koreksi (karyawan_id, tipe, nominal, bulan)."""
+"""CSV import for Koreksi (karyawan_id, tipe, nominal, tanggal)."""
 from __future__ import annotations
 
 import csv
@@ -16,8 +16,8 @@ from .models import Koreksi, TipeKoreksi
 COL_KARYAWAN_ID = 'karyawan_id'
 COL_TIPE = 'tipe'
 COL_NOMINAL = 'nominal'
-COL_BULAN = 'bulan'
-REQUIRED_COLUMNS = [COL_KARYAWAN_ID, COL_TIPE, COL_NOMINAL, COL_BULAN]
+COL_TANGGAL = 'tanggal'
+REQUIRED_COLUMNS = [COL_KARYAWAN_ID, COL_TIPE, COL_NOMINAL, COL_TANGGAL]
 
 TIPE_BY_LABEL = {
     TipeKoreksi.ADMIN.label: TipeKoreksi.ADMIN,
@@ -97,7 +97,7 @@ def _parse_nominal(value: str) -> tuple[int | None, str | None]:
     return number, None
 
 
-def _parse_bulan(value: str) -> date | None:
+def _parse_tanggal(value: str) -> date | None:
     raw = _strip_quote(value)
     if len(raw) == 6 and raw.isdigit():
         year, month = int(raw[:4]), int(raw[4:])
@@ -128,7 +128,7 @@ def _parse_bulan(value: str) -> date | None:
 def import_koreksi_csv(upload) -> KoreksiImportResult:
     """Validate and insert Koreksi rows from a CSV.
 
-    Columns: karyawan_id, tipe, nominal, bulan. Delimiter may be comma or
+    Columns: karyawan_id, tipe, nominal, tanggal. Delimiter may be comma or
     semicolon. Every row is inserted, including repeats of an existing
     karyawan, tipe, and month. All rows are validated before any write.
     On validation errors nothing is persisted.
@@ -206,18 +206,18 @@ def import_koreksi_csv(upload) -> KoreksiImportResult:
             result.errors.append(KoreksiImportError(row_num, nominal_error))
             continue
 
-        bulan_raw = _strip_quote(row.get(COL_BULAN) or '')
-        if not bulan_raw:
+        tanggal_raw = _strip_quote(row.get(COL_TANGGAL) or '')
+        if not tanggal_raw:
             result.errors.append(
-                KoreksiImportError(row_num, 'Kolom bulan wajib diisi.')
+                KoreksiImportError(row_num, 'Kolom tanggal wajib diisi.')
             )
             continue
-        bulan = _parse_bulan(bulan_raw)
-        if bulan is None:
+        tanggal = _parse_tanggal(tanggal_raw)
+        if tanggal is None:
             result.errors.append(
                 KoreksiImportError(
                     row_num,
-                    f'Bulan tidak valid: {bulan_raw!r}.',
+                    f'Tanggal tidak valid: {tanggal_raw!r}.',
                 )
             )
             continue
@@ -227,7 +227,7 @@ def import_koreksi_csv(upload) -> KoreksiImportResult:
                 karyawan_id=karyawan_id,
                 tipe=tipe,
                 nominal=nominal,
-                bulan=bulan,
+                tanggal=tanggal,
             )
         )
 

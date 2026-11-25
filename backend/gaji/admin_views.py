@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 
 from karyawan.permissions import IsAdminAllowed
 
+from .access import HasGajiPassword
 from .jobs import enqueue_proses_gaji
 from .models import ProsesGajiJob, StatusProsesGaji
 from .services import export_gaji_csv, gaji_for_month, parse_bulan
@@ -48,7 +49,7 @@ class AdminProsesGajiView(APIView):
     """Start Proses Gaji for a month, or return the job already running."""
 
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAdminAllowed]
+    permission_classes = [IsAdminAllowed, HasGajiPassword]
 
     def post(self, request):
         try:
@@ -65,7 +66,7 @@ class AdminProsesGajiDetailView(APIView):
     """Poll one Proses Gaji job."""
 
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAdminAllowed]
+    permission_classes = [IsAdminAllowed, HasGajiPassword]
 
     def get(self, request, pk):
         job = get_object_or_404(ProsesGajiJob, pk=pk)
@@ -83,7 +84,7 @@ class AdminGajiMonthView(APIView):
     """How many payroll rows exist for a month."""
 
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAdminAllowed]
+    permission_classes = [IsAdminAllowed, HasGajiPassword]
 
     def get(self, request):
         periode = _periode_from_query(request)
@@ -101,7 +102,7 @@ class AdminGajiExportView(APIView):
     """Download every employee's payroll row for one month."""
 
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAdminAllowed]
+    permission_classes = [IsAdminAllowed, HasGajiPassword]
 
     def get(self, request):
         periode = _periode_from_query(request)

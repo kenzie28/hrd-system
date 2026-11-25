@@ -345,7 +345,7 @@ def export_state_csv() -> str:
             _cell(obj.karyawan_id),
             _cell(obj.tipe),
             _cell(obj.nominal),
-            _cell(obj.bulan),
+            _cell(obj.tanggal),
         ]
         for obj in Koreksi.objects.order_by('id')
     ]
@@ -1150,11 +1150,11 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
             errors,
         )
         nominal = _parse_int(_opt(row, 'nominal'), line, 'koreksi.nominal', errors)
-        bulan = _parse_date(_opt(row, 'bulan'), line, 'koreksi.bulan', errors)
-        if bulan is not None and bulan.day != 1:
-            errors.append(StateError(line, 'koreksi.bulan harus tanggal 1.'))
-            bulan = None
-        if None in (pk, karyawan_id, tipe, nominal, bulan):
+        tanggal = _parse_date(_opt(row, 'tanggal'), line, 'koreksi.tanggal', errors)
+        if tanggal is not None and tanggal.day != 1:
+            errors.append(StateError(line, 'koreksi.tanggal harus tanggal 1.'))
+            tanggal = None
+        if None in (pk, karyawan_id, tipe, nominal, tanggal):
             continue
         if pk in koreksi_ids:
             errors.append(StateError(line, f'koreksi.id duplikat: {pk}.'))
@@ -1169,7 +1169,7 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
                 'karyawan_id': karyawan_id,
                 'tipe': tipe,
                 'nominal': nominal,
-                'bulan': bulan,
+                'tanggal': tanggal,
                 '_line': line,
             }
         )
@@ -1687,7 +1687,7 @@ def _insert_state(typed: dict[str, list[dict]]) -> None:
             karyawan_id=row['karyawan_id'],
             tipe=row['tipe'],
             nominal=row['nominal'],
-            bulan=row['bulan'],
+            tanggal=row['tanggal'],
         )
 
     for row in typed[TABLE_TUNJANGAN_OBAT]:

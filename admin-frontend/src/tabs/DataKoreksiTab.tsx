@@ -58,7 +58,7 @@ export function DataKoreksiTab() {
             width: 160,
             render: (value: number) => formatCurrency(value),
           },
-          { title: 'Bulan', dataIndex: 'bulan', width: 120 },
+          { title: 'Tanggal', dataIndex: 'tanggal', width: 120 },
         ]}
       />
     </Space>

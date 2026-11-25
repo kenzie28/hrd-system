@@ -28,7 +28,7 @@ class KoreksiCsvImportTests(TestCase):
 
     def test_inserts_both_types_and_a_second_upload_duplicates_rows(self):
         body = (
-            'karyawan_id,tipe,nominal,bulan\n'
+            'karyawan_id,tipe,nominal,tanggal\n'
             '1000001,Koreksi Admin,-50000,2026-11\n'
             '1000001,Koreksi Absensi,3000000000,202611\n'
             "1000001,Koreksi Admin,-50000,2026-11-15\n"
@@ -40,7 +40,7 @@ class KoreksiCsvImportTests(TestCase):
         self.assertEqual(result.created, 3)
         rows = list(Koreksi.objects.order_by('id'))
         self.assertEqual(
-            [(row.tipe, row.nominal, row.bulan) for row in rows],
+            [(row.tipe, row.nominal, row.tanggal) for row in rows],
             [
                 (TipeKoreksi.ADMIN, -50000, date(2026, 11, 1)),
                 (TipeKoreksi.ABSENSI, 3_000_000_000, date(2026, 11, 1)),
@@ -49,7 +49,7 @@ class KoreksiCsvImportTests(TestCase):
         )
 
         again = self._upload(
-            'karyawan_id;tipe;nominal;bulan\n'
+            'karyawan_id;tipe;nominal;tanggal\n'
             '1000001;Koreksi Absensi;125000;2026-11-01\n'
         )
         self.assertTrue(again.ok, again.errors)
@@ -62,7 +62,7 @@ class KoreksiCsvImportTests(TestCase):
 
     def test_unknown_karyawan_bad_tipe_and_bad_nominal_write_nothing(self):
         unknown = self._upload(
-            'karyawan_id,tipe,nominal,bulan\n'
+            'karyawan_id,tipe,nominal,tanggal\n'
             '9999999,Koreksi Admin,-1,2026-11\n'
             '1000001,Koreksi Admin,-2,2026-11\n'
         )
@@ -71,7 +71,7 @@ class KoreksiCsvImportTests(TestCase):
         self.assertEqual(Koreksi.objects.count(), 0)
 
         bad_tipe = self._upload(
-            'karyawan_id,tipe,nominal,bulan\n'
+            'karyawan_id,tipe,nominal,tanggal\n'
             '1000001,Admin,-1,2026-11\n'
         )
         self.assertFalse(bad_tipe.ok)
@@ -79,7 +79,7 @@ class KoreksiCsvImportTests(TestCase):
         self.assertEqual(Koreksi.objects.count(), 0)
 
         bad_nominal = self._upload(
-            'karyawan_id,tipe,nominal,bulan\n'
+            'karyawan_id,tipe,nominal,tanggal\n'
             '1000001,Koreksi Absensi,"1,000",2026-11-01\n'
         )
         self.assertFalse(bad_nominal.ok)
@@ -87,7 +87,7 @@ class KoreksiCsvImportTests(TestCase):
         self.assertEqual(Koreksi.objects.count(), 0)
 
         overflow = self._upload(
-            'karyawan_id,tipe,nominal,bulan\n'
+            'karyawan_id,tipe,nominal,tanggal\n'
             '1000001,Koreksi Absensi,9223372036854775808,2026-11\n'
         )
         self.assertFalse(overflow.ok)
@@ -97,7 +97,7 @@ class KoreksiCsvImportTests(TestCase):
     def test_pads_karyawan_id_and_strips_excel_quote(self):
         Karyawan.objects.create(karyawan_id='0000001', nama='Ani', level=1)
         result = self._upload(
-            'karyawan_id,tipe,nominal,bulan\n'
+            'karyawan_id,tipe,nominal,tanggal\n'
             "'1,Koreksi Admin,10,2026-02-01\n"
         )
         self.assertTrue(result.ok, result.errors)
@@ -125,7 +125,7 @@ class AdminKoreksiApiTests(TestCase):
         upload = SimpleUploadedFile(
             'koreksi.csv',
             (
-                'karyawan_id,tipe,nominal,bulan\n'
+                'karyawan_id,tipe,nominal,tanggal\n'
                 '1000001,Koreksi Admin,-50000,2026-11-01\n'
                 '1000001,Koreksi Absensi,125000,2026-10\n'
             ).encode(),
@@ -146,4 +146,4 @@ class AdminKoreksiApiTests(TestCase):
         self.assertEqual(listed.data[0]['tipe'], 'Koreksi Admin')
         self.assertEqual(listed.data[0]['nominal'], -50000)
         self.assertEqual(listed.data[0]['karyawan_nama'], 'Budi')
-        self.assertEqual(listed.data[0]['bulan'], '2026-11-01')
+        self.assertEqual(listed.data[0]['tanggal'], '2026-11-01')

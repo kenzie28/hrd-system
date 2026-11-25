@@ -99,7 +99,7 @@ TABLE_COLUMNS = {
         'karyawan_id',
         'tipe',
         'nominal',
-        'bulan',
+        'tanggal',
     ),
     TABLE_TUNJANGAN_OBAT: (
         'id',

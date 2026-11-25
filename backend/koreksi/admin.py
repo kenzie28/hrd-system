@@ -5,4 +5,4 @@ from .models import Koreksi
 
 @admin.register(Koreksi)
 class KoreksiAdmin(admin.ModelAdmin):
-    list_display = ['id', 'karyawan', 'tipe', 'nominal', 'bulan']
+    list_display = ['id', 'karyawan', 'tipe', 'nominal', 'tanggal']

@@ -11,6 +11,7 @@ from rest_framework.test import APIClient
 from absensi.models import Kehadiran, StatusKehadiran
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from dinas.models import Dinas
+from gaji.access import GAJI_PASSWORD
 from gaji.jobs import run_proses_gaji
 from gaji.models import Gaji, ProsesGajiJob, StatusProsesGaji
 from gaji.services import write_gaji
@@ -136,25 +137,25 @@ class ProsesGajiCalculationTests(TestCase):
             karyawan=self.employee,
             tipe=TipeKoreksi.ABSENSI,
             nominal=20_000,
-            bulan=self.periode,
+            tanggal=self.periode,
         )
         Koreksi.objects.create(
             karyawan=self.employee,
             tipe=TipeKoreksi.ABSENSI,
             nominal=-5_000,
-            bulan=self.periode,
+            tanggal=self.periode,
         )
         Koreksi.objects.create(
             karyawan=self.employee,
             tipe=TipeKoreksi.ADMIN,
             nominal=-10_000,
-            bulan=self.periode,
+            tanggal=self.periode,
         )
         Koreksi.objects.create(
             karyawan=self.employee,
             tipe=TipeKoreksi.ADMIN,
             nominal=-3_000,
-            bulan=self.periode,
+            tanggal=self.periode,
         )
 
         gaji = write_gaji(self.employee, date(2026, 11, 15))
@@ -359,7 +360,11 @@ class ProsesGajiApiTests(TestCase):
         )
         self.client = APIClient()
         token = Token.objects.create(user=self.admin.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+        self.token = token
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f'Token {token.key}',
+            HTTP_X_GAJI_PASSWORD=GAJI_PASSWORD,
+        )
 
     def test_post_returns_before_work_and_get_reports_progress(self):
         with patch('gaji.admin_views.enqueue_proses_gaji') as enqueue:
@@ -452,7 +457,10 @@ class ProsesGajiApiTests(TestCase):
         outsider.refresh_from_db()
         token = Token.objects.create(user=outsider.user)
         client = APIClient()
-        client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+        client.credentials(
+            HTTP_AUTHORIZATION=f'Token {token.key}',
+            HTTP_X_GAJI_PASSWORD=GAJI_PASSWORD,
+        )
         forbidden = client.post(
             '/api/admin/gaji/proses/',
             {'bulan': '2026-11'},
@@ -500,3 +508,32 @@ class ProsesGajiApiTests(TestCase):
         self.assertEqual(bad.status_code, 400)
         anonymous = APIClient().get('/api/admin/gaji/export/', {'bulan': '2026-11'})
         self.assertEqual(anonymous.status_code, 401)
+
+    def test_module_password_required_for_any_admin(self):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+
+        missing = client.post(
+            '/api/admin/gaji/proses/',
+            {'bulan': '2026-11'},
+            format='json',
+        )
+        self.assertEqual(missing.status_code, 403)
+        self.assertEqual(missing.data['detail'], 'Kata sandi Gaji tidak valid.')
+        self.assertEqual(ProsesGajiJob.objects.count(), 0)
+
+        wrong = client.get(
+            '/api/admin/gaji/export/',
+            {'bulan': '2026-11', 'password': 'wrong'},
+        )
+        self.assertEqual(wrong.status_code, 403)
+
+        with patch('gaji.admin_views.enqueue_proses_gaji') as enqueue:
+            via_body = client.post(
+                '/api/admin/gaji/proses/',
+                {'bulan': '2026-11', 'password': GAJI_PASSWORD},
+                format='json',
+            )
+        self.assertEqual(via_body.status_code, 202)
+        self.assertEqual(ProsesGajiJob.objects.count(), 1)
+        enqueue.assert_called_once()

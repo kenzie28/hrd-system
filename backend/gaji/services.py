@@ -138,12 +138,12 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
     )
     gaji.koreksi_absensi = _nominal_sum(
         Koreksi.objects.filter(
-            karyawan=karyawan, bulan=start, tipe=TipeKoreksi.ABSENSI
+            karyawan=karyawan, tanggal=start, tipe=TipeKoreksi.ABSENSI
         )
     )
     gaji.koreksi_admin = _nominal_sum(
         Koreksi.objects.filter(
-            karyawan=karyawan, bulan=start, tipe=TipeKoreksi.ADMIN
+            karyawan=karyawan, tanggal=start, tipe=TipeKoreksi.ADMIN
         )
     )
 

@@ -172,7 +172,7 @@ class StateManagerApiTests(TestCase):
             karyawan=self.worker,
             tipe=TipeKoreksi.ABSENSI,
             nominal=-150_000,
-            bulan=date(2026, 2, 1),
+            tanggal=date(2026, 2, 1),
         )
         TunjanganObat.objects.create(
             karyawan=self.worker,
@@ -328,7 +328,7 @@ class StateManagerApiTests(TestCase):
         koreksi = Koreksi.objects.get(karyawan_id='1000001')
         self.assertEqual(koreksi.tipe, TipeKoreksi.ABSENSI)
         self.assertEqual(koreksi.nominal, -150_000)
-        self.assertEqual(koreksi.bulan, date(2026, 2, 1))
+        self.assertEqual(koreksi.tanggal, date(2026, 2, 1))
         tunjangan = TunjanganObat.objects.get(karyawan_id='1000001')
         self.assertEqual(tunjangan.nominal, 250_000)
         self.assertEqual(tunjangan.bulan, date(2026, 2, 1))

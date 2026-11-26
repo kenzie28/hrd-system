@@ -11,6 +11,7 @@ from gaji.admin_views import (
     AdminProsesGajiDetailView,
     AdminProsesGajiView,
 )
+from gaji.diagnostik_views import AdminGajiDiagnostikExportView
 from absensi.views import AbsensiViewSet, PortalAbsensiViewSet, PortalKehadiranViewSet
 from shift.admin_views import AdminShiftImportView
 from shift.views import ShiftViewSet
@@ -190,6 +191,11 @@ admin_api_urlpatterns = [
         'admin/gaji/export/',
         AdminGajiExportView.as_view(),
         name='admin-gaji-export',
+    ),
+    path(
+        'admin/gaji/export-diagnostik/',
+        AdminGajiDiagnostikExportView.as_view(),
+        name='admin-gaji-export-diagnostik',
     ),
     path(
         'admin/gaji/karyawan/',

@@ -690,6 +690,105 @@ class ProsesGajiApiTests(TestCase):
         )
         self.assertEqual(denied.status_code, 403)
 
+    def test_patch_updates_any_gaji_karyawan_field(self):
+        self.employee.base_gaji = 1
+        self.employee.gaji_bulanan = 2
+        self.employee.absensi_dihitung = True
+        self.employee.save()
+
+        response = self.client.patch(
+            '/api/admin/gaji/karyawan/1000001/',
+            {
+                'nama': '  Budi Santoso ',
+                'level': 9,
+                'jabatan': 'J' * 128,
+                'no_bpjs': '1' * 16,
+                'base_gaji': 7_000_000,
+                'gaji_bulanan': 8_000_000,
+                'absensi_dihitung': False,
+                'password': GAJI_PASSWORD,
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['nama'], 'Budi Santoso')
+        self.assertEqual(response.data['level'], 9)
+        self.assertEqual(response.data['jabatan'], 'J' * 128)
+        self.assertEqual(response.data['no_bpjs'], '1' * 16)
+        self.assertEqual(response.data['base_gaji'], 7_000_000)
+        self.assertEqual(response.data['gaji_bulanan'], 8_000_000)
+        self.assertFalse(response.data['absensi_dihitung'])
+
+        self.employee.refresh_from_db()
+        self.admin.refresh_from_db()
+        self.assertEqual(self.employee.nama, 'Budi Santoso')
+        self.assertEqual(self.employee.level, 9)
+        self.assertEqual(self.employee.base_gaji, 7_000_000)
+        self.assertEqual(self.admin.nama, 'Admin')
+        self.assertEqual(self.admin.level, 8)
+
+        one_field = self.client.patch(
+            '/api/admin/gaji/karyawan/1000001/',
+            {'jabatan': '  '},
+            format='json',
+        )
+        self.assertEqual(one_field.status_code, 200)
+        self.assertEqual(one_field.data['jabatan'], '')
+        self.assertEqual(one_field.data['nama'], 'Budi Santoso')
+        self.assertEqual(one_field.data['base_gaji'], 7_000_000)
+        self.assertFalse(one_field.data['absensi_dihitung'])
+
+        boundaries = self.client.patch(
+            '/api/admin/gaji/karyawan/1000001/',
+            {'level': 0, 'no_bpjs': '', 'base_gaji': 0, 'gaji_bulanan': 0},
+            format='json',
+        )
+        self.assertEqual(boundaries.status_code, 200)
+        self.assertEqual(boundaries.data['level'], 0)
+        self.assertEqual(boundaries.data['no_bpjs'], '')
+        self.assertEqual(boundaries.data['base_gaji'], 0)
+        self.assertEqual(boundaries.data['gaji_bulanan'], 0)
+
+    def test_patch_rejects_invalid_gaji_karyawan_fields(self):
+        self.employee.jabatan = 'Staff'
+        self.employee.base_gaji = 4_500_000
+        self.employee.save()
+        invalid = [
+            {},
+            {'password': GAJI_PASSWORD},
+            {'nama': '   '},
+            {'nama': 1},
+            {'level': 10},
+            {'level': -1},
+            {'level': True},
+            {'level': '1'},
+            {'jabatan': 'x' * 129},
+            {'no_bpjs': '1' * 17},
+            {'base_gaji': -1},
+            {'base_gaji': True},
+            {'base_gaji': 1.5},
+            {'base_gaji': 1 << 63},
+            {'gaji_bulanan': -5},
+            {'absensi_dihitung': 'false'},
+            {'karyawan_id': '1000002'},
+            {'nama': 'Sari', 'level': 99},
+        ]
+        for payload in invalid:
+            response = self.client.patch(
+                '/api/admin/gaji/karyawan/1000001/',
+                payload,
+                format='json',
+            )
+            self.assertEqual(response.status_code, 400, payload)
+            self.assertTrue(response.data['detail'], payload)
+
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.nama, 'Budi')
+        self.assertEqual(self.employee.level, 1)
+        self.assertEqual(self.employee.jabatan, 'Staff')
+        self.assertEqual(self.employee.base_gaji, 4_500_000)
+        self.assertTrue(self.employee.absensi_dihitung)
+
     def test_module_password_required_for_any_admin(self):
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')

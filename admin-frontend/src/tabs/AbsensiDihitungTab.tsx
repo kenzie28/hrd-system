@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { App as AntApp, Alert, Input, Switch, Table, Typography } from 'antd'
 import axios from 'axios'
-import { useGajiKaryawan, useUpdateAbsensiDihitung } from '../api/hooks'
+import { useGajiKaryawan, useUpdateGajiKaryawan } from '../api/hooks'
 import type { GajiKaryawan } from '../api/types'
 
 function errorMessage(err: unknown) {
@@ -14,7 +14,7 @@ function errorMessage(err: unknown) {
 
 export function AbsensiDihitungTab() {
   const { data, isLoading, isError } = useGajiKaryawan()
-  const update = useUpdateAbsensiDihitung()
+  const update = useUpdateGajiKaryawan()
   const { message } = AntApp.useApp()
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)

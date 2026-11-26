@@ -169,18 +169,15 @@ export function useGajiKaryawan() {
   })
 }
 
-export function useUpdateAbsensiDihitung() {
+export function useUpdateGajiKaryawan() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({
       karyawan_id,
-      absensi_dihitung,
-    }: {
-      karyawan_id: string
-      absensi_dihitung: boolean
-    }) =>
+      ...patch
+    }: { karyawan_id: string } & Partial<Omit<GajiKaryawan, 'karyawan_id'>>) =>
       api
-        .patch<GajiKaryawan>(`/admin/gaji/karyawan/${karyawan_id}/`, { absensi_dihitung })
+        .patch<GajiKaryawan>(`/admin/gaji/karyawan/${karyawan_id}/`, patch)
         .then((response) => response.data),
     onSuccess: (row) => {
       qc.setQueryData<GajiKaryawan[]>(['gaji-karyawan'], (current) =>
@@ -234,6 +231,25 @@ export function useGajiExport() {
         const filename =
           filenameFromDisposition(response.headers['content-disposition']) ??
           `gaji-${bulan}.csv`
+        return { blob: response.data, filename }
+      } catch (err) {
+        throw new Error(await messageFromAxiosError(err))
+      }
+    },
+  })
+}
+
+export function useGajiDiagnostikExport() {
+  return useMutation({
+    mutationFn: async (bulan: string) => {
+      try {
+        const response = await api.get<Blob>('/admin/gaji/export-diagnostik/', {
+          params: { bulan },
+          responseType: 'blob',
+        })
+        const filename =
+          filenameFromDisposition(response.headers['content-disposition']) ??
+          `gaji-diagnostik-${bulan}.xlsx`
         return { blob: response.data, filename }
       } catch (err) {
         throw new Error(await messageFromAxiosError(err))

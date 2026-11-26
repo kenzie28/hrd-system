@@ -3,7 +3,13 @@ import { Alert, Button, DatePicker, Progress, Space, Typography, message } from 
 import { useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import dayjs from 'dayjs'
-import { useGajiExport, useGajiMonthReady, useProsesGaji, useProsesGajiJob } from '../api/hooks'
+import {
+  useGajiDiagnostikExport,
+  useGajiExport,
+  useGajiMonthReady,
+  useProsesGaji,
+  useProsesGajiJob,
+} from '../api/hooks'
 import type { ProsesGajiJob } from '../api/types'
 
 function jobPercent(job: ProsesGajiJob): number {
@@ -37,6 +43,7 @@ export function ProcessGajiTab() {
   const [jobId, setJobId] = useState<number | null>(null)
   const start = useProsesGaji()
   const download = useGajiExport()
+  const diagnostik = useGajiDiagnostikExport()
   const jobQuery = useProsesGajiJob(jobId)
   const job = jobQuery.data
   const bulan = month.format('YYYY-MM')
@@ -91,6 +98,26 @@ export function ProcessGajiTab() {
             }}
           >
             Unduh CSV
+          </Button>
+        ) : null}
+        {canDownload ? (
+          <Button
+            loading={diagnostik.isPending}
+            onClick={() => {
+              diagnostik.mutate(bulan, {
+                onSuccess: ({ blob, filename }) => {
+                  saveDownload(blob, filename)
+                  message.success('Excel diagnostik berhasil diunduh.')
+                },
+                onError: (err) => {
+                  message.error(
+                    err instanceof Error ? err.message : 'Gagal mengunduh Excel diagnostik.',
+                  )
+                },
+              })
+            }}
+          >
+            Unduh Excel Diagnostik
           </Button>
         ) : null}
       </Space>

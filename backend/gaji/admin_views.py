@@ -92,6 +92,89 @@ _GAJI_KARYAWAN_FIELDS = (
     'absensi_dihitung',
 )
 
+_EDITABLE_GAJI_KARYAWAN_FIELDS = frozenset(
+    {
+        'nama',
+        'level',
+        'jabatan',
+        'no_bpjs',
+        'base_gaji',
+        'gaji_bulanan',
+        'absensi_dihitung',
+    }
+)
+
+# Same ceiling as the wage CSV import.
+_WAGE_MAX = (1 << 63) - 1
+
+
+def _gaji_karyawan_row(karyawan_id):
+    return Karyawan.objects.filter(pk=karyawan_id).values(*_GAJI_KARYAWAN_FIELDS).get()
+
+
+def _clean_text(value, *, label, max_length, required):
+    if not isinstance(value, str):
+        return None, f'{label} harus teks.'
+    text = value.strip()
+    if required and not text:
+        return None, f'{label} wajib diisi.'
+    if len(text) > max_length:
+        return None, f'{label} maksimal {max_length} karakter.'
+    return text, None
+
+
+def _clean_gaji_karyawan_value(field, value):
+    if field == 'nama':
+        return _clean_text(value, label='Nama', max_length=128, required=True)
+    if field == 'jabatan':
+        return _clean_text(value, label='Jabatan', max_length=128, required=False)
+    if field == 'no_bpjs':
+        return _clean_text(value, label='No. BPJS', max_length=16, required=False)
+    if field == 'level':
+        # bool is an int in Python, so reject it before the range check.
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 9:
+            return None, 'Level harus bilangan 0 sampai 9.'
+        return value, None
+    if field in ('base_gaji', 'gaji_bulanan'):
+        label = 'Base gaji' if field == 'base_gaji' else 'Gaji bulanan'
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or value < 0
+            or value > _WAGE_MAX
+        ):
+            return None, f'{label} harus bilangan bulat non-negatif.'
+        return value, None
+    if field == 'absensi_dihitung':
+        if not isinstance(value, bool):
+            return None, 'absensi_dihitung harus true atau false.'
+        return value, None
+    return None, f'Field tidak dikenal: {field}.'
+
+
+def _clean_gaji_karyawan_updates(data):
+    """Validate a partial update. `password` is the module gate, not a field."""
+    if not isinstance(data, dict):
+        return None, 'Data tidak valid.'
+    payload = {key: value for key, value in data.items() if key != 'password'}
+    unknown = sorted(key for key in payload if key not in _EDITABLE_GAJI_KARYAWAN_FIELDS)
+    if unknown:
+        return None, f'Field tidak dikenal: {", ".join(unknown)}.'
+    if not payload:
+        return None, 'Tidak ada data yang diubah.'
+
+    cleaned = {}
+    errors = []
+    for field, value in payload.items():
+        parsed, error = _clean_gaji_karyawan_value(field, value)
+        if error:
+            errors.append(error)
+        else:
+            cleaned[field] = parsed
+    if errors:
+        return None, ' '.join(errors)
+    return cleaned, None
+
 
 class AdminGajiKaryawanListView(APIView):
     """Every employee with the wage fields used by this module."""
@@ -105,23 +188,20 @@ class AdminGajiKaryawanListView(APIView):
 
 
 class AdminGajiKaryawanDetailView(APIView):
-    """Turn attendance deductions on or off for one employee."""
+    """Update any wage field for one employee. Omitted fields stay as they are."""
 
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAdminAllowed, HasGajiPassword]
 
     def patch(self, request, pk):
         karyawan = get_object_or_404(Karyawan, pk=pk)
-        value = request.data.get('absensi_dihitung', None)
-        if not isinstance(value, bool):
-            return Response(
-                {'detail': 'absensi_dihitung harus true atau false.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        karyawan.absensi_dihitung = value
-        karyawan.save(update_fields=['absensi_dihitung'])
-        row = Karyawan.objects.filter(pk=karyawan.pk).values(*_GAJI_KARYAWAN_FIELDS).get()
-        return Response(row)
+        updates, error = _clean_gaji_karyawan_updates(request.data)
+        if error:
+            return Response({'detail': error}, status=status.HTTP_400_BAD_REQUEST)
+        for field, value in updates.items():
+            setattr(karyawan, field, value)
+        karyawan.save(update_fields=list(updates))
+        return Response(_gaji_karyawan_row(karyawan.pk))
 
 
 class AdminGajiMonthView(APIView):

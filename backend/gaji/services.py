@@ -200,7 +200,7 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
     else:
         pph = Decimal(0)
         gaji.persentase_pph21 = Decimal('0.00')
-    total = net - benefit - pph
+    total = net - benefit - pph - gaji.total_pot_bpjs
 
     gaji.pot_alpa = round_half_up(pot_alpa)
     gaji.gaji_lembur = round_half_up(gaji_lembur)

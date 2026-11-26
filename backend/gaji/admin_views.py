@@ -90,6 +90,7 @@ _GAJI_KARYAWAN_FIELDS = (
     'base_gaji',
     'gaji_bulanan',
     'absensi_dihitung',
+    'lembur_dibayar',
 )
 
 _EDITABLE_GAJI_KARYAWAN_FIELDS = frozenset(
@@ -101,8 +102,11 @@ _EDITABLE_GAJI_KARYAWAN_FIELDS = frozenset(
         'base_gaji',
         'gaji_bulanan',
         'absensi_dihitung',
+        'lembur_dibayar',
     }
 )
+
+_BOOLEAN_GAJI_KARYAWAN_FIELDS = frozenset({'absensi_dihitung', 'lembur_dibayar'})
 
 # Same ceiling as the wage CSV import.
 _WAGE_MAX = (1 << 63) - 1
@@ -145,9 +149,9 @@ def _clean_gaji_karyawan_value(field, value):
         ):
             return None, f'{label} harus bilangan bulat non-negatif.'
         return value, None
-    if field == 'absensi_dihitung':
+    if field in _BOOLEAN_GAJI_KARYAWAN_FIELDS:
         if not isinstance(value, bool):
-            return None, 'absensi_dihitung harus true atau false.'
+            return None, f'{field} harus true atau false.'
         return value, None
     return None, f'Field tidak dikenal: {field}.'
 

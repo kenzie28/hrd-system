@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import date
+from datetime import date, time, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -8,18 +8,22 @@ from django.test import TestCase
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-from absensi.models import Kehadiran, StatusKehadiran
+from absensi.models import Absensi, Kehadiran, StatusKehadiran
 from cuti.models import Cuti, PermohonanCuti, StatusPermohonanCuti, TipeCuti
 from dinas.models import Dinas
 from gaji.access import GAJI_PASSWORD
 from gaji.jobs import run_proses_gaji
 from gaji.models import Gaji, ProsesGajiJob, StatusProsesGaji
+from gaji.lembur_bayar import UPAH_HARI_LEMBUR, UPAH_JAM_LEMBUR_NUMERATOR
 from gaji.services import write_gaji
 from gaji.ter import ter_fraction
 from karyawan.models import Karyawan, StatusKTk
 from koreksi.models import Koreksi, TipeKoreksi
 from lembur.models import PermohonanLembur, StatusPermohonanLembur
+from liburan.models import Liburan
+from lokasi.models import Lokasi
 from obat.models import TunjanganObat
+from shift.models import HariKerja, Shift
 
 
 def _cuti(karyawan, tipe, *days):
@@ -178,8 +182,11 @@ class ProsesGajiCalculationTests(TestCase):
         self.assertEqual(gaji.hari_telat, 1)
         self.assertEqual(gaji.total_menit_telat, 10)
         self.assertEqual(gaji.hari_alpa, 2)
+        # 90 minutes on a recorded day round to 2 hours. 21 November is an
+        # approved request with no lokasi and no punch: one hari, zero hours.
         self.assertEqual(gaji.hari_lembur, 1)
         self.assertEqual(gaji.jam_lembur, 2)
+        self.assertEqual(gaji.jam_diakumulasi, 0)
         self.assertEqual(gaji.hari_sakit, 2)
         self.assertEqual(gaji.hari_cuti, 1)
         self.assertEqual(gaji.hari_cuti_tambahan, 2)
@@ -198,13 +205,13 @@ class ProsesGajiCalculationTests(TestCase):
         self.assertEqual(gaji.beban_bjps_jkk, 10_800)
         self.assertEqual(gaji.total_bpjs_benefit, 204_300)
         self.assertEqual(gaji.pot_alpa, 600_000)
-        self.assertEqual(gaji.gaji_lembur, 0)
+        self.assertEqual(gaji.gaji_lembur, 169_667)
         self.assertEqual(gaji.tunjangan_dinas, 220_000)
         self.assertEqual(gaji.uang_terima_kasih, 0)
-        self.assertEqual(gaji.net_penghasilan, 5_976_300)
+        self.assertEqual(gaji.net_penghasilan, 6_145_967)
         self.assertEqual(gaji.persentase_pph21, Decimal('0.75'))
-        self.assertEqual(gaji.pot_pph21, 44_822)
-        self.assertEqual(gaji.total_gaji, 5_547_178)
+        self.assertEqual(gaji.pot_pph21, 46_095)
+        self.assertEqual(gaji.total_gaji, 5_715_572)
         self.assertEqual(
             gaji.total_gaji,
             gaji.net_penghasilan
@@ -380,6 +387,144 @@ class ProsesGajiCalculationTests(TestCase):
         self.assertEqual(gaji.pot_pph21, 0)
         self.assertEqual(gaji.net_penghasilan, 6_000_000)
         self.assertEqual(gaji.total_gaji, gaji.net_penghasilan)
+
+    def test_scheduled_weekday_overtime_is_hours_only(self):
+        lokasi = Lokasi.objects.create(id='80', nama='Toko')
+        self.employee.lokasi_kerja = lokasi
+        self.employee.save(update_fields=['lokasi_kerja'])
+        Shift.objects.create(
+            lokasi_kerja=lokasi,
+            hari=HariKerja.SENIN,
+            jam_masuk=time(8, 0),
+            jam_keluar=time(17, 0),
+        )
+        PermohonanLembur.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 11, 2),
+            status=StatusPermohonanLembur.APPROVED,
+        )
+        Kehadiran.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 11, 2),
+            status=StatusKehadiran.HADIR,
+            lembur=60,
+        )
+
+        gaji = write_gaji(self.employee, self.periode)
+
+        self.assertEqual(gaji.hari_lembur, 0)
+        self.assertEqual(gaji.jam_lembur, 1)
+        self.assertEqual(gaji.gaji_lembur, 18_333)
+        self.assertEqual(gaji.jam_diakumulasi, 0)
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.akumulasi_lembur, 0)
+
+    def test_off_day_and_liburan_pay_hours_and_a_flat_day(self):
+        lokasi = Lokasi.objects.create(id='80', nama='Toko')
+        self.employee.lokasi_kerja = lokasi
+        self.employee.save(update_fields=['lokasi_kerja'])
+        Shift.objects.create(
+            lokasi_kerja=lokasi,
+            hari=HariKerja.SENIN,
+            jam_masuk=time(8, 0),
+            jam_keluar=time(17, 0),
+        )
+        Liburan.objects.create(nama='Maulid', tanggal=date(2026, 11, 9))
+        for day, hours in ((date(2026, 11, 7), 3), (date(2026, 11, 9), 3)):
+            PermohonanLembur.objects.create(
+                karyawan=self.employee,
+                tanggal=day,
+                status=StatusPermohonanLembur.APPROVED,
+            )
+            Absensi.objects.create(
+                karyawan=self.employee,
+                lokasi=lokasi,
+                tanggal=day,
+                jam_masuk=time(8, 0),
+                durasi=timedelta(hours=hours),
+            )
+        PermohonanLembur.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 11, 7),
+            status=StatusPermohonanLembur.APPROVED,
+        )
+        Kehadiran.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 11, 9),
+            status=StatusKehadiran.HADIR,
+            lembur=999,
+        )
+        PermohonanLembur.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 11, 14),
+            status=StatusPermohonanLembur.MENUNGGU_HRD,
+        )
+        Absensi.objects.create(
+            karyawan=self.employee,
+            lokasi=lokasi,
+            tanggal=date(2026, 11, 14),
+            jam_masuk=time(8, 0),
+            durasi=timedelta(hours=5),
+        )
+
+        gaji = write_gaji(self.employee, self.periode)
+
+        self.assertEqual(gaji.hari_lembur, 2)
+        self.assertEqual(gaji.jam_lembur, 6)
+        self.assertEqual(
+            gaji.gaji_lembur,
+            UPAH_JAM_LEMBUR_NUMERATOR + 2 * UPAH_HARI_LEMBUR,
+        )
+
+    def test_unpaid_hours_bank_once_and_a_reprocess_replaces_them(self):
+        self.employee.lembur_dibayar = False
+        self.employee.akumulasi_lembur = 10
+        self.employee.save(update_fields=['lembur_dibayar', 'akumulasi_lembur'])
+        row = Kehadiran.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 11, 3),
+            status=StatusKehadiran.HADIR,
+            lembur=90,
+        )
+        Kehadiran.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 10, 5),
+            status=StatusKehadiran.HADIR,
+            lembur=60,
+        )
+
+        write_gaji(self.employee, date(2026, 10, 1))
+        first = write_gaji(self.employee, self.periode)
+        self.employee.refresh_from_db()
+        self.assertEqual(first.gaji_lembur, 0)
+        self.assertEqual(first.jam_lembur, 2)
+        self.assertEqual(first.jam_diakumulasi, 2)
+        self.assertEqual(self.employee.akumulasi_lembur, 13)
+
+        again = write_gaji(self.employee, self.periode)
+        self.employee.refresh_from_db()
+        self.assertEqual(again.jam_diakumulasi, 2)
+        self.assertEqual(self.employee.akumulasi_lembur, 13)
+
+        row.lembur = 150
+        row.save(update_fields=['lembur'])
+        changed = write_gaji(self.employee, self.periode)
+        self.employee.refresh_from_db()
+        self.assertEqual(changed.jam_lembur, 3)
+        self.assertEqual(changed.jam_diakumulasi, 3)
+        self.assertEqual(self.employee.akumulasi_lembur, 14)
+
+        self.employee.lembur_dibayar = True
+        self.employee.save(update_fields=['lembur_dibayar'])
+        paid = write_gaji(self.employee, self.periode)
+        self.employee.refresh_from_db()
+        self.assertEqual(paid.gaji_lembur, 55_000)
+        self.assertEqual(paid.jam_diakumulasi, 0)
+        self.assertEqual(self.employee.akumulasi_lembur, 11)
+        october_gaji = Gaji.objects.get(
+            karyawan=self.employee, periode=date(2026, 10, 1)
+        )
+        self.assertEqual(october_gaji.jam_diakumulasi, 1)
 
 
 class ProsesGajiJobTests(TestCase):
@@ -623,6 +768,7 @@ class ProsesGajiApiTests(TestCase):
         self.employee.no_bpjs = ''
         self.employee.base_gaji = 4_500_000
         self.employee.gaji_bulanan = 6_000_000
+        self.employee.lembur_dibayar = True
         self.employee.save()
 
         locked = APIClient()
@@ -644,6 +790,7 @@ class ProsesGajiApiTests(TestCase):
                     'base_gaji': 1_000_000,
                     'gaji_bulanan': 2_000_000,
                     'absensi_dihitung': True,
+                    'lembur_dibayar': False,
                 },
                 {
                     'karyawan_id': '1000001',
@@ -654,6 +801,7 @@ class ProsesGajiApiTests(TestCase):
                     'base_gaji': 4_500_000,
                     'gaji_bulanan': 6_000_000,
                     'absensi_dihitung': True,
+                    'lembur_dibayar': True,
                 },
             ],
         )
@@ -670,6 +818,7 @@ class ProsesGajiApiTests(TestCase):
         self.employee.refresh_from_db()
         self.admin.refresh_from_db()
         self.assertFalse(self.employee.absensi_dihitung)
+        self.assertFalse(self.employee.lembur_dibayar)
         self.assertTrue(self.admin.absensi_dihitung)
 
         bad = self.client.patch(
@@ -713,6 +862,7 @@ class ProsesGajiApiTests(TestCase):
                 'base_gaji': 7_000_000,
                 'gaji_bulanan': 8_000_000,
                 'absensi_dihitung': False,
+                'lembur_dibayar': True,
                 'password': GAJI_PASSWORD,
             },
             format='json',
@@ -725,12 +875,15 @@ class ProsesGajiApiTests(TestCase):
         self.assertEqual(response.data['base_gaji'], 7_000_000)
         self.assertEqual(response.data['gaji_bulanan'], 8_000_000)
         self.assertFalse(response.data['absensi_dihitung'])
+        self.assertTrue(response.data['lembur_dibayar'])
 
         self.employee.refresh_from_db()
         self.admin.refresh_from_db()
         self.assertEqual(self.employee.nama, 'Budi Santoso')
         self.assertEqual(self.employee.level, 9)
         self.assertEqual(self.employee.base_gaji, 7_000_000)
+        self.assertTrue(self.employee.lembur_dibayar)
+        self.assertFalse(self.admin.lembur_dibayar)
         self.assertEqual(self.admin.nama, 'Admin')
         self.assertEqual(self.admin.level, 8)
 
@@ -744,6 +897,7 @@ class ProsesGajiApiTests(TestCase):
         self.assertEqual(one_field.data['nama'], 'Budi Santoso')
         self.assertEqual(one_field.data['base_gaji'], 7_000_000)
         self.assertFalse(one_field.data['absensi_dihitung'])
+        self.assertTrue(one_field.data['lembur_dibayar'])
 
         boundaries = self.client.patch(
             '/api/admin/gaji/karyawan/1000001/',
@@ -759,6 +913,7 @@ class ProsesGajiApiTests(TestCase):
     def test_patch_rejects_invalid_gaji_karyawan_fields(self):
         self.employee.jabatan = 'Staff'
         self.employee.base_gaji = 4_500_000
+        self.employee.lembur_dibayar = True
         self.employee.save()
         invalid = [
             {},
@@ -777,6 +932,8 @@ class ProsesGajiApiTests(TestCase):
             {'base_gaji': 1 << 63},
             {'gaji_bulanan': -5},
             {'absensi_dihitung': 'false'},
+            {'lembur_dibayar': 'false'},
+            {'lembur_dibayar': 1},
             {'karyawan_id': '1000002'},
             {'nama': 'Sari', 'level': 99},
         ]
@@ -795,6 +952,7 @@ class ProsesGajiApiTests(TestCase):
         self.assertEqual(self.employee.jabatan, 'Staff')
         self.assertEqual(self.employee.base_gaji, 4_500_000)
         self.assertTrue(self.employee.absensi_dihitung)
+        self.assertTrue(self.employee.lembur_dibayar)
 
     def test_module_password_required_for_any_admin(self):
         client = APIClient()

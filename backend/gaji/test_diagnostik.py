@@ -14,6 +14,11 @@ from gaji.diagnostik import (
     SHEET_TER,
     TER_NO_CEILING,
 )
+from gaji.lembur_bayar import (
+    UPAH_HARI_LEMBUR,
+    UPAH_JAM_LEMBUR_DENOMINATOR,
+    UPAH_JAM_LEMBUR_NUMERATOR,
+)
 from gaji.services import (
     _BPJS_OF_BASE,
     _JP_AGE_CUTOFF,
@@ -110,6 +115,8 @@ class GajiDiagnostikExportTests(TestCase):
         ):
             self.assertTrue(str(row[key]).startswith('='), key)
         self.assertIn('SUMPRODUCT', row['ter_fraction'])
+        self.assertTrue(str(row['gaji_lembur_exact']).startswith('=IF('))
+        self.assertIn(SHEET_KONSTANTA, row['gaji_lembur_exact'])
         self.assertIn('MAX(0,', row['total_gaji'])
         headers = [cell.value for cell in ws[1]]
         budi_row = next(
@@ -150,6 +157,13 @@ class GajiDiagnostikExportTests(TestCase):
             konstanta['TUNJANGAN_DINAS_PER_HARI'], TUNJANGAN_DINAS_PER_HARI
         )
         self.assertEqual(konstanta['JP_AGE_CUTOFF'], _JP_AGE_CUTOFF)
+        self.assertEqual(
+            konstanta['UPAH_JAM_LEMBUR_NUMERATOR'], UPAH_JAM_LEMBUR_NUMERATOR
+        )
+        self.assertEqual(
+            konstanta['UPAH_JAM_LEMBUR_DENOMINATOR'], UPAH_JAM_LEMBUR_DENOMINATOR
+        )
+        self.assertEqual(konstanta['UPAH_HARI_LEMBUR'], UPAH_HARI_LEMBUR)
         for field, rate in _BPJS_OF_BASE:
             self.assertAlmostEqual(konstanta[f'rate_{field}'], float(rate))
 

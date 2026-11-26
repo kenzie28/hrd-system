@@ -4,12 +4,16 @@ import axios from 'axios'
 import { useGajiKaryawan, useUpdateGajiKaryawan } from '../api/hooks'
 import type { GajiKaryawan } from '../api/types'
 
-function errorMessage(err: unknown) {
+type FlagField = 'absensi_dihitung' | 'lembur_dibayar'
+
+function errorMessage(err: unknown, field: FlagField) {
   if (axios.isAxiosError(err)) {
     const detail = (err.response?.data as { detail?: unknown } | undefined)?.detail
     if (typeof detail === 'string' && detail) return detail
   }
-  return 'Gagal menyimpan absensi dihitung.'
+  return field === 'lembur_dibayar'
+    ? 'Gagal menyimpan lembur dibayar.'
+    : 'Gagal menyimpan absensi dihitung.'
 }
 
 export function AbsensiDihitungTab() {
@@ -18,7 +22,11 @@ export function AbsensiDihitungTab() {
   const { message } = AntApp.useApp()
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
-  const [pending, setPending] = useState<{ id: string; value: boolean } | null>(null)
+  const [pending, setPending] = useState<{
+    id: string
+    field: FlagField
+    value: boolean
+  } | null>(null)
 
   if (isError) {
     return <Alert type="error" showIcon message="Gagal memuat daftar karyawan." />
@@ -33,22 +41,42 @@ export function AbsensiDihitungTab() {
     )
   })
 
-  const onToggle = async (karyawan_id: string, absensi_dihitung: boolean) => {
-    setPending({ id: karyawan_id, value: absensi_dihitung })
+  const onToggle = async (karyawan_id: string, field: FlagField, value: boolean) => {
+    setPending({ id: karyawan_id, field, value })
     try {
-      await update.mutateAsync({ karyawan_id, absensi_dihitung })
+      await update.mutateAsync({ karyawan_id, [field]: value })
     } catch (err) {
-      message.error(errorMessage(err))
+      message.error(errorMessage(err, field))
     } finally {
       setPending(null)
     }
   }
 
+  const flagColumn = (title: string, field: FlagField) => ({
+    title,
+    dataIndex: field,
+    width: 180,
+    render: (value: boolean, row: GajiKaryawan) => {
+      const saving = pending?.id === row.karyawan_id && pending.field === field
+      return (
+        <Switch
+          checked={saving && pending ? pending.value : value}
+          checkedChildren="Ya"
+          unCheckedChildren="Tidak"
+          loading={saving}
+          disabled={pending != null && !saving}
+          onChange={(checked) => onToggle(row.karyawan_id, field, checked)}
+        />
+      )
+    },
+  })
+
   return (
     <div>
       <Typography.Paragraph type="secondary">
-        Matikan untuk karyawan yang tidak dipotong alpa, berapa pun hari alpa mereka.
-        Kehadiran tetap dicatat.
+        Matikan Absensi dihitung untuk karyawan yang tidak dipotong alpa, berapa pun
+        hari alpa mereka. Kehadiran tetap dicatat. Nyalakan Lembur dibayar untuk
+        karyawan yang lemburnya dibayar.
       </Typography.Paragraph>
       <Input.Search
         allowClear
@@ -75,21 +103,8 @@ export function AbsensiDihitungTab() {
         columns={[
           { title: 'ID Karyawan', dataIndex: 'karyawan_id', width: 140 },
           { title: 'Nama', dataIndex: 'nama' },
-          {
-            title: 'Absensi dihitung',
-            dataIndex: 'absensi_dihitung',
-            width: 180,
-            render: (value: boolean, row) => (
-              <Switch
-                checked={pending?.id === row.karyawan_id ? pending.value : value}
-                checkedChildren="Ya"
-                unCheckedChildren="Tidak"
-                loading={pending?.id === row.karyawan_id}
-                disabled={pending != null && pending.id !== row.karyawan_id}
-                onChange={(checked) => onToggle(row.karyawan_id, checked)}
-              />
-            ),
-          },
+          flagColumn('Absensi dihitung', 'absensi_dihitung'),
+          flagColumn('Lembur dibayar', 'lembur_dibayar'),
         ]}
       />
     </div>

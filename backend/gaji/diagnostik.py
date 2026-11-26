@@ -17,6 +17,11 @@ from openpyxl.utils import get_column_letter
 
 from karyawan.models import _completed_years
 
+from .lembur_bayar import (
+    UPAH_HARI_LEMBUR,
+    UPAH_JAM_LEMBUR_DENOMINATOR,
+    UPAH_JAM_LEMBUR_NUMERATOR,
+)
 from .services import (
     _BPJS_OF_BASE,
     _JP_AGE_CUTOFF,
@@ -75,6 +80,9 @@ def _konstanta_rows() -> list[tuple[str, object, str | None]]:
     rows: list[tuple[str, object, str | None]] = [
         ('TUNJANGAN_DINAS_PER_HARI', TUNJANGAN_DINAS_PER_HARI, FMT_MONEY),
         ('JP_AGE_CUTOFF', _JP_AGE_CUTOFF, None),
+        ('UPAH_JAM_LEMBUR_NUMERATOR', UPAH_JAM_LEMBUR_NUMERATOR, FMT_MONEY),
+        ('UPAH_JAM_LEMBUR_DENOMINATOR', UPAH_JAM_LEMBUR_DENOMINATOR, None),
+        ('UPAH_HARI_LEMBUR', UPAH_HARI_LEMBUR, FMT_MONEY),
     ]
     for field, rate in _BPJS_OF_BASE:
         rows.append((f'rate_{field}', float(rate), FMT_FRACTION))
@@ -151,6 +159,13 @@ def _columns(end: date) -> list[Column]:
             'koreksi_absensi', INPUT, FMT_MONEY, value=lambda g: g.koreksi_absensi
         ),
         Column('koreksi_admin', INPUT, FMT_MONEY, value=lambda g: g.koreksi_admin),
+        Column('jam_lembur', INPUT, value=lambda g: g.jam_lembur),
+        Column('hari_lembur', INPUT, value=lambda g: g.hari_lembur),
+        Column(
+            'lembur_dibayar',
+            INPUT,
+            value=lambda g: int(g.lembur_dibayar),
+        ),
         Column(
             'pot_alpa_exact',
             STEP,
@@ -160,7 +175,17 @@ def _columns(end: date) -> list[Column]:
                 f'{c("hari_alpa")}*{c("gaji_bulanan")}/20,0)'
             ),
         ),
-        Column('gaji_lembur_exact', STEP, FMT_EXACT, formula=lambda c: '=0'),
+        Column(
+            'gaji_lembur_exact',
+            STEP,
+            FMT_EXACT,
+            formula=lambda c: (
+                f'=IF({c("lembur_dibayar")}=1,'
+                f'{c("jam_lembur")}*{k["UPAH_JAM_LEMBUR_NUMERATOR"]}'
+                f'/{k["UPAH_JAM_LEMBUR_DENOMINATOR"]}'
+                f'+{c("hari_lembur")}*{k["UPAH_HARI_LEMBUR"]},0)'
+            ),
+        ),
         Column(
             'tunjangan_dinas_exact',
             STEP,

@@ -46,6 +46,7 @@ TABLE_COLUMNS = {
         'status_k_tk',
         'akumulasi_lembur',
         'absensi_dihitung',
+        'lembur_dibayar',
     ),
     TABLE_LANGGANAN: (
         'id',
@@ -120,6 +121,7 @@ OPTIONAL_TABLE_COLUMNS = {
         'status_k_tk',
         'akumulasi_lembur',
         'absensi_dihitung',
+        'lembur_dibayar',
     }),
 }
 

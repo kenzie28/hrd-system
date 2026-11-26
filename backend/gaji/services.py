@@ -17,6 +17,7 @@ from koreksi.models import Koreksi, TipeKoreksi
 from dinas.models import Dinas
 from obat.models import TunjanganObat
 
+from .lembur_bayar import hitung_lembur
 from .models import Gaji
 from .ter import ter_fraction
 
@@ -64,18 +65,12 @@ def _attendance(karyawan: Karyawan, start: date, end: date) -> dict:
     rows = Kehadiran.objects.filter(
         karyawan=karyawan, tanggal__gte=start, tanggal__lte=end
     )
-    sums = rows.aggregate(
-        total_menit_telat=Sum('menit_telat'),
-        total_menit_lembur=Sum('lembur'),
-    )
-    menit_lembur = sums['total_menit_lembur'] or 0
+    sums = rows.aggregate(total_menit_telat=Sum('menit_telat'))
     return {
         'hari_hadir': rows.filter(status=StatusKehadiran.HADIR).count(),
         'hari_telat': rows.filter(menit_telat__gt=0).count(),
         'total_menit_telat': sums['total_menit_telat'] or 0,
         'hari_alpa': rows.filter(status=StatusKehadiran.ALPA).count(),
-        'hari_lembur': rows.filter(lembur__gt=0).count(),
-        'jam_lembur': round_half_up(Decimal(menit_lembur) / Decimal(60)),
     }
 
 
@@ -139,6 +134,9 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
 
     for field, value in _attendance(karyawan, start, end).items():
         setattr(gaji, field, value)
+    lembur = hitung_lembur(karyawan, start, end)
+    gaji.jam_lembur = lembur.jam
+    gaji.hari_lembur = lembur.hari
     for field, value in _leave_days(karyawan, start, end).items():
         setattr(gaji, field, value)
     gaji.hari_dinas = _hari_dinas(karyawan, start, end)
@@ -161,7 +159,7 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
         pot_alpa = Decimal(gaji.hari_alpa) * Decimal(gaji.gaji_bulanan) / Decimal(20)
     else:
         pot_alpa = Decimal(0)
-    gaji_lembur = Decimal(0)
+    gaji_lembur = lembur.gaji
     tunjangan_dinas = Decimal(gaji.hari_dinas) * Decimal(TUNJANGAN_DINAS_PER_HARI)
     uang_terima_kasih = Decimal(0)
 
@@ -219,16 +217,28 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
 
 
 def write_gaji(karyawan: Karyawan, periode: date) -> Gaji:
-    """Replace every payroll row for this employee and month with a new one."""
+    """Replace every payroll row for this employee and month with a new one.
+
+    Unpaid overtime hours are added to ``akumulasi_lembur``. The previous
+    row's ``jam_diakumulasi`` is removed first, so running this again for the
+    same month replaces that month's hours.
+    """
     start, end = month_bounds(periode)
     with transaction.atomic():
-        Gaji.objects.filter(
-            karyawan=karyawan,
+        locked = Karyawan.objects.select_for_update().get(pk=karyawan.pk)
+        month_rows = Gaji.objects.filter(
+            karyawan=locked,
             periode__gte=start,
             periode__lte=end,
-        ).delete()
-        gaji = build_gaji(karyawan, periode)
+        )
+        previous = month_rows.aggregate(total=Sum('jam_diakumulasi'))['total'] or 0
+        month_rows.delete()
+        gaji = build_gaji(locked, periode)
+        credited = 0 if locked.lembur_dibayar else gaji.jam_lembur
+        gaji.jam_diakumulasi = credited
         gaji.save()
+        locked.akumulasi_lembur = max(0, locked.akumulasi_lembur - previous + credited)
+        locked.save(update_fields=['akumulasi_lembur'])
     return gaji
 
 

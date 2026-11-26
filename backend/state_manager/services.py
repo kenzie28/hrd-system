@@ -218,6 +218,7 @@ def export_state_csv() -> str:
                 _cell(obj.status_k_tk),
                 _cell(obj.akumulasi_lembur),
                 _cell(obj.absensi_dihitung),
+                _cell(obj.lembur_dibayar),
             ]
         )
     _write_table(writer, TABLE_KARYAWAN, TABLE_COLUMNS[TABLE_KARYAWAN], karyawan_rows)
@@ -745,6 +746,12 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
             'absensi_dihitung',
             errors,
         )
+        lembur_dibayar = _parse_bool(
+            _opt(row, 'lembur_dibayar') or 'false',
+            line,
+            'lembur_dibayar',
+            errors,
+        )
         lokasi_kerja_id = _opt(row, 'lokasi_kerja_id') or None
         user_id = _parse_opt_int(_opt(row, 'user_id'), line, 'user_id', errors)
         if None in (
@@ -758,6 +765,7 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
             status_k_tk,
             akumulasi_lembur,
             absensi_dihitung,
+            lembur_dibayar,
         ):
             continue
         if kid in karyawan_ids:
@@ -793,6 +801,7 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
                 'status_k_tk': status_k_tk,
                 'akumulasi_lembur': akumulasi_lembur,
                 'absensi_dihitung': absensi_dihitung,
+                'lembur_dibayar': lembur_dibayar,
                 '_line': line,
             }
         )
@@ -1605,6 +1614,7 @@ def _insert_state(typed: dict[str, list[dict]]) -> None:
             status_k_tk=row['status_k_tk'],
             akumulasi_lembur=row['akumulasi_lembur'],
             absensi_dihitung=row['absensi_dihitung'],
+            lembur_dibayar=row['lembur_dibayar'],
         )
 
     for row in typed[TABLE_LANGGANAN]:

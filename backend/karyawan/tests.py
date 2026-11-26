@@ -366,6 +366,7 @@ class KaryawanUpdateStatusCsvTests(TestCase):
         self.assertNotIn('base_gaji', row)
         self.assertNotIn('gaji_bulanan', row)
         self.assertNotIn('absensi_dihitung', row)
+        self.assertNotIn('lembur_dibayar', row)
         self.assertNotIn('jumlah_anak', row)
         self.assertNotIn('nikah', row)
 
@@ -433,6 +434,7 @@ class KaryawanUpsertCsvTests(TestCase):
             absensi_dihitung=False,
             base_gaji=12_345,
             gaji_bulanan=67_890,
+            lembur_dibayar=True,
         )
         result = import_karyawan_upsert_csv(
             SimpleUploadedFile(
@@ -448,7 +450,10 @@ class KaryawanUpsertCsvTests(TestCase):
         self.assertFalse(budi.absensi_dihitung)
         self.assertEqual(budi.base_gaji, 12_345)
         self.assertEqual(budi.gaji_bulanan, 67_890)
-        self.assertTrue(Karyawan.objects.get(pk='1000002').absensi_dihitung)
+        self.assertTrue(budi.lembur_dibayar)
+        ani = Karyawan.objects.get(pk='1000002')
+        self.assertTrue(ani.absensi_dihitung)
+        self.assertFalse(ani.lembur_dibayar)
 
     def test_ho_file_creates_then_updates_without_clearing_wages(self):
         Lokasi.objects.create(id='99', nama='Headquarters')
@@ -491,6 +496,7 @@ class KaryawanUpsertCsvTests(TestCase):
         self.assertNotIn('base_gaji', serialized)
         self.assertNotIn('gaji_bulanan', serialized)
         self.assertNotIn('absensi_dihitung', serialized)
+        self.assertNotIn('lembur_dibayar', serialized)
 
         wah = Karyawan.objects.get(pk='2406021')
         self.assertIsNone(wah.tanggal_lahir)
@@ -509,6 +515,7 @@ class KaryawanUpsertCsvTests(TestCase):
         suparni.base_gaji = 12_345
         suparni.gaji_bulanan = 67_890
         suparni.absensi_dihitung = False
+        suparni.lembur_dibayar = True
         suparni.cuti_tahunan = 3
         suparni.wilayah = 'BDG'
         suparni.save(
@@ -516,6 +523,7 @@ class KaryawanUpsertCsvTests(TestCase):
                 'base_gaji',
                 'gaji_bulanan',
                 'absensi_dihitung',
+                'lembur_dibayar',
                 'cuti_tahunan',
                 'wilayah',
             ]
@@ -535,6 +543,7 @@ class KaryawanUpsertCsvTests(TestCase):
         self.assertEqual(suparni.base_gaji, 12_345)
         self.assertEqual(suparni.gaji_bulanan, 67_890)
         self.assertFalse(suparni.absensi_dihitung)
+        self.assertTrue(suparni.lembur_dibayar)
         self.assertEqual(suparni.cuti_tahunan, 3)
         self.assertEqual(suparni.wilayah, 'BDG')
         self.assertEqual(suparni.user_id, user_id)

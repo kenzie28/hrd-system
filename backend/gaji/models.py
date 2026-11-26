@@ -48,6 +48,10 @@ class Gaji(models.Model):
 
     jam_lembur = models.IntegerField(default=0)
     hari_lembur = models.IntegerField(default=0)
+    jam_diakumulasi = models.PositiveIntegerField(
+        default=0,
+        help_text='Hours this row added to Karyawan.akumulasi_lembur. Zero when lembur is paid.',
+    )
 
     pot_bpjs_jht = models.IntegerField(default=0)
     pot_bpjs_jp = models.IntegerField(default=0)

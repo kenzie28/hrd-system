@@ -336,6 +336,7 @@ export interface GajiKaryawan {
   base_gaji: number
   gaji_bulanan: number
   absensi_dihitung: boolean
+  lembur_dibayar: boolean
 }
 
 export type ProsesGajiStatus = 'pending' | 'running' | 'succeeded' | 'failed'

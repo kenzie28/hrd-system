@@ -3,6 +3,7 @@ from datetime import date
 
 from django.test import TestCase
 from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
@@ -110,6 +111,22 @@ class GajiDiagnostikExportTests(TestCase):
             self.assertTrue(str(row[key]).startswith('='), key)
         self.assertIn('SUMPRODUCT', row['ter_fraction'])
         self.assertIn('MAX(0,', row['total_gaji'])
+        headers = [cell.value for cell in ws[1]]
+        budi_row = next(
+            index
+            for index in range(2, ws.max_row + 1)
+            if ws.cell(index, 1).value == '1000001'
+        )
+        total_exact = ws.cell(
+            budi_row, headers.index('total_exact') + 1
+        ).value
+        for field in (
+            'pot_bpjs_jht_exact',
+            'pot_bpjs_jp_exact',
+            'pot_bpjs_kesehatan_exact',
+        ):
+            ref = f'{get_column_letter(headers.index(field) + 1)}{budi_row}'
+            self.assertIn(ref, total_exact)
 
     def test_every_bpjs_field_has_exact_and_rounded_formula(self):
         ws = self._download()[SHEET_DIAGNOSTIK]

@@ -200,7 +200,12 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
     else:
         pph = Decimal(0)
         gaji.persentase_pph21 = Decimal('0.00')
-    total = net - benefit - pph - gaji.total_pot_bpjs
+    # Employee BPJS is withheld from take-home. Like benefit and pph, it comes
+    # off the exact amounts; the components are rounded only when stored.
+    pot_bpjs = (
+        bpjs['pot_bpjs_jht'] + bpjs['pot_bpjs_jp'] + bpjs['pot_bpjs_kesehatan']
+    )
+    total = net - benefit - pph - pot_bpjs
 
     gaji.pot_alpa = round_half_up(pot_alpa)
     gaji.gaji_lembur = round_half_up(gaji_lembur)

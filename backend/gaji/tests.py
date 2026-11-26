@@ -204,10 +204,13 @@ class ProsesGajiCalculationTests(TestCase):
         self.assertEqual(gaji.net_penghasilan, 5_976_300)
         self.assertEqual(gaji.persentase_pph21, Decimal('0.75'))
         self.assertEqual(gaji.pot_pph21, 44_822)
-        self.assertEqual(gaji.total_gaji, 5_727_178)
+        self.assertEqual(gaji.total_gaji, 5_547_178)
         self.assertEqual(
             gaji.total_gaji,
-            gaji.net_penghasilan - gaji.total_bpjs_benefit - gaji.pot_pph21,
+            gaji.net_penghasilan
+            - gaji.total_bpjs_benefit
+            - gaji.pot_pph21
+            - gaji.total_pot_bpjs,
         )
 
     def test_rerun_deletes_previous_rows_for_that_month(self):
@@ -265,12 +268,16 @@ class ProsesGajiCalculationTests(TestCase):
         self.assertEqual(gaji.beban_bjps_jkk, 0)
         self.assertEqual(gaji.persentase_pph21, Decimal('0.00'))
         self.assertEqual(gaji.pot_pph21, 0)
-        # 10 - 0.5 alpa, with the fractional BPJS benefit added and removed.
-        # Rounding that result once is 10; subtracting the rounded columns is 9.
-        self.assertEqual(gaji.total_gaji, 10)
+        # 10 - 0.5 alpa - 4 employee BPJS, with the fractional benefit added
+        # and removed. Rounding that result once is 6; subtracting the
+        # rounded columns is 5.
+        self.assertEqual(gaji.total_gaji, 6)
         self.assertEqual(
-            gaji.net_penghasilan - gaji.total_bpjs_benefit - gaji.pot_pph21,
-            9,
+            gaji.net_penghasilan
+            - gaji.total_bpjs_benefit
+            - gaji.pot_pph21
+            - gaji.total_pot_bpjs,
+            5,
         )
 
     def test_pph_includes_tunjangan_dinas_before_any_rounding(self):
@@ -298,7 +305,7 @@ class ProsesGajiCalculationTests(TestCase):
         self.assertEqual(gaji.koreksi_absensi, -1)
         self.assertEqual(gaji.persentase_pph21, Decimal('0.50'))
         self.assertEqual(gaji.pot_pph21, 28_250)
-        self.assertEqual(gaji.total_gaji, 5_621_746)
+        self.assertEqual(gaji.total_gaji, 5_621_742)
 
     def test_absensi_dihitung_false_skips_pot_alpa(self):
         self.employee.absensi_dihitung = False

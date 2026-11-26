@@ -233,6 +233,7 @@ def _columns(end: date) -> list[Column]:
             FMT_EXACT,
             formula=lambda c: (
                 f'={c("net_exact")}-{c("benefit_exact")}-{c("pph_exact")}'
+                f'-({"+".join(c(f"{field}_exact") for field in _POT_FIELDS)})'
             ),
         ),
     ]

@@ -7,7 +7,7 @@
 # DJANGO_SECRET_KEY) the same way ./build.sh does.
 #
 # Usage:
-#   ./deploy.sh              # create missing migrations, then start the stack
+#   ./deploy.sh              # create missing migrations, push them to origin/main, then start the stack
 #   ./deploy.sh --build      # rebuild images, then start
 #   ./deploy.sh --down       # stop and remove containers (keeps mysql volume)
 #   ./deploy.sh --restart    # restart running containers
@@ -100,9 +100,12 @@ compose() {
 # Write any missing migration files into the host source tree, then the image
 # build below packages those files. Generating them only inside a running
 # container would change the database without surviving the next rebuild.
+# New or edited migration modules are committed and pushed to origin/main so
+# the next machine deploys the same graph.
 ensure_model_migrations() {
-    local backend_dir snapshot_before snapshot_after
+    local backend_dir repo_root snapshot_before snapshot_after
     backend_dir="$(cd "${SCRIPT_DIR}/../backend" && pwd)"
+    repo_root="$(cd "${backend_dir}/.." && pwd)"
     echo "==> Checking Django models for missing migrations..."
     compose build backend
     snapshot_before="$(
@@ -117,16 +120,83 @@ ensure_model_migrations() {
         -e HOME=/tmp \
         -v "${backend_dir}:/app/backend" \
         backend \
-        -c 'python manage.py makemigrations --noinput && python manage.py makemigrations --check --dry-run'
+        -c 'set -e
+log="$(mktemp)"
+if ! python manage.py makemigrations --noinput >"${log}" 2>&1; then
+    cat "${log}"
+    if grep -q "Conflicting migrations detected" "${log}"; then
+        echo "==> Migration graph has multiple leaves; creating a merge migration."
+        python manage.py makemigrations --merge --noinput
+        python manage.py makemigrations --noinput
+    else
+        exit 1
+    fi
+else
+    cat "${log}"
+fi
+rm -f "${log}"
+python manage.py makemigrations --check --dry-run'
     snapshot_after="$(
         find "${backend_dir}" -path '*/migrations/*.py' -type f ! -name '__init__.py' -printf '%p %s\n' | sort
     )"
     if [ "${snapshot_before}" != "${snapshot_after}" ]; then
         echo "==> makemigrations wrote new files under backend/*/migrations/."
-        echo "    This deploy includes them. Commit the files so every machine uses the same schema."
     else
         echo "==> Migrations already match the models."
     fi
+    commit_and_push_migrations "${repo_root}" "${snapshot_before}" "${snapshot_after}"
+}
+
+# Commit migration modules that differ from HEAD and push that commit to
+# origin/main. Other working-tree changes are left untouched.
+commit_and_push_migrations() {
+    local repo_root="$1"
+    local snapshot_before="$2"
+    local snapshot_after="$3"
+    local branch files=()
+
+    if ! git -C "${repo_root}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        if [ "${snapshot_before}" != "${snapshot_after}" ]; then
+            echo "Error: makemigrations wrote files, but ${repo_root} is not a git repository, so they were not pushed to main."
+            exit 1
+        fi
+        return 0
+    fi
+
+    mapfile -t files < <(
+        {
+            git -C "${repo_root}" diff --name-only HEAD -- backend
+            git -C "${repo_root}" ls-files --others --exclude-standard -- backend
+        } | awk '/\/migrations\/[^\/]+\.py$/ { print }' | sort -u
+    )
+
+    if [ "${#files[@]}" -eq 0 ]; then
+        echo "==> No migration changes to push."
+        return 0
+    fi
+
+    branch="$(git -C "${repo_root}" rev-parse --abbrev-ref HEAD)"
+    if [ "${branch}" != "main" ]; then
+        echo "Error: migration changes must be committed on main (current branch: ${branch})."
+        exit 1
+    fi
+
+    echo "==> Committing migration changes and pushing to origin/main..."
+    printf '    %s\n' "${files[@]}"
+    git -C "${repo_root}" add -- "${files[@]}"
+    git -C "${repo_root}" commit -m "$(cat <<'EOF'
+Update migrations during deploy.
+
+EOF
+)" -- "${files[@]}"
+
+    echo "==> Pushing to origin/main..."
+    if ! GIT_TERMINAL_PROMPT=0 git -C "${repo_root}" push origin HEAD:main; then
+        echo "==> origin/main has new commits; rebasing and pushing again..."
+        GIT_TERMINAL_PROMPT=0 git -C "${repo_root}" pull --rebase --no-edit origin main
+        GIT_TERMINAL_PROMPT=0 git -C "${repo_root}" push origin HEAD:main
+    fi
+    echo "==> Migration commit is on origin/main."
 }
 
 wait_for_schema() {

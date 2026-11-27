@@ -1,0 +1,334 @@
+import { useState, type CSSProperties } from 'react'
+import { InboxOutlined, UploadOutlined } from '@ant-design/icons'
+import {
+  App as AntApp,
+  Alert,
+  Button,
+  Space,
+  Table,
+  Tag,
+  Typography,
+  Upload,
+} from 'antd'
+import type { UploadFile, UploadProps } from 'antd'
+import { useGajiKaryawanUpdateImport } from '../api/hooks'
+import type { KaryawanImportResult } from '../api/types'
+import { ImportErrorCsvDownload } from '../components/ImportErrorCsvDownload'
+
+function hasHeaderErrors(result: KaryawanImportResult) {
+  return result.errors.some((e) => e.row === 0)
+}
+
+function failureSummary(result: KaryawanImportResult) {
+  if (result.errors.length === 1) {
+    return result.errors[0].message
+  }
+  if (hasHeaderErrors(result)) {
+    return 'Validasi header gagal — periksa kolom wajib dan header yang diterima di bawah.'
+  }
+  return `Validasi data gagal pada ${result.errors.length} baris — tidak ada data disimpan.`
+}
+
+function ImportResultPanel({ result }: { result: KaryawanImportResult }) {
+  if (result.ok) {
+    return (
+      <Alert
+        type="success"
+        showIcon
+        message="Update berhasil"
+        description={
+          <>
+            Total baris: {result.total_rows}, diperbarui: {result.updated}
+          </>
+        }
+      />
+    )
+  }
+
+  return (
+    <>
+      <Alert
+        type="error"
+        showIcon
+        message="Update gagal"
+        description={
+          <Space direction="vertical" size="small" style={{ width: '100%' }}>
+            <Typography.Text>{failureSummary(result)}</Typography.Text>
+            {result.total_rows > 0 && (
+              <Typography.Text type="secondary">
+                Total baris diproses: {result.total_rows}. Tidak ada baris yang diubah.
+              </Typography.Text>
+            )}
+          </Space>
+        }
+      />
+
+      {result.required_columns.length > 0 && hasHeaderErrors(result) && (
+        <Alert
+          style={{ marginTop: 16 }}
+          type="warning"
+          showIcon
+          message="Kolom wajib"
+          description={
+            <Space size={[4, 4]} wrap>
+              {result.required_columns.map((col) => (
+                <Tag key={col}>{col}</Tag>
+              ))}
+            </Space>
+          }
+        />
+      )}
+
+      {result.optional_columns.length > 0 && hasHeaderErrors(result) && (
+        <Alert
+          style={{ marginTop: 16 }}
+          type="warning"
+          showIcon
+          message="Kolom opsional (sertakan hanya field yang ingin diubah)"
+          description={
+            <Space size={[4, 4]} wrap>
+              {result.optional_columns.map((col) => (
+                <Tag key={col}>{col}</Tag>
+              ))}
+            </Space>
+          }
+        />
+      )}
+
+      {result.received_headers.length > 0 && (
+        <Alert
+          style={{ marginTop: 16 }}
+          type="info"
+          showIcon
+          message="Header yang diterima dari file"
+          description={
+            <Typography.Paragraph
+              copyable
+              style={{ marginBottom: 0, fontFamily: 'monospace', fontSize: 12 }}
+            >
+              {result.received_headers.join(', ')}
+            </Typography.Paragraph>
+          }
+        />
+      )}
+
+      {result.errors.length > 0 && (
+        <>
+          <ImportErrorCsvDownload errors={result.errors} />
+          <Table
+            style={{ marginTop: 16 }}
+            rowKey={(r) => `${r.row}-${r.message}`}
+            size="small"
+            pagination={{ pageSize: 20 }}
+            dataSource={result.errors}
+            columns={[
+              {
+                title: 'Baris',
+                dataIndex: 'row',
+                width: 90,
+                render: (row: number) => (row === 0 ? 'Header' : row),
+              },
+              { title: 'Pesan error', dataIndex: 'message' },
+            ]}
+          />
+        </>
+      )}
+    </>
+  )
+}
+
+const EXAMPLE_HEADERS = [
+  'karyawan_id',
+  'target_gaji',
+  'bca_transfer',
+  'absensi_dihitung',
+  'lembur_dibayar',
+] as const
+
+const EXAMPLE_ROWS = [
+  {
+    row: 1,
+    values: [...EXAMPLE_HEADERS],
+    isHeader: true,
+  },
+  {
+    row: 2,
+    values: ['1000001', '7000000', '500000', 'ya', 'tidak'],
+    isHeader: false,
+  },
+  {
+    row: 3,
+    values: ['1000002', '', '', 'tidak', 'ya'],
+    isHeader: false,
+  },
+] as const
+
+const COL_LETTERS = ['A', 'B', 'C', 'D', 'E']
+
+const sheetCell: CSSProperties = {
+  border: '1px solid #d0d7de',
+  padding: '6px 10px',
+  fontSize: 13,
+  lineHeight: 1.4,
+  textAlign: 'left',
+  whiteSpace: 'nowrap',
+}
+
+const sheetCorner: CSSProperties = {
+  ...sheetCell,
+  background: '#e8eaed',
+  width: 36,
+  minWidth: 36,
+  textAlign: 'center',
+  color: '#5f6368',
+  fontSize: 11,
+  fontWeight: 500,
+  userSelect: 'none',
+}
+
+const sheetColHeader: CSSProperties = {
+  ...sheetCorner,
+  width: 'auto',
+  minWidth: 100,
+}
+
+function ContohSheet() {
+  return (
+    <div style={{ marginBottom: 16, overflowX: 'auto' }}>
+      <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+        Contoh format (hanya kolom yang disertakan yang diubah)
+      </Typography.Text>
+      <table
+        style={{
+          borderCollapse: 'collapse',
+          background: '#fff',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+          maxWidth: '100%',
+        }}
+      >
+        <thead>
+          <tr>
+            <th style={sheetCorner} />
+            {COL_LETTERS.map((letter) => (
+              <th key={letter} style={sheetColHeader}>
+                {letter}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {EXAMPLE_ROWS.map((r) => (
+            <tr key={r.row}>
+              <th style={sheetCorner}>{r.row}</th>
+              {r.values.map((cell, i) => (
+                <td
+                  key={i}
+                  style={{
+                    ...sheetCell,
+                    fontWeight: r.isHeader ? 600 : 400,
+                    background: r.isHeader ? '#f8f9fa' : '#fff',
+                    fontFamily: r.isHeader
+                      ? undefined
+                      : 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                  }}
+                >
+                  {cell || ' '}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function UpdateGajiKaryawanTab() {
+  const [fileList, setFileList] = useState<UploadFile[]>([])
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [result, setResult] = useState<KaryawanImportResult | null>(null)
+  const updateImport = useGajiKaryawanUpdateImport()
+  const { message } = AntApp.useApp()
+
+  const uploadProps: UploadProps = {
+    accept: '.csv',
+    multiple: false,
+    maxCount: 1,
+    fileList,
+    beforeUpload: (file) => {
+      setSelectedFile(file)
+      setResult(null)
+      return false
+    },
+    onChange: ({ fileList: newFileList }) => {
+      setFileList(newFileList.slice(-1))
+    },
+    onRemove: () => {
+      setFileList([])
+      setSelectedFile(null)
+      setResult(null)
+    },
+  }
+
+  const handleUpload = async () => {
+    if (!selectedFile) return
+
+    setResult(null)
+    const data = await updateImport.mutateAsync({ file: selectedFile })
+    setResult(data)
+    if (data.ok) {
+      message.success(`Update berhasil: ${data.updated} karyawan diperbarui.`)
+    }
+  }
+
+  return (
+    <div>
+      <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+        Tab ini <Typography.Text strong>memperbarui karyawan yang sudah ada</Typography.Text>.
+        Kolom <Typography.Text code>karyawan_id</Typography.Text> wajib dan harus sudah
+        terdaftar. Kolom lain bersifat opsional — jika sebuah kolom ada di CSV, field itu
+        diubah sesuai nilai pada setiap baris. Kolom opsional:{' '}
+        <Typography.Text code>base_gaji</Typography.Text>,{' '}
+        <Typography.Text code>gaji_bulanan</Typography.Text>,{' '}
+        <Typography.Text code>target_gaji</Typography.Text>,{' '}
+        <Typography.Text code>bca_transfer</Typography.Text>,{' '}
+        <Typography.Text code>absensi_dihitung</Typography.Text>,{' '}
+        <Typography.Text code>lembur_dibayar</Typography.Text>. Nilai ya/tidak untuk kolom
+        boolean juga menerima true/false, yes/no, dan 1/0. Sel kosong mengosongkan{' '}
+        <Typography.Text code>target_gaji</Typography.Text> dan{' '}
+        <Typography.Text code>bca_transfer</Typography.Text>. Sel kosong ditolak untuk{' '}
+        <Typography.Text code>base_gaji</Typography.Text>,{' '}
+        <Typography.Text code>gaji_bulanan</Typography.Text>,{' '}
+        <Typography.Text code>absensi_dihitung</Typography.Text>, dan{' '}
+        <Typography.Text code>lembur_dibayar</Typography.Text>.
+      </Typography.Paragraph>
+
+      <ContohSheet />
+
+      <Upload.Dragger {...uploadProps} disabled={updateImport.isPending}>
+        <p className="ant-upload-drag-icon">
+          <InboxOutlined />
+        </p>
+        <p className="ant-upload-text">Klik atau seret file CSV ke sini untuk memilih</p>
+      </Upload.Dragger>
+
+      <Space style={{ marginTop: 16 }}>
+        <Button
+          type="primary"
+          icon={<UploadOutlined />}
+          onClick={handleUpload}
+          disabled={!selectedFile}
+          loading={updateImport.isPending}
+        >
+          Unggah
+        </Button>
+      </Space>
+
+      {result && (
+        <div style={{ marginTop: 24 }}>
+          <ImportResultPanel result={result} />
+        </div>
+      )}
+    </div>
+  )
+}

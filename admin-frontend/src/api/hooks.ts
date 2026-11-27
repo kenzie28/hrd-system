@@ -161,6 +161,10 @@ export function useGajiBulananImport() {
   return useKaryawanCsvImport('/admin/gaji/import-gaji-bulanan/', [['gaji-karyawan']])
 }
 
+export function useGajiKaryawanUpdateImport() {
+  return useKaryawanCsvImport('/admin/gaji/import-update/', [['gaji-karyawan']])
+}
+
 export function useGajiKaryawan() {
   return useQuery({
     queryKey: ['gaji-karyawan'],
@@ -228,9 +232,10 @@ export function useGajiExport() {
           params: { bulan },
           responseType: 'blob',
         })
+        const [year, month] = bulan.split('-')
         const filename =
           filenameFromDisposition(response.headers['content-disposition']) ??
-          `gaji-${bulan}.csv`
+          `Bank-Transfer-${month}-${year}.xlsx`
         return { blob: response.data, filename }
       } catch (err) {
         throw new Error(await messageFromAxiosError(err))

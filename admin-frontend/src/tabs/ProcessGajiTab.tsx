@@ -89,7 +89,7 @@ export function ProcessGajiTab() {
               download.mutate(bulan, {
                 onSuccess: ({ blob, filename }) => {
                   saveDownload(blob, filename)
-                  message.success('CSV gaji berhasil diunduh.')
+                  message.success('File bank transfer berhasil diunduh.')
                 },
                 onError: (err) => {
                   message.error(err instanceof Error ? err.message : 'Gagal mengunduh gaji.')
@@ -97,7 +97,7 @@ export function ProcessGajiTab() {
               })
             }}
           >
-            Unduh CSV
+            Download CSV
           </Button>
         ) : null}
         {canDownload ? (

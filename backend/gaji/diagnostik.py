@@ -154,6 +154,8 @@ def _columns(end: date) -> list[Column]:
         Column('hari_dinas', INPUT, value=lambda g: g.hari_dinas),
         Column('base_gaji_bpjs', INPUT, FMT_MONEY, value=lambda g: g.base_gaji_bpjs),
         Column('gaji_bulanan', INPUT, FMT_MONEY, value=lambda g: g.gaji_bulanan),
+        Column('gaji_tambahan', INPUT, FMT_MONEY, value=lambda g: g.gaji_tambahan),
+        Column('bca_transfer', INPUT, FMT_MONEY, value=lambda g: g.bca_transfer),
         Column('tunjangan_obat', INPUT, FMT_MONEY, value=lambda g: g.tunjangan_obat),
         Column(
             'koreksi_absensi', INPUT, FMT_MONEY, value=lambda g: g.koreksi_absensi

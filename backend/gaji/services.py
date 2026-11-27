@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import calendar
-import csv
-import io
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -23,6 +21,7 @@ from .ter import ter_fraction
 
 TUNJANGAN_DINAS_PER_HARI = 110_000
 _JP_AGE_CUTOFF = 60
+_TELAT_POTONG_CUTI_MENIT = 60
 
 _BPJS_OF_BASE = (
     ('pot_bpjs_jht', Decimal('0.02')),
@@ -76,7 +75,7 @@ def _attendance(karyawan: Karyawan, start: date, end: date) -> dict:
 
 def _leave_days(karyawan: Karyawan, start: date, end: date) -> dict:
     sakit: set[date] = set()
-    cuti: set[date] = set()
+    tahunan: set[date] = set()
     tambahan: set[date] = set()
     off: set[date] = set()
     rows = Cuti.objects.filter(
@@ -88,14 +87,14 @@ def _leave_days(karyawan: Karyawan, start: date, end: date) -> dict:
         if tipe == TipeCuti.SAKIT:
             sakit.add(tanggal)
         elif tipe == TipeCuti.TAHUNAN:
-            cuti.add(tanggal)
+            tahunan.add(tanggal)
         elif tipe == TipeCuti.IZIN_OFF:
             off.add(tanggal)
         elif tipe.startswith('CUTI_'):
             tambahan.add(tanggal)
     return {
         'hari_sakit': len(sakit),
-        'hari_cuti': len(cuti),
+        'hari_cuti_tahunan': len(tahunan),
         'hari_cuti_tambahan': len(tambahan),
         'hari_off': len(off),
     }
@@ -131,6 +130,15 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
     gaji.status_k_tk = karyawan.status_k_tk
     gaji.base_gaji_bpjs = int(karyawan.base_gaji)
     gaji.gaji_bulanan = int(karyawan.gaji_bulanan)
+    if karyawan.target_gaji is None:
+        gaji.gaji_tambahan = 0
+    else:
+        gaji.gaji_tambahan = max(
+            0, int(karyawan.target_gaji) - int(karyawan.gaji_bulanan)
+        )
+    gaji.bca_transfer = (
+        None if karyawan.bca_transfer is None else int(karyawan.bca_transfer)
+    )
 
     for field, value in _attendance(karyawan, start, end).items():
         setattr(gaji, field, value)
@@ -216,12 +224,23 @@ def build_gaji(karyawan: Karyawan, periode: date) -> Gaji:
     return gaji
 
 
+def _cuti_dikurangi_telat(total_menit_telat: int, sisa_cuti: int) -> int:
+    """One annual-leave day once the month's late minutes reach 60."""
+    if total_menit_telat >= _TELAT_POTONG_CUTI_MENIT and sisa_cuti > 0:
+        return 1
+    return 0
+
+
 def write_gaji(karyawan: Karyawan, periode: date) -> Gaji:
     """Replace every payroll row for this employee and month with a new one.
 
     Unpaid overtime hours are added to ``akumulasi_lembur``. The previous
     row's ``jam_diakumulasi`` is removed first, so running this again for the
     same month replaces that month's hours.
+
+    Sixty or more late minutes remove one day from ``cuti_tahunan``. The
+    previous row's ``cuti_tahunan_dikurangi`` is restored first, so running
+    this again replaces that deduction instead of stacking it.
     """
     start, end = month_bounds(periode)
     with transaction.atomic():
@@ -231,62 +250,26 @@ def write_gaji(karyawan: Karyawan, periode: date) -> Gaji:
             periode__gte=start,
             periode__lte=end,
         )
-        previous = month_rows.aggregate(total=Sum('jam_diakumulasi'))['total'] or 0
+        previous = month_rows.aggregate(
+            lembur=Sum('jam_diakumulasi'),
+            cuti=Sum('cuti_tahunan_dikurangi'),
+        )
+        previous_lembur = previous['lembur'] or 0
+        previous_cuti = previous['cuti'] or 0
         month_rows.delete()
         gaji = build_gaji(locked, periode)
         credited = 0 if locked.lembur_dibayar else gaji.jam_lembur
         gaji.jam_diakumulasi = credited
+        sisa_cuti = locked.cuti_tahunan + previous_cuti
+        dipotong = _cuti_dikurangi_telat(gaji.total_menit_telat, sisa_cuti)
+        gaji.cuti_tahunan_dikurangi = dipotong
         gaji.save()
-        locked.akumulasi_lembur = max(0, locked.akumulasi_lembur - previous + credited)
-        locked.save(update_fields=['akumulasi_lembur'])
+        locked.akumulasi_lembur = max(
+            0, locked.akumulasi_lembur - previous_lembur + credited
+        )
+        locked.cuti_tahunan = sisa_cuti - dipotong
+        locked.save(update_fields=['akumulasi_lembur', 'cuti_tahunan'])
     return gaji
-
-
-GAJI_EXPORT_COLUMNS = (
-    'karyawan_id',
-    'nama',
-    'level',
-    'jabatan',
-    'periode',
-    'hari_hadir',
-    'hari_telat',
-    'total_menit_telat',
-    'hari_sakit',
-    'hari_cuti',
-    'hari_cuti_tambahan',
-    'hari_off',
-    'hari_alpa',
-    'hari_dinas',
-    'base_gaji_bpjs',
-    'gaji_bulanan',
-    'jam_lembur',
-    'hari_lembur',
-    'lembur_dibayar',
-    'gaji_lembur',
-    'tunjangan_obat',
-    'tunjangan_dinas',
-    'uang_terima_kasih',
-    'pot_alpa',
-    'koreksi_absensi',
-    'koreksi_admin',
-    'pot_bpjs_jht',
-    'pot_bpjs_jp',
-    'pot_bpjs_kesehatan',
-    'total_pot_bpjs',
-    'beban_bpjs_kesehatan',
-    'beban_bpjs_jht',
-    'beban_bpjs_jp',
-    'beban_bpjs_jkm',
-    'beban_bjps_jkk',
-    'total_beban_bpjs',
-    'total_bpjs_benefit',
-    'status_k_tk',
-    'ter_status',
-    'net_penghasilan',
-    'persentase_pph21',
-    'pot_pph21',
-    'total_gaji',
-)
 
 
 def gaji_for_month(periode: date):
@@ -296,60 +279,3 @@ def gaji_for_month(periode: date):
         .select_related('karyawan')
         .order_by('karyawan__nama', 'karyawan_id')
     )
-
-
-def export_gaji_csv(periode: date) -> str:
-    """CSV of every payroll row for the month, including calculated totals."""
-    start, _end = month_bounds(periode)
-    buf = io.StringIO()
-    writer = csv.writer(buf, lineterminator='\n')
-    writer.writerow(GAJI_EXPORT_COLUMNS)
-    for gaji in gaji_for_month(start):
-        writer.writerow(
-            [
-                gaji.karyawan_id,
-                gaji.karyawan.nama,
-                gaji.level,
-                gaji.jabatan,
-                f'{gaji.periode:%Y-%m}',
-                gaji.hari_hadir,
-                gaji.hari_telat,
-                gaji.total_menit_telat,
-                gaji.hari_sakit,
-                gaji.hari_cuti,
-                gaji.hari_cuti_tambahan,
-                gaji.hari_off,
-                gaji.hari_alpa,
-                gaji.hari_dinas,
-                gaji.base_gaji_bpjs,
-                gaji.gaji_bulanan,
-                gaji.jam_lembur,
-                gaji.hari_lembur,
-                int(gaji.lembur_dibayar),
-                gaji.gaji_lembur,
-                gaji.tunjangan_obat,
-                gaji.tunjangan_dinas,
-                gaji.uang_terima_kasih,
-                gaji.pot_alpa,
-                gaji.koreksi_absensi,
-                gaji.koreksi_admin,
-                gaji.pot_bpjs_jht,
-                gaji.pot_bpjs_jp,
-                gaji.pot_bpjs_kesehatan,
-                gaji.total_pot_bpjs,
-                gaji.beban_bpjs_kesehatan,
-                gaji.beban_bpjs_jht,
-                gaji.beban_bpjs_jp,
-                gaji.beban_bpjs_jkm,
-                gaji.beban_bjps_jkk,
-                gaji.total_beban_bpjs,
-                gaji.total_bpjs_benefit,
-                gaji.status_k_tk,
-                gaji.ter_status,
-                gaji.net_penghasilan,
-                f'{gaji.persentase_pph21:.2f}',
-                gaji.pot_pph21,
-                gaji.total_gaji,
-            ]
-        )
-    return '\ufeff' + buf.getvalue()

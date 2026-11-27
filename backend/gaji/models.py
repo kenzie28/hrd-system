@@ -38,7 +38,7 @@ class Gaji(models.Model):
     hari_telat = models.PositiveIntegerField(default=0)
     total_menit_telat = models.PositiveIntegerField(default=0)
     hari_sakit = models.PositiveIntegerField(default=0)
-    hari_cuti = models.PositiveIntegerField(default=0)
+    hari_cuti_tahunan = models.PositiveIntegerField(default=0)
     hari_cuti_tambahan = models.PositiveIntegerField(default=0)
     hari_off = models.PositiveIntegerField(default=0)
     hari_alpa = models.PositiveIntegerField(default=0)
@@ -51,6 +51,13 @@ class Gaji(models.Model):
     jam_diakumulasi = models.PositiveIntegerField(
         default=0,
         help_text='Hours this row added to Karyawan.akumulasi_lembur. Zero when lembur is paid.',
+    )
+    cuti_tahunan_dikurangi = models.PositiveIntegerField(
+        default=0,
+        help_text=(
+            'Annual-leave days this row removed from Karyawan.cuti_tahunan '
+            'because late minutes reached 60. Restored before a reprocess.'
+        ),
     )
 
     pot_bpjs_jht = models.IntegerField(default=0)
@@ -72,6 +79,8 @@ class Gaji(models.Model):
         return self.beban_bpjs_jht + self.beban_bpjs_jp + self.beban_bpjs_kesehatan + self.beban_bpjs_jkm + self.beban_bjps_jkk
 
     gaji_bulanan = models.IntegerField(default=0)
+    gaji_tambahan = models.PositiveBigIntegerField(default=0)
+    bca_transfer = models.PositiveBigIntegerField(null=True, blank=True)
 
     @property
     def total_bpjs_benefit(self):

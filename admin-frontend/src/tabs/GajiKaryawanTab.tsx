@@ -42,6 +42,8 @@ const FIELD_LABELS = {
   no_bpjs: 'No. BPJS',
   base_gaji: 'Base Gaji',
   gaji_bulanan: 'Gaji Bulanan',
+  target_gaji: 'Target Gaji',
+  bca_transfer: 'BCA Transfer',
   absensi_dihitung: 'Absensi dihitung',
 } as const
 
@@ -55,6 +57,10 @@ interface GajiKaryawanFilters {
   baseMax: number | null
   bulananMin: number | null
   bulananMax: number | null
+  targetMin: number | null
+  targetMax: number | null
+  bcaMin: number | null
+  bcaMax: number | null
   absensi: Array<'ya' | 'tidak'>
 }
 
@@ -65,6 +71,8 @@ interface GajiKaryawanFormValues {
   no_bpjs?: string
   base_gaji: number | null
   gaji_bulanan: number | null
+  target_gaji: number | null
+  bca_transfer: number | null
   absensi_dihitung: boolean
 }
 
@@ -79,6 +87,10 @@ function emptyFilters(): GajiKaryawanFilters {
     baseMax: null,
     bulananMin: null,
     bulananMax: null,
+    targetMin: null,
+    targetMax: null,
+    bcaMin: null,
+    bcaMax: null,
     absensi: [],
   }
 }
@@ -93,6 +105,16 @@ function inRange(value: number, min: number | null, max: number | null) {
   if (min != null && value < min) return false
   if (max != null && value > max) return false
   return true
+}
+
+function inNullableRange(value: number | null, min: number | null, max: number | null) {
+  if (min == null && max == null) return true
+  if (value == null) return false
+  return inRange(value, min, max)
+}
+
+function moneyOrBlank(value: number | null) {
+  return value == null ? '—' : formatCurrency(value)
 }
 
 function rangeInvalid(min: number | null, max: number | null) {
@@ -125,6 +147,8 @@ function countActiveFilters(filters: GajiKaryawanFilters) {
   if (filters.no_bpjs.trim()) count += 1
   if (filters.baseMin != null || filters.baseMax != null) count += 1
   if (filters.bulananMin != null || filters.bulananMax != null) count += 1
+  if (filters.targetMin != null || filters.targetMax != null) count += 1
+  if (filters.bcaMin != null || filters.bcaMax != null) count += 1
   if (filters.absensi.length > 0) count += 1
   return count
 }
@@ -145,6 +169,18 @@ function integerRule(label: string) {
   return {
     validator: (_: unknown, value: number | null) => {
       if (value == null) return Promise.reject(new Error(`${label} wajib diisi`))
+      if (!Number.isInteger(value) || value < 0) {
+        return Promise.reject(new Error(`${label} harus bilangan bulat non-negatif`))
+      }
+      return Promise.resolve()
+    },
+  }
+}
+
+function optionalIntegerRule(label: string) {
+  return {
+    validator: (_: unknown, value: number | null) => {
+      if (value == null) return Promise.resolve()
       if (!Number.isInteger(value) || value < 0) {
         return Promise.reject(new Error(`${label} harus bilangan bulat non-negatif`))
       }
@@ -280,6 +316,18 @@ function FilterFields({
           max={filters.bulananMax}
           onChange={(bulananMin, bulananMax) => patch({ bulananMin, bulananMax })}
         />
+        <RangeFilter
+          label={FIELD_LABELS.target_gaji}
+          min={filters.targetMin}
+          max={filters.targetMax}
+          onChange={(targetMin, targetMax) => patch({ targetMin, targetMax })}
+        />
+        <RangeFilter
+          label={FIELD_LABELS.bca_transfer}
+          min={filters.bcaMin}
+          max={filters.bcaMax}
+          onChange={(bcaMin, bcaMax) => patch({ bcaMin, bcaMax })}
+        />
         <div>
           <Typography.Text style={{ fontSize: 12 }}>
             {FIELD_LABELS.absensi_dihitung}
@@ -311,6 +359,8 @@ function matchesFilters(row: GajiKaryawan, filters: GajiKaryawanFilters) {
   if (!includesText(row.no_bpjs, filters.no_bpjs)) return false
   if (!inRange(row.base_gaji, filters.baseMin, filters.baseMax)) return false
   if (!inRange(row.gaji_bulanan, filters.bulananMin, filters.bulananMax)) return false
+  if (!inNullableRange(row.target_gaji, filters.targetMin, filters.targetMax)) return false
+  if (!inNullableRange(row.bca_transfer, filters.bcaMin, filters.bcaMax)) return false
   if (filters.absensi.length === 1) {
     const wantsCounted = filters.absensi[0] === 'ya'
     if (row.absensi_dihitung !== wantsCounted) return false
@@ -347,6 +397,8 @@ export function GajiKaryawanTab() {
       no_bpjs: record.no_bpjs,
       base_gaji: record.base_gaji,
       gaji_bulanan: record.gaji_bulanan,
+      target_gaji: record.target_gaji,
+      bca_transfer: record.bca_transfer,
       absensi_dihitung: record.absensi_dihitung,
     })
   }
@@ -368,6 +420,8 @@ export function GajiKaryawanTab() {
         no_bpjs: (values.no_bpjs ?? '').trim(),
         base_gaji: values.base_gaji ?? 0,
         gaji_bulanan: values.gaji_bulanan ?? 0,
+        target_gaji: values.target_gaji ?? null,
+        bca_transfer: values.bca_transfer ?? null,
         absensi_dihitung: values.absensi_dihitung,
       })
       message.success('Karyawan diperbarui')
@@ -406,6 +460,20 @@ export function GajiKaryawanTab() {
       width: 160,
       align: 'right',
       render: (value: number) => formatCurrency(value),
+    },
+    {
+      title: FIELD_LABELS.target_gaji,
+      dataIndex: 'target_gaji',
+      width: 160,
+      align: 'right',
+      render: (value: number | null) => moneyOrBlank(value),
+    },
+    {
+      title: FIELD_LABELS.bca_transfer,
+      dataIndex: 'bca_transfer',
+      width: 160,
+      align: 'right',
+      render: (value: number | null) => moneyOrBlank(value),
     },
     {
       title: FIELD_LABELS.absensi_dihitung,
@@ -508,6 +576,36 @@ export function GajiKaryawanTab() {
               {rangeLabel(filters.bulananMin, filters.bulananMax, formatCurrency)}
             </Tag>
           ) : null}
+          {filters.targetMin != null || filters.targetMax != null ? (
+            <Tag
+              closable
+              onClose={() =>
+                setFiltersAndResetPage((prev) => ({
+                  ...prev,
+                  targetMin: null,
+                  targetMax: null,
+                }))
+              }
+            >
+              {FIELD_LABELS.target_gaji}:{' '}
+              {rangeLabel(filters.targetMin, filters.targetMax, formatCurrency)}
+            </Tag>
+          ) : null}
+          {filters.bcaMin != null || filters.bcaMax != null ? (
+            <Tag
+              closable
+              onClose={() =>
+                setFiltersAndResetPage((prev) => ({
+                  ...prev,
+                  bcaMin: null,
+                  bcaMax: null,
+                }))
+              }
+            >
+              {FIELD_LABELS.bca_transfer}:{' '}
+              {rangeLabel(filters.bcaMin, filters.bcaMax, formatCurrency)}
+            </Tag>
+          ) : null}
           {filters.absensi.length > 0 ? (
             <Tag
               closable
@@ -603,6 +701,20 @@ export function GajiKaryawanTab() {
             name="gaji_bulanan"
             label={FIELD_LABELS.gaji_bulanan}
             rules={[integerRule('Gaji bulanan')]}
+          >
+            <InputNumber min={0} precision={0} controls={false} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="target_gaji"
+            label={FIELD_LABELS.target_gaji}
+            rules={[optionalIntegerRule('Target gaji')]}
+          >
+            <InputNumber min={0} precision={0} controls={false} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="bca_transfer"
+            label={FIELD_LABELS.bca_transfer}
+            rules={[optionalIntegerRule('BCA transfer')]}
           >
             <InputNumber min={0} precision={0} controls={false} style={{ width: '100%' }} />
           </Form.Item>

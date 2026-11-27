@@ -43,6 +43,8 @@ TABLE_COLUMNS = {
         'cuti_tahunan',
         'base_gaji',
         'gaji_bulanan',
+        'target_gaji',
+        'bca_transfer',
         'status_k_tk',
         'akumulasi_lembur',
         'absensi_dihitung',
@@ -118,6 +120,8 @@ OPTIONAL_TABLE_COLUMNS = {
     TABLE_KARYAWAN: frozenset({
         'base_gaji',
         'gaji_bulanan',
+        'target_gaji',
+        'bca_transfer',
         'status_k_tk',
         'akumulasi_lembur',
         'absensi_dihitung',

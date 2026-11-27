@@ -1129,6 +1129,23 @@ def import_karyawan_upsert_csv(upload) -> KaryawanImportResult:
 
 COL_BASE_GAJI = 'base_gaji'
 COL_GAJI_BULANAN = 'gaji_bulanan'
+COL_TARGET_GAJI = 'target_gaji'
+COL_BCA_TRANSFER = 'bca_transfer'
+COL_ABSENSI_DIHITUNG = 'absensi_dihitung'
+COL_LEMBUR_DIBAYAR = 'lembur_dibayar'
+WAGE_UPDATE_OPTIONAL_COLUMNS = [
+    COL_BASE_GAJI,
+    COL_GAJI_BULANAN,
+    COL_TARGET_GAJI,
+    COL_BCA_TRANSFER,
+    COL_ABSENSI_DIHITUNG,
+    COL_LEMBUR_DIBAYAR,
+]
+_WAGE_UPDATE_NULLABLE = frozenset({COL_TARGET_GAJI, COL_BCA_TRANSFER})
+_WAGE_UPDATE_AMOUNTS = frozenset({COL_BASE_GAJI, COL_GAJI_BULANAN})
+_WAGE_UPDATE_BOOLEANS = frozenset({COL_ABSENSI_DIHITUNG, COL_LEMBUR_DIBAYAR})
+_CSV_BOOL_TRUE = frozenset({'ya', 'true', 'yes', '1'})
+_CSV_BOOL_FALSE = frozenset({'tidak', 'false', 'no', '0'})
 _WAGE_MAX = (1 << 63) - 1
 
 
@@ -1252,3 +1269,185 @@ def import_base_gaji_csv(upload) -> KaryawanImportResult:
 def import_gaji_bulanan_csv(upload) -> KaryawanImportResult:
     """Set Karyawan.gaji_bulanan from a CSV of karyawan_id,gaji_bulanan."""
     return _import_karyawan_amount_csv(upload, COL_GAJI_BULANAN)
+
+
+def _parse_nullable_non_negative_int(raw: str, column: str) -> tuple[int | None, str | None]:
+    """Empty clears the field. A present value must be a non-negative integer."""
+    value = (raw or '').strip()
+    if value.startswith("'"):
+        value = value[1:].strip()
+    if not value:
+        return None, None
+    if not value.isdigit():
+        return None, f'{column} tidak valid: {raw.strip()!r}.'
+    number = int(value)
+    if number > _WAGE_MAX:
+        return None, f'{column} di luar batas bilangan bulat: {value}.'
+    return number, None
+
+
+def _parse_csv_bool(raw: str, column: str) -> tuple[bool | None, str | None]:
+    value = (raw or '').strip().lower()
+    if not value:
+        return None, f'Kolom {column} wajib diisi.'
+    if value in _CSV_BOOL_TRUE:
+        return True, None
+    if value in _CSV_BOOL_FALSE:
+        return False, None
+    return None, f'{column} harus ya atau tidak.'
+
+
+def import_gaji_karyawan_update_csv(upload) -> KaryawanImportResult:
+    """Partial-update wage fields for existing karyawan.
+
+    Required column: karyawan_id (must already exist).
+    Any other recognized column present in the header is applied to every row.
+    Empty cells clear target_gaji and bca_transfer. Empty cells are rejected
+    for base_gaji, gaji_bulanan, absensi_dihitung, and lembur_dibayar.
+    All rows are validated before any write.
+    """
+    result = KaryawanImportResult(
+        required_columns=[COL_KARYAWAN_ID],
+        optional_columns=list(WAGE_UPDATE_OPTIONAL_COLUMNS),
+    )
+    text = _decode_upload(upload, result)
+    if text is None:
+        return result
+
+    reader = _csv_reader(text, result)
+    if reader is None:
+        return result
+
+    headers = result.received_headers
+    header_set = set(headers)
+    if COL_KARYAWAN_ID not in header_set:
+        result.errors.append(
+            KaryawanImportError(0, 'Kolom wajib tidak ditemukan: karyawan_id.')
+        )
+        return result
+
+    empty_headers = [i + 1 for i, header in enumerate(headers) if not header]
+    if empty_headers:
+        result.errors.append(KaryawanImportError(0, 'File CSV memiliki header kosong.'))
+        return result
+
+    known = {COL_KARYAWAN_ID, *WAGE_UPDATE_OPTIONAL_COLUMNS}
+    unknown = [header for header in headers if header not in known]
+    if unknown:
+        result.errors.append(
+            KaryawanImportError(
+                0,
+                'Kolom tidak dikenali: '
+                + ', '.join(unknown)
+                + '. Kolom yang boleh diisi: '
+                + ', '.join(WAGE_UPDATE_OPTIONAL_COLUMNS)
+                + '.',
+            )
+        )
+        return result
+
+    update_columns = [column for column in WAGE_UPDATE_OPTIONAL_COLUMNS if column in header_set]
+    if not update_columns:
+        result.errors.append(
+            KaryawanImportError(
+                0,
+                'Tidak ada kolom yang diubah. Sertakan minimal satu kolom: '
+                + ', '.join(WAGE_UPDATE_OPTIONAL_COLUMNS)
+                + '.',
+            )
+        )
+        return result
+
+    if len(headers) != len(set(headers)):
+        result.errors.append(
+            KaryawanImportError(0, 'File CSV memiliki nama kolom yang duplikat.')
+        )
+        return result
+
+    seen_in_file: set[str] = set()
+    pending: list[tuple[int, str, dict]] = []
+    for row_num, row in enumerate(reader, start=2):
+        result.total_rows += 1
+        karyawan_id = (row.get(COL_KARYAWAN_ID) or '').strip()
+        row_had_error = False
+
+        if not karyawan_id:
+            result.errors.append(
+                KaryawanImportError(row_num, 'Kolom karyawan_id wajib diisi.')
+            )
+            continue
+        if len(karyawan_id) > 7:
+            result.errors.append(
+                KaryawanImportError(row_num, 'karyawan_id maksimal 7 karakter.')
+            )
+            continue
+        if karyawan_id in seen_in_file:
+            result.errors.append(
+                KaryawanImportError(
+                    row_num,
+                    f'karyawan_id "{karyawan_id}" duplikat di file CSV.',
+                )
+            )
+            continue
+        seen_in_file.add(karyawan_id)
+
+        fields: dict = {}
+        for column in update_columns:
+            raw = row.get(column) or ''
+            if column in _WAGE_UPDATE_NULLABLE:
+                value, error = _parse_nullable_non_negative_int(raw, column)
+            elif column in _WAGE_UPDATE_AMOUNTS:
+                value, error = _parse_non_negative_int(raw, column)
+            elif column in _WAGE_UPDATE_BOOLEANS:
+                value, error = _parse_csv_bool(raw, column)
+            else:
+                value, error = None, f'Kolom tidak dikenal: {column}.'
+            if error:
+                result.errors.append(KaryawanImportError(row_num, error))
+                row_had_error = True
+            else:
+                fields[column] = value
+
+        if row_had_error:
+            continue
+        pending.append((row_num, karyawan_id, fields))
+
+    if result.errors:
+        return result
+    if not pending:
+        result.errors.append(
+            KaryawanImportError(0, 'File CSV tidak memiliki baris data.')
+        )
+        return result
+
+    ids = [karyawan_id for _, karyawan_id, _ in pending]
+    found = {
+        karyawan.karyawan_id: karyawan
+        for karyawan in Karyawan.objects.filter(karyawan_id__in=ids)
+    }
+    missing_rows = [
+        (row_num, karyawan_id)
+        for row_num, karyawan_id, _ in pending
+        if karyawan_id not in found
+    ]
+    if missing_rows:
+        for row_num, karyawan_id in missing_rows:
+            result.errors.append(
+                KaryawanImportError(
+                    row_num,
+                    f'karyawan_id "{karyawan_id}" tidak ditemukan.',
+                )
+            )
+        return result
+
+    to_update: list[Karyawan] = []
+    for _, karyawan_id, fields in pending:
+        karyawan = found[karyawan_id]
+        for attr, value in fields.items():
+            setattr(karyawan, attr, value)
+        to_update.append(karyawan)
+
+    with transaction.atomic():
+        Karyawan.objects.bulk_update(to_update, update_columns)
+    result.updated = len(to_update)
+    return result

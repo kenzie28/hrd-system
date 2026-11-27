@@ -11,9 +11,14 @@ from karyawan.models import Karyawan
 from karyawan.permissions import IsAdminAllowed
 
 from .access import HasGajiPassword
+from .bank_transfer import export_gaji_bank_transfer_xlsx
 from .jobs import enqueue_proses_gaji
 from .models import ProsesGajiJob, StatusProsesGaji
-from .services import export_gaji_csv, gaji_for_month, parse_bulan
+from .services import gaji_for_month, parse_bulan
+
+_XLSX_CONTENT_TYPE = (
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+)
 
 _OPEN_STATUSES = (StatusProsesGaji.PENDING, StatusProsesGaji.RUNNING)
 
@@ -89,6 +94,8 @@ _GAJI_KARYAWAN_FIELDS = (
     'no_bpjs',
     'base_gaji',
     'gaji_bulanan',
+    'target_gaji',
+    'bca_transfer',
     'absensi_dihitung',
     'lembur_dibayar',
 )
@@ -101,10 +108,14 @@ _EDITABLE_GAJI_KARYAWAN_FIELDS = frozenset(
         'no_bpjs',
         'base_gaji',
         'gaji_bulanan',
+        'target_gaji',
+        'bca_transfer',
         'absensi_dihitung',
         'lembur_dibayar',
     }
 )
+
+_NULLABLE_WAGE_FIELDS = frozenset({'target_gaji', 'bca_transfer'})
 
 _BOOLEAN_GAJI_KARYAWAN_FIELDS = frozenset({'absensi_dihitung', 'lembur_dibayar'})
 
@@ -148,6 +159,18 @@ def _clean_gaji_karyawan_value(field, value):
             or value > _WAGE_MAX
         ):
             return None, f'{label} harus bilangan bulat non-negatif.'
+        return value, None
+    if field in _NULLABLE_WAGE_FIELDS:
+        label = 'Target gaji' if field == 'target_gaji' else 'BCA transfer'
+        if value is None:
+            return None, None
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or value < 0
+            or value > _WAGE_MAX
+        ):
+            return None, f'{label} harus bilangan bulat non-negatif atau kosong.'
         return value, None
     if field in _BOOLEAN_GAJI_KARYAWAN_FIELDS:
         if not isinstance(value, bool):
@@ -241,8 +264,8 @@ class AdminGajiExportView(APIView):
                 {'detail': 'Belum ada gaji untuk bulan ini.'},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        csv_text = export_gaji_csv(periode)
-        filename = f'gaji-{periode:%Y-%m}.csv'
-        response = HttpResponse(csv_text, content_type='text/csv; charset=utf-8')
+        content = export_gaji_bank_transfer_xlsx(periode)
+        filename = f'Bank-Transfer-{periode:%m-%Y}.xlsx'
+        response = HttpResponse(content, content_type=_XLSX_CONTENT_TYPE)
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response

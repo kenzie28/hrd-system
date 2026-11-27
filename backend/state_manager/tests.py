@@ -417,7 +417,7 @@ class StateManagerApiTests(TestCase):
         self.worker.save(update_fields=['base_gaji'])
         csv_text = export_state_csv()
         self.assertIn(
-            'karyawan_id,nama,lokasi_kerja_id,jabatan,wilayah,level,user_id,must_change_password,cuti_tahunan,base_gaji,gaji_bulanan,status_k_tk,akumulasi_lembur,absensi_dihitung,lembur_dibayar',
+            'karyawan_id,nama,lokasi_kerja_id,jabatan,wilayah,level,user_id,must_change_password,cuti_tahunan,base_gaji,gaji_bulanan,target_gaji,bca_transfer,status_k_tk,akumulasi_lembur,absensi_dihitung,lembur_dibayar',
             csv_text,
         )
 
@@ -431,6 +431,8 @@ class StateManagerApiTests(TestCase):
 
     def test_payroll_fields_round_trip_and_legacy_snapshot_defaults(self):
         self.worker.gaji_bulanan = 5_000_000
+        self.worker.target_gaji = 8_000_000
+        self.worker.bca_transfer = 250_000
         self.worker.status_k_tk = 'K1'
         self.worker.akumulasi_lembur = 3
         self.worker.absensi_dihitung = False
@@ -438,6 +440,8 @@ class StateManagerApiTests(TestCase):
         self.worker.save(
             update_fields=[
                 'gaji_bulanan',
+                'target_gaji',
+                'bca_transfer',
                 'status_k_tk',
                 'akumulasi_lembur',
                 'absensi_dihitung',
@@ -450,6 +454,8 @@ class StateManagerApiTests(TestCase):
         self.assertTrue(result.ok, result.errors)
         worker = Karyawan.objects.get(pk='1000001')
         self.assertEqual(worker.gaji_bulanan, 5_000_000)
+        self.assertEqual(worker.target_gaji, 8_000_000)
+        self.assertEqual(worker.bca_transfer, 250_000)
         self.assertEqual(worker.status_k_tk, 'K1')
         self.assertEqual(worker.akumulasi_lembur, 3)
         self.assertFalse(worker.absensi_dihitung)
@@ -467,6 +473,8 @@ class StateManagerApiTests(TestCase):
         legacy_text = csv_text
         for column in (
             'gaji_bulanan',
+            'target_gaji',
+            'bca_transfer',
             'status_k_tk',
             'akumulasi_lembur',
             'absensi_dihitung',
@@ -477,6 +485,8 @@ class StateManagerApiTests(TestCase):
         self.assertTrue(legacy.ok, legacy.errors)
         worker = Karyawan.objects.get(pk='1000001')
         self.assertEqual(worker.gaji_bulanan, 0)
+        self.assertIsNone(worker.target_gaji)
+        self.assertIsNone(worker.bca_transfer)
         self.assertEqual(worker.status_k_tk, '')
         self.assertEqual(worker.akumulasi_lembur, 0)
         self.assertTrue(worker.absensi_dihitung)

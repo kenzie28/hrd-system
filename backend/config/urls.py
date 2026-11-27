@@ -40,6 +40,7 @@ from obat.admin_views import AdminTunjanganObatImportView, AdminTunjanganObatVie
 from karyawan.admin_views import (
     AdminBaseGajiImportView,
     AdminGajiBulananImportView,
+    AdminGajiKaryawanUpdateImportView,
     AdminKaryawanCreateView,
     AdminKaryawanDetailView,
     AdminKaryawanImportView,
@@ -176,6 +177,11 @@ admin_api_urlpatterns = [
         'admin/gaji/import-gaji-bulanan/',
         AdminGajiBulananImportView.as_view(),
         name='admin-gaji-import-gaji-bulanan',
+    ),
+    path(
+        'admin/gaji/import-update/',
+        AdminGajiKaryawanUpdateImportView.as_view(),
+        name='admin-gaji-import-update',
     ),
     path(
         'admin/gaji/proses/',

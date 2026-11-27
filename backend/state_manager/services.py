@@ -215,6 +215,8 @@ def export_state_csv() -> str:
                 _cell(obj.cuti_tahunan),
                 _cell(obj.base_gaji),
                 _cell(obj.gaji_bulanan),
+                _cell(obj.target_gaji),
+                _cell(obj.bca_transfer),
                 _cell(obj.status_k_tk),
                 _cell(obj.akumulasi_lembur),
                 _cell(obj.absensi_dihitung),
@@ -730,6 +732,18 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
         if gaji_bulanan is not None and gaji_bulanan < 0:
             errors.append(StateError(line, 'gaji_bulanan harus non-negatif.'))
             gaji_bulanan = None
+        target_gaji = _parse_opt_int(
+            _opt(row, 'target_gaji'), line, 'target_gaji', errors
+        )
+        if target_gaji is not None and target_gaji < 0:
+            errors.append(StateError(line, 'target_gaji harus non-negatif.'))
+            target_gaji = None
+        bca_transfer = _parse_opt_int(
+            _opt(row, 'bca_transfer'), line, 'bca_transfer', errors
+        )
+        if bca_transfer is not None and bca_transfer < 0:
+            errors.append(StateError(line, 'bca_transfer harus non-negatif.'))
+            bca_transfer = None
         status_k_tk = _opt(row, 'status_k_tk')
         if status_k_tk and status_k_tk not in StatusKTk.values:
             errors.append(StateError(line, f'status_k_tk tidak valid: {status_k_tk}.'))
@@ -798,6 +812,8 @@ def _normalize_and_validate(tables: dict[str, list[dict]]) -> tuple[dict, list[S
                 'cuti_tahunan': cuti_tahunan,
                 'base_gaji': base_gaji,
                 'gaji_bulanan': gaji_bulanan,
+                'target_gaji': target_gaji,
+                'bca_transfer': bca_transfer,
                 'status_k_tk': status_k_tk,
                 'akumulasi_lembur': akumulasi_lembur,
                 'absensi_dihitung': absensi_dihitung,
@@ -1611,6 +1627,8 @@ def _insert_state(typed: dict[str, list[dict]]) -> None:
             cuti_tahunan=row['cuti_tahunan'],
             base_gaji=row['base_gaji'],
             gaji_bulanan=row['gaji_bulanan'],
+            target_gaji=row['target_gaji'],
+            bca_transfer=row['bca_transfer'],
             status_k_tk=row['status_k_tk'],
             akumulasi_lembur=row['akumulasi_lembur'],
             absensi_dihitung=row['absensi_dihitung'],

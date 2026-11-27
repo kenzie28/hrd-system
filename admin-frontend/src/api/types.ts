@@ -335,6 +335,8 @@ export interface GajiKaryawan {
   no_bpjs: string
   base_gaji: number
   gaji_bulanan: number
+  target_gaji: number | null
+  bca_transfer: number | null
   absensi_dihitung: boolean
   lembur_dibayar: boolean
 }

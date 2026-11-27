@@ -10,11 +10,13 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from gaji.access import GAJI_PASSWORD
+from karyawan.admin import KaryawanAdmin
 from karyawan.models import Karyawan
-from karyawan.serializers import KaryawanSerializer
+from karyawan.serializers import KaryawanSerializer, PortalKaryawanSerializer
 from karyawan.services import (
     import_base_gaji_csv,
     import_gaji_bulanan_csv,
+    import_gaji_karyawan_update_csv,
     import_karyawan_update_csv,
     import_karyawan_upsert_csv,
 )
@@ -223,6 +225,121 @@ class AdminWageImportApiTests(TestCase):
         self.assertEqual(Karyawan.objects.get(pk='0000003').gaji_bulanan, 0)
         self.assertEqual(Karyawan.objects.get(pk='1000001').base_gaji, 0)
 
+    def test_update_import_requires_password_and_sets_target_gaji(self):
+        locked = APIClient()
+        locked.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+        denied_upload = SimpleUploadedFile(
+            'update.csv',
+            b'karyawan_id,target_gaji\n1000001,1500000\n',
+            content_type='text/csv',
+        )
+        denied = locked.post(
+            '/api/admin/gaji/import-update/',
+            {'file': denied_upload},
+            format='multipart',
+        )
+        self.assertEqual(denied.status_code, 403)
+        self.assertIsNone(Karyawan.objects.get(pk='1000001').target_gaji)
+
+        upload = SimpleUploadedFile(
+            'update.csv',
+            b'karyawan_id,target_gaji,bca_transfer\n1000001,1500000,250000\n',
+            content_type='text/csv',
+        )
+        response = self.client.post(
+            '/api/admin/gaji/import-update/',
+            {'file': upload},
+            format='multipart',
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.data['ok'])
+        self.assertEqual(response.data['updated'], 1)
+        staff = Karyawan.objects.get(pk='1000001')
+        self.assertEqual(staff.target_gaji, 1_500_000)
+        self.assertEqual(staff.bca_transfer, 250_000)
+
+
+class GajiKaryawanUpdateCsvTests(TestCase):
+    def setUp(self):
+        self.staff = Karyawan.objects.create(
+            karyawan_id='1000001',
+            nama='Budi',
+            level=1,
+            base_gaji=100,
+            gaji_bulanan=200,
+            target_gaji=300,
+            bca_transfer=400,
+            absensi_dihitung=True,
+            lembur_dibayar=False,
+        )
+        self.other = Karyawan.objects.create(
+            karyawan_id='1000002',
+            nama='Ani',
+            level=1,
+            base_gaji=9,
+            gaji_bulanan=9,
+            target_gaji=9,
+            bca_transfer=9,
+            absensi_dihitung=True,
+            lembur_dibayar=True,
+        )
+
+    def _upload(self, body: str):
+        return import_gaji_karyawan_update_csv(
+            SimpleUploadedFile('update.csv', body.encode(), content_type='text/csv')
+        )
+
+    def test_optional_columns_update_only_included_fields(self):
+        result = self._upload(
+            'karyawan_id,target_gaji,lembur_dibayar\n1000001,7000000,ya\n'
+        )
+        self.assertTrue(result.ok, result.errors)
+        self.staff.refresh_from_db()
+        self.other.refresh_from_db()
+        self.assertEqual(self.staff.target_gaji, 7_000_000)
+        self.assertTrue(self.staff.lembur_dibayar)
+        self.assertEqual(self.staff.base_gaji, 100)
+        self.assertEqual(self.staff.gaji_bulanan, 200)
+        self.assertEqual(self.staff.bca_transfer, 400)
+        self.assertTrue(self.staff.absensi_dihitung)
+        self.assertEqual(self.other.target_gaji, 9)
+        self.assertTrue(self.other.lembur_dibayar)
+
+    def test_empty_nullable_cells_clear_and_booleans_accept_aliases(self):
+        result = self._upload(
+            'karyawan_id,target_gaji,bca_transfer,absensi_dihitung,lembur_dibayar\n'
+            '1000001,,,tidak,1\n'
+        )
+        self.assertTrue(result.ok, result.errors)
+        self.staff.refresh_from_db()
+        self.assertIsNone(self.staff.target_gaji)
+        self.assertIsNone(self.staff.bca_transfer)
+        self.assertFalse(self.staff.absensi_dihitung)
+        self.assertTrue(self.staff.lembur_dibayar)
+        self.assertEqual(self.staff.base_gaji, 100)
+
+    def test_empty_base_gaji_and_unknown_id_write_nothing(self):
+        empty = self._upload('karyawan_id,base_gaji\n1000001,\n')
+        self.assertFalse(empty.ok)
+        self.assertIn('wajib', empty.errors[0].message)
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.base_gaji, 100)
+
+        unknown = self._upload(
+            'karyawan_id,gaji_bulanan\n9999999,10\n1000001,20\n'
+        )
+        self.assertFalse(unknown.ok)
+        self.assertIn('tidak ditemukan', unknown.errors[0].message)
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.gaji_bulanan, 200)
+
+    def test_bad_boolean_writes_nothing(self):
+        result = self._upload('karyawan_id,absensi_dihitung\n1000001,maybe\n')
+        self.assertFalse(result.ok)
+        self.assertIn('ya atau tidak', result.errors[0].message)
+        self.staff.refresh_from_db()
+        self.assertTrue(self.staff.absensi_dihitung)
+
 
 class KaryawanUpdateStatusCsvTests(TestCase):
     def setUp(self):
@@ -249,6 +366,15 @@ class KaryawanUpdateStatusCsvTests(TestCase):
             content_type='text/csv',
         )
         return import_karyawan_update_csv(upload)
+
+    def test_master_update_rejects_hidden_wage_columns(self):
+        result = self._upload('karyawan_id,target_gaji,bca_transfer\n1000001,1,2\n')
+        self.assertFalse(result.ok)
+        self.assertIn('target_gaji', result.errors[0].message)
+        self.staff.refresh_from_db()
+        self.assertEqual(self.staff.base_gaji, 4_500_000)
+        self.assertIsNone(self.staff.target_gaji)
+        self.assertIsNone(self.staff.bca_transfer)
 
     def test_updates_status_k_tk_for_that_employee_only(self):
         result = self._upload('karyawan_id,status_k_tk\n1000001,k2\n')
@@ -365,10 +491,17 @@ class KaryawanUpdateStatusCsvTests(TestCase):
         self.assertEqual(row['status_k_tk'], 'TK')
         self.assertNotIn('base_gaji', row)
         self.assertNotIn('gaji_bulanan', row)
+        self.assertNotIn('target_gaji', row)
+        self.assertNotIn('bca_transfer', row)
         self.assertNotIn('absensi_dihitung', row)
         self.assertNotIn('lembur_dibayar', row)
         self.assertNotIn('jumlah_anak', row)
         self.assertNotIn('nikah', row)
+        self.assertIn('target_gaji', KaryawanAdmin.exclude)
+        self.assertIn('bca_transfer', KaryawanAdmin.exclude)
+        portal = PortalKaryawanSerializer(self.staff).data
+        self.assertNotIn('target_gaji', portal)
+        self.assertNotIn('bca_transfer', portal)
 
 
 class KaryawanActiveTests(TestCase):
@@ -495,6 +628,8 @@ class KaryawanUpsertCsvTests(TestCase):
         self.assertEqual(serialized['no_kpj'], '10000740943')
         self.assertNotIn('base_gaji', serialized)
         self.assertNotIn('gaji_bulanan', serialized)
+        self.assertNotIn('target_gaji', serialized)
+        self.assertNotIn('bca_transfer', serialized)
         self.assertNotIn('absensi_dihitung', serialized)
         self.assertNotIn('lembur_dibayar', serialized)
 
@@ -514,6 +649,8 @@ class KaryawanUpsertCsvTests(TestCase):
 
         suparni.base_gaji = 12_345
         suparni.gaji_bulanan = 67_890
+        suparni.target_gaji = 111
+        suparni.bca_transfer = 222
         suparni.absensi_dihitung = False
         suparni.lembur_dibayar = True
         suparni.cuti_tahunan = 3
@@ -522,6 +659,8 @@ class KaryawanUpsertCsvTests(TestCase):
             update_fields=[
                 'base_gaji',
                 'gaji_bulanan',
+                'target_gaji',
+                'bca_transfer',
                 'absensi_dihitung',
                 'lembur_dibayar',
                 'cuti_tahunan',
@@ -542,6 +681,8 @@ class KaryawanUpsertCsvTests(TestCase):
         suparni.refresh_from_db()
         self.assertEqual(suparni.base_gaji, 12_345)
         self.assertEqual(suparni.gaji_bulanan, 67_890)
+        self.assertEqual(suparni.target_gaji, 111)
+        self.assertEqual(suparni.bca_transfer, 222)
         self.assertFalse(suparni.absensi_dihitung)
         self.assertTrue(suparni.lembur_dibayar)
         self.assertEqual(suparni.cuti_tahunan, 3)

@@ -1,10 +1,11 @@
-import csv
 import io
 from datetime import date, time, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
 from django.test import TestCase
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
@@ -188,7 +189,7 @@ class ProsesGajiCalculationTests(TestCase):
         self.assertEqual(gaji.jam_lembur, 2)
         self.assertEqual(gaji.jam_diakumulasi, 0)
         self.assertEqual(gaji.hari_sakit, 2)
-        self.assertEqual(gaji.hari_cuti, 1)
+        self.assertEqual(gaji.hari_cuti_tahunan, 1)
         self.assertEqual(gaji.hari_cuti_tambahan, 2)
         self.assertEqual(gaji.hari_off, 1)
         self.assertEqual(gaji.hari_dinas, 2)
@@ -212,6 +213,8 @@ class ProsesGajiCalculationTests(TestCase):
         self.assertEqual(gaji.persentase_pph21, Decimal('0.75'))
         self.assertEqual(gaji.pot_pph21, 46_095)
         self.assertEqual(gaji.total_gaji, 5_715_572)
+        self.assertEqual(gaji.gaji_tambahan, 0)
+        self.assertIsNone(gaji.bca_transfer)
         self.assertEqual(
             gaji.total_gaji,
             gaji.net_penghasilan
@@ -219,6 +222,36 @@ class ProsesGajiCalculationTests(TestCase):
             - gaji.pot_pph21
             - gaji.total_pot_bpjs,
         )
+
+    def test_gaji_tambahan_is_clamped_and_left_out_of_total(self):
+        baseline = write_gaji(self.employee, self.periode)
+        total = baseline.total_gaji
+        net = baseline.net_penghasilan
+
+        self.employee.target_gaji = 6_500_000
+        self.employee.bca_transfer = 1_250_000
+        self.employee.save(update_fields=['target_gaji', 'bca_transfer'])
+        above = write_gaji(self.employee, self.periode)
+        self.assertEqual(above.gaji_tambahan, 500_000)
+        self.assertEqual(above.bca_transfer, 1_250_000)
+        self.assertEqual(above.total_gaji, total)
+        self.assertEqual(above.net_penghasilan, net)
+
+        self.employee.target_gaji = 0
+        self.employee.save(update_fields=['target_gaji'])
+        zero_target = write_gaji(self.employee, self.periode)
+        self.assertEqual(zero_target.gaji_tambahan, 0)
+        self.assertEqual(zero_target.bca_transfer, 1_250_000)
+        self.assertEqual(zero_target.total_gaji, total)
+
+        self.employee.target_gaji = 1_000_000
+        self.employee.bca_transfer = None
+        self.employee.save(update_fields=['target_gaji', 'bca_transfer'])
+        below = write_gaji(self.employee, self.periode)
+        self.assertEqual(below.gaji_tambahan, 0)
+        self.assertIsNone(below.bca_transfer)
+        self.assertEqual(below.total_gaji, total)
+        self.assertEqual(below.net_penghasilan, net)
 
     def test_rerun_deletes_previous_rows_for_that_month(self):
         other_month = write_gaji(self.employee, date(2026, 10, 1))
@@ -526,6 +559,75 @@ class ProsesGajiCalculationTests(TestCase):
         )
         self.assertEqual(october_gaji.jam_diakumulasi, 1)
 
+    def test_sixty_late_minutes_remove_one_annual_leave_once(self):
+        self.employee.cuti_tahunan = 5
+        self.employee.save(update_fields=['cuti_tahunan'])
+        late = Kehadiran.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 11, 3),
+            status=StatusKehadiran.HADIR,
+            menit_telat=59,
+        )
+
+        below = write_gaji(self.employee, self.periode)
+        self.employee.refresh_from_db()
+        self.assertEqual(below.total_menit_telat, 59)
+        self.assertEqual(below.cuti_tahunan_dikurangi, 0)
+        self.assertEqual(self.employee.cuti_tahunan, 5)
+
+        late.menit_telat = 60
+        late.save(update_fields=['menit_telat'])
+        at_threshold = write_gaji(self.employee, self.periode)
+        self.employee.refresh_from_db()
+        self.assertEqual(at_threshold.cuti_tahunan_dikurangi, 1)
+        self.assertEqual(self.employee.cuti_tahunan, 4)
+
+        again = write_gaji(self.employee, self.periode)
+        self.employee.refresh_from_db()
+        self.assertEqual(again.cuti_tahunan_dikurangi, 1)
+        self.assertEqual(self.employee.cuti_tahunan, 4)
+
+        late.menit_telat = 120
+        late.save(update_fields=['menit_telat'])
+        still_one = write_gaji(self.employee, self.periode)
+        self.employee.refresh_from_db()
+        self.assertEqual(still_one.total_menit_telat, 120)
+        self.assertEqual(still_one.cuti_tahunan_dikurangi, 1)
+        self.assertEqual(self.employee.cuti_tahunan, 4)
+
+        late.menit_telat = 59
+        late.save(update_fields=['menit_telat'])
+        restored = write_gaji(self.employee, self.periode)
+        self.employee.refresh_from_db()
+        self.assertEqual(restored.cuti_tahunan_dikurangi, 0)
+        self.assertEqual(self.employee.cuti_tahunan, 5)
+
+        Kehadiran.objects.create(
+            karyawan=self.employee,
+            tanggal=date(2026, 10, 5),
+            status=StatusKehadiran.HADIR,
+            menit_telat=60,
+        )
+        october = write_gaji(self.employee, date(2026, 10, 1))
+        self.employee.refresh_from_db()
+        self.assertEqual(october.cuti_tahunan_dikurangi, 1)
+        self.assertEqual(self.employee.cuti_tahunan, 4)
+        write_gaji(self.employee, self.periode)
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.cuti_tahunan, 4)
+
+        self.employee.cuti_tahunan = 0
+        self.employee.save(update_fields=['cuti_tahunan'])
+        late.menit_telat = 60
+        late.save(update_fields=['menit_telat'])
+        empty = write_gaji(self.employee, self.periode)
+        self.employee.refresh_from_db()
+        self.assertEqual(empty.cuti_tahunan_dikurangi, 0)
+        self.assertEqual(self.employee.cuti_tahunan, 0)
+        write_gaji(self.employee, self.periode)
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.cuti_tahunan, 0)
+
 
 class ProsesGajiJobTests(TestCase):
     def setUp(self):
@@ -719,7 +821,7 @@ class ProsesGajiApiTests(TestCase):
         missing = self.client.get('/api/admin/gaji/proses/9999/')
         self.assertEqual(missing.status_code, 404)
 
-    def test_export_csv_lists_every_employee_for_the_month(self):
+    def test_export_bank_transfer_lists_every_employee_for_the_month(self):
         empty = self.client.get('/api/admin/gaji/export/', {'bulan': '2026-11'})
         self.assertEqual(empty.status_code, 404)
         self.assertIn('Belum ada gaji', empty.data['detail'])
@@ -728,7 +830,24 @@ class ProsesGajiApiTests(TestCase):
         self.assertEqual(ready.status_code, 200)
         self.assertEqual(ready.data, {'bulan': '2026-11', 'count': 0})
 
-        write_gaji(self.admin, date(2026, 11, 1))
+        self.admin.no_bpjs = '   '
+        self.admin.jabatan = 'HR'
+        self.admin.gaji_bulanan = 1_000_000
+        self.admin.target_gaji = 1_250_000
+        self.admin.tanggal_awal = date(2020, 1, 15)
+        self.admin.tanggal_keluar = date(2024, 1, 14)
+        self.admin.save()
+        self.employee.jabatan = 'Staff'
+        self.employee.percobaan_jabatan = True
+        self.employee.tanggal_awal = date(2018, 6, 1)
+        self.employee.tanggal_lahir = date(1990, 12, 1)
+        self.employee.no_bpjs = '1234567890123456'
+        self.employee.no_kpj = '10000740943'
+        self.employee.target_gaji = 2_000_000
+        self.employee.status_k_tk = StatusKTk.K1
+        self.employee.save()
+
+        admin_gaji = write_gaji(self.admin, date(2026, 11, 1))
         budi = write_gaji(self.employee, date(2026, 11, 1))
         budi.total_gaji = 123_456
         budi.save(update_fields=['total_gaji'])
@@ -739,19 +858,166 @@ class ProsesGajiApiTests(TestCase):
 
         response = self.client.get('/api/admin/gaji/export/', {'bulan': '2026-11'})
         self.assertEqual(response.status_code, 200)
-        self.assertIn('text/csv', response['Content-Type'])
-        self.assertIn('gaji-2026-11.csv', response['Content-Disposition'])
-        rows = list(csv.DictReader(io.StringIO(response.content.decode('utf-8-sig'))))
+        self.assertIn('spreadsheetml.sheet', response['Content-Type'])
+        self.assertIn(
+            'Bank-Transfer-11-2026.xlsx', response['Content-Disposition']
+        )
+        wb = load_workbook(io.BytesIO(response.content))
+        ws = wb['Bank Transfer']
+        self.assertEqual(ws.max_row, 4)
+        self.assertEqual(ws.freeze_panes, 'A3')
+        self.assertEqual(ws.auto_filter.ref, 'A2:AQ4')
         self.assertEqual(
-            [row['karyawan_id'] for row in rows],
+            [ws.cell(row, 1).value for row in range(3, 5)],
             ['0000003', '1000001'],
         )
-        self.assertEqual(rows[0]['nama'], 'Admin')
-        self.assertEqual(rows[1]['nama'], 'Budi')
-        self.assertEqual(rows[1]['periode'], '2026-11')
-        self.assertEqual(rows[1]['total_gaji'], '123456')
-        self.assertEqual(rows[1]['net_penghasilan'], str(budi.net_penghasilan))
-        self.assertEqual(rows[1]['ter_status'], budi.ter_status)
+
+        before = [
+            'ID Karyawan',
+            'Nama',
+            'Level',
+            'Jabatan',
+            'Percobaan Jabatan',
+            'Lama Kerja',
+            'Umur',
+            'No. BPJS',
+            'No. KPJ',
+            'Hadir',
+            'Sakit',
+            'Cuti Tahunan',
+            'Cuti Tambahan',
+            'Alpa',
+            'Jam Lembur',
+            'Hari Lembur',
+            'Lembur Perjalanan Dinas',
+            'Gaji BPJS',
+        ]
+        potongan = ['Kesehatan', 'JHT', 'JP']
+        beban = ['Kesehatan', 'JHT', 'JP', 'JKM', 'JKK']
+        after = [
+            'Gaji Bulanan',
+            'Gaji Lembur',
+            'Tunjangan Obat',
+            'Tunjangan Dinas',
+            'Potongan Alpa',
+            'Koreksi Absensi',
+            'Koreksi Admin',
+            'Uang Terima Kasih',
+            'Net Penghasilan dikena Pajak',
+            'Status K/TK',
+            'Status TER',
+            'Persentase PPH21',
+            'Potongan PPH21',
+            'Total Gaji',
+            'Gaji Tambahan',
+            'Transfer PT',
+            'Transfer HO',
+        ]
+        row1 = (
+            before
+            + ['Potongan BPJS', None, None]
+            + ['Beban BPJS Perusahaan', None, None, None, None]
+            + after
+        )
+        row2 = (
+            [None] * len(before)
+            + potongan
+            + beban
+            + [None] * len(after)
+        )
+        self.assertEqual(
+            [ws.cell(1, col).value for col in range(1, 44)],
+            row1,
+        )
+        self.assertEqual(
+            [ws.cell(2, col).value for col in range(1, 44)],
+            row2,
+        )
+        merged = {str(item) for item in ws.merged_cells.ranges}
+        vertical = [
+            f'{get_column_letter(col)}1:{get_column_letter(col)}2'
+            for col in list(range(1, len(before) + 1))
+            + list(range(len(before) + len(potongan) + len(beban) + 1, 44))
+        ]
+        self.assertEqual(merged, set(vertical) | {'S1:U1', 'V1:Z1'})
+        self.assertEqual(ws['A1'].alignment.horizontal, 'center')
+        self.assertEqual(ws['A1'].border.left.style, 'thin')
+        self.assertTrue(str(ws['A1'].fill.fgColor.rgb).endswith('D6DCE4'))
+        self.assertTrue(str(ws['S1'].fill.fgColor.rgb).endswith('F8CBAD'))
+        self.assertTrue(str(ws['V1'].fill.fgColor.rgb).endswith('C6EFCE'))
+
+        columns = []
+        for col in range(1, 44):
+            top = ws.cell(1, col).value
+            sub = ws.cell(2, col).value
+            if sub is None:
+                columns.append((None, top))
+                continue
+            group = top
+            look = col
+            while group is None:
+                look -= 1
+                group = ws.cell(1, look).value
+            columns.append((group, sub))
+
+        def row_for(karyawan_id):
+            for row in range(3, 5):
+                if ws.cell(row, 1).value == karyawan_id:
+                    return {
+                        columns[col - 1]: ws.cell(row, col).value
+                        for col in range(1, 44)
+                    }
+            self.fail(karyawan_id)
+
+        admin = row_for('0000003')
+        staff = row_for('1000001')
+        self.assertEqual(admin[(None, 'Nama')], 'Admin')
+        self.assertEqual(admin[(None, 'Level')], 8)
+        self.assertEqual(admin[(None, 'Jabatan')], 'HR')
+        self.assertEqual(admin[(None, 'Percobaan Jabatan')], 'Tidak')
+        self.assertEqual(admin[(None, 'Lama Kerja')], 3)
+        self.assertIsNone(admin[(None, 'Umur')])
+        self.assertIsNone(admin[(None, 'No. BPJS')])
+        self.assertEqual(admin[(None, 'Gaji Tambahan')], 250_000)
+        self.assertGreater(admin_gaji.total_gaji, 0)
+        self.assertEqual(admin[(None, 'Transfer PT')], 0)
+        self.assertEqual(
+            admin[(None, 'Transfer HO')],
+            admin_gaji.total_gaji + 250_000,
+        )
+        self.assertEqual(ws['A3'].number_format, '@')
+
+        self.assertEqual(staff[(None, 'Nama')], 'Budi')
+        self.assertEqual(staff[(None, 'Jabatan')], 'Staff')
+        self.assertEqual(staff[(None, 'Percobaan Jabatan')], 'Ya')
+        self.assertEqual(staff[(None, 'Lama Kerja')], 8)
+        self.assertEqual(staff[(None, 'Umur')], 35)
+        self.assertEqual(staff[(None, 'No. BPJS')], '1234567890123456')
+        self.assertEqual(staff[(None, 'No. KPJ')], '10000740943')
+        self.assertEqual(staff[(None, 'Lembur Perjalanan Dinas')], budi.hari_dinas)
+        self.assertEqual(
+            staff[('Potongan BPJS', 'Kesehatan')], budi.pot_bpjs_kesehatan
+        )
+        self.assertEqual(staff[('Potongan BPJS', 'JHT')], budi.pot_bpjs_jht)
+        self.assertEqual(staff[('Potongan BPJS', 'JP')], budi.pot_bpjs_jp)
+        self.assertEqual(
+            staff[('Beban BPJS Perusahaan', 'JKK')], budi.beban_bjps_jkk
+        )
+        self.assertEqual(
+            staff[(None, 'Net Penghasilan dikena Pajak')], budi.net_penghasilan
+        )
+        self.assertEqual(staff[(None, 'Status K/TK')], StatusKTk.K1)
+        self.assertEqual(staff[(None, 'Status TER')], budi.ter_status)
+        self.assertEqual(staff[(None, 'Total Gaji')], 123_456)
+        self.assertEqual(staff[(None, 'Gaji Tambahan')], 2_000_000)
+        self.assertEqual(staff[(None, 'Transfer PT')], 123_456)
+        self.assertEqual(staff[(None, 'Transfer HO')], 2_000_000)
+        total_col = columns.index((None, 'Total Gaji')) + 1
+        percent_col = columns.index((None, 'Persentase PPH21')) + 1
+        self.assertEqual(
+            ws.cell(4, total_col).number_format, '#,##0'
+        )
+        self.assertEqual(ws.cell(4, percent_col).number_format, '0.00')
 
         bad = self.client.get('/api/admin/gaji/export/', {'bulan': 'November'})
         self.assertEqual(bad.status_code, 400)
@@ -768,6 +1034,8 @@ class ProsesGajiApiTests(TestCase):
         self.employee.no_bpjs = ''
         self.employee.base_gaji = 4_500_000
         self.employee.gaji_bulanan = 6_000_000
+        self.employee.target_gaji = 8_000_000
+        self.employee.bca_transfer = 100_000
         self.employee.lembur_dibayar = True
         self.employee.save()
 
@@ -789,6 +1057,8 @@ class ProsesGajiApiTests(TestCase):
                     'no_bpjs': '111',
                     'base_gaji': 1_000_000,
                     'gaji_bulanan': 2_000_000,
+                    'target_gaji': None,
+                    'bca_transfer': None,
                     'absensi_dihitung': True,
                     'lembur_dibayar': False,
                 },
@@ -800,6 +1070,8 @@ class ProsesGajiApiTests(TestCase):
                     'no_bpjs': '',
                     'base_gaji': 4_500_000,
                     'gaji_bulanan': 6_000_000,
+                    'target_gaji': 8_000_000,
+                    'bca_transfer': 100_000,
                     'absensi_dihitung': True,
                     'lembur_dibayar': True,
                 },
@@ -910,6 +1182,35 @@ class ProsesGajiApiTests(TestCase):
         self.assertEqual(boundaries.data['base_gaji'], 0)
         self.assertEqual(boundaries.data['gaji_bulanan'], 0)
 
+    def test_patch_sets_and_clears_nullable_wage_fields(self):
+        self.employee.target_gaji = 1
+        self.employee.bca_transfer = 2
+        self.employee.save(update_fields=['target_gaji', 'bca_transfer'])
+
+        response = self.client.patch(
+            '/api/admin/gaji/karyawan/1000001/',
+            {'target_gaji': 9_000_000, 'bca_transfer': None},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['target_gaji'], 9_000_000)
+        self.assertIsNone(response.data['bca_transfer'])
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.target_gaji, 9_000_000)
+        self.assertIsNone(self.employee.bca_transfer)
+
+        cleared = self.client.patch(
+            '/api/admin/gaji/karyawan/1000001/',
+            {'target_gaji': None},
+            format='json',
+        )
+        self.assertEqual(cleared.status_code, 200)
+        self.assertIsNone(cleared.data['target_gaji'])
+        self.assertIsNone(cleared.data['bca_transfer'])
+        self.employee.refresh_from_db()
+        self.assertIsNone(self.employee.target_gaji)
+        self.assertIsNone(self.employee.bca_transfer)
+
     def test_patch_rejects_invalid_gaji_karyawan_fields(self):
         self.employee.jabatan = 'Staff'
         self.employee.base_gaji = 4_500_000
@@ -931,6 +1232,12 @@ class ProsesGajiApiTests(TestCase):
             {'base_gaji': 1.5},
             {'base_gaji': 1 << 63},
             {'gaji_bulanan': -5},
+            {'target_gaji': -1},
+            {'target_gaji': True},
+            {'target_gaji': 1.5},
+            {'target_gaji': 1 << 63},
+            {'bca_transfer': -1},
+            {'bca_transfer': '100'},
             {'absensi_dihitung': 'false'},
             {'lembur_dibayar': 'false'},
             {'lembur_dibayar': 1},

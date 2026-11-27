@@ -97,6 +97,11 @@ class GajiDiagnostikExportTests(TestCase):
         self.assertEqual(row['umur'], 36)
         self.assertEqual(row['base_gaji_bpjs'], 4_500_000)
         self.assertEqual(row['gaji_bulanan'], 6_000_000)
+        self.assertEqual(row['gaji_tambahan'], 0)
+        self.assertIsNone(row['bca_transfer'])
+        self.assertNotIn('gaji_tambahan', row['net_exact'])
+        self.assertNotIn('gaji_tambahan', row['total_exact'])
+        self.assertNotIn('bca_transfer', row['total_gaji'])
 
         admin = self._row_by_id(ws, '0000003')
         self.assertEqual(admin['has_bpjs'], 0)

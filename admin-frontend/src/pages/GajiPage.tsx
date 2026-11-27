@@ -10,6 +10,7 @@ import {
 import { AbsensiDihitungTab } from '../tabs/AbsensiDihitungTab'
 import { GajiKaryawanTab } from '../tabs/GajiKaryawanTab'
 import { ProcessGajiTab } from '../tabs/ProcessGajiTab'
+import { UpdateGajiKaryawanTab } from '../tabs/UpdateGajiKaryawanTab'
 import { ImportBaseGajiTab, ImportGajiBulananTab } from '../tabs/WageCsvImportTab'
 
 export default function GajiPage() {
@@ -62,6 +63,11 @@ export default function GajiPage() {
               key: 'bulanan',
               label: 'Import CSV Gaji Bulanan',
               children: <ImportGajiBulananTab />,
+            },
+            {
+              key: 'update',
+              label: 'Update via CSV',
+              children: <UpdateGajiKaryawanTab />,
             },
           ]}
         />
